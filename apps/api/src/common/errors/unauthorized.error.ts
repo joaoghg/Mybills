@@ -1,6 +1,7 @@
-export class UnauthorizedError extends Error {
-  constructor(message: string = 'Unauthorized') {
-    super(message);
-    this.name = 'unauthorized';
+import { DomainError, DomainErrorParams } from './domain-error';
+
+export class UnauthorizedError extends DomainError {
+  constructor(params?: DomainErrorParams | string) {
+    super('unauthorized', params ?? 'Unauthorized');
   }
 }

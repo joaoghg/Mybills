@@ -1,6 +1,7 @@
-export class AlreadyExistsError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'already_exists';
+import { DomainError, DomainErrorParams } from './domain-error';
+
+export class AlreadyExistsError extends DomainError {
+  constructor(params?: DomainErrorParams | string) {
+    super('already_exists', params);
   }
 }

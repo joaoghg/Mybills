@@ -1,6 +1,7 @@
-export class NotFoundError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'not_found';
+import { DomainError, DomainErrorParams } from './domain-error';
+
+export class NotFoundError extends DomainError {
+  constructor(params?: DomainErrorParams | string) {
+    super('not_found', params);
   }
 }

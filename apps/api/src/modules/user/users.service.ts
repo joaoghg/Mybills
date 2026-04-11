@@ -21,7 +21,11 @@ export class UsersService {
     const user = await this.repository.findById(userId);
 
     if (!user) {
-      throw new NotFoundError('User not found');
+      throw new NotFoundError({
+        code: 'users.user_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'user' }
+      });
     }
 
     return user;
@@ -58,7 +62,11 @@ export class UsersService {
       const existingUser = await this.repository.findByEmail(normalizedEmail);
 
       if (existingUser && existingUser.id !== userId) {
-        throw new AlreadyExistsError('Email already registered');
+        throw new AlreadyExistsError({
+          code: 'users.email_already_registered',
+          i18nKey: 'errors.conflict.already_exists_field',
+          i18nArgs: { field: 'email' }
+        });
       }
     }
 
@@ -77,27 +85,42 @@ export class UsersService {
 
   private validateUserId(userId: string): void {
     if (!userId || typeof userId !== 'string') {
-      throw new InvalidArgumentError('Invalid user id');
+      throw new InvalidArgumentError({
+        code: 'users.invalid_user_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'user_id' }
+      });
     }
   }
 
   private validateUpdateData(data: UpdateUserData): void {
     if (data.name === undefined && data.email === undefined) {
-      throw new InvalidArgumentError('At least one field must be provided');
+      throw new InvalidArgumentError({
+        code: 'users.at_least_one_field_required',
+        i18nKey: 'errors.validation.at_least_one_field_required'
+      });
     }
 
     if (
       data.name !== undefined &&
       (!data.name || typeof data.name !== 'string' || !data.name.trim())
     ) {
-      throw new InvalidArgumentError('Invalid user name');
+      throw new InvalidArgumentError({
+        code: 'users.invalid_user_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'user_name' }
+      });
     }
 
     if (
       data.email !== undefined &&
       (!data.email || typeof data.email !== 'string' || !data.email.trim())
     ) {
-      throw new InvalidArgumentError('Invalid email');
+      throw new InvalidArgumentError({
+        code: 'users.invalid_email',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'email' }
+      });
     }
   }
 }

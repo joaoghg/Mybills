@@ -27,7 +27,11 @@ export class CreditCardsService {
     const creditCard = await this.repository.findByIdAndUserId(creditCardId, userId);
 
     if (!creditCard) {
-      throw new NotFoundError('Credit card not found');
+      throw new NotFoundError({
+        code: 'credit_cards.credit_card_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'credit_card' }
+      });
     }
 
     return creditCard;
@@ -36,10 +40,17 @@ export class CreditCardsService {
   async create(data: CreateCreditCardData): Promise<CreditCard> {
     this.validateCreateData(data);
 
-    const accountExists = await this.accountsService.accountExistsForUser(data.accountId, data.userId);
+    const accountExists = await this.accountsService.accountExistsForUser(
+      data.accountId,
+      data.userId
+    );
 
     if (!accountExists) {
-      throw new NotFoundError('Account not found');
+      throw new NotFoundError({
+        code: 'credit_cards.account_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'account' }
+      });
     }
 
     return await this.repository.create(data);
@@ -60,7 +71,11 @@ export class CreditCardsService {
       const accountExists = await this.accountsService.accountExistsForUser(data.accountId, userId);
 
       if (!accountExists) {
-        throw new NotFoundError('Account not found');
+        throw new NotFoundError({
+          code: 'credit_cards.account_not_found',
+          i18nKey: 'errors.not_found.resource',
+          i18nArgs: { resource: 'account' }
+        });
       }
     }
 
@@ -86,19 +101,35 @@ export class CreditCardsService {
     this.validateAccountId(data.accountId);
 
     if (!data.name || typeof data.name !== 'string') {
-      throw new InvalidArgumentError('Invalid credit card name');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_name' }
+      });
     }
 
     if (!Number.isInteger(data.limit)) {
-      throw new InvalidArgumentError('Invalid credit card limit');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_limit',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_limit' }
+      });
     }
 
     if (!Number.isInteger(data.closingDay)) {
-      throw new InvalidArgumentError('Invalid credit card closing day');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_closing_day',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_closing_day' }
+      });
     }
 
     if (!Number.isInteger(data.dueDay)) {
-      throw new InvalidArgumentError('Invalid credit card due day');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_due_day',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_due_day' }
+      });
     }
   }
 
@@ -110,7 +141,10 @@ export class CreditCardsService {
       data.closingDay === undefined &&
       data.dueDay === undefined
     ) {
-      throw new InvalidArgumentError('At least one field must be provided');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.at_least_one_field_required',
+        i18nKey: 'errors.validation.at_least_one_field_required'
+      });
     }
 
     if (data.accountId !== undefined) {
@@ -118,37 +152,65 @@ export class CreditCardsService {
     }
 
     if (data.name !== undefined && (!data.name || typeof data.name !== 'string')) {
-      throw new InvalidArgumentError('Invalid credit card name');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_name' }
+      });
     }
 
     if (data.limit !== undefined && !Number.isInteger(data.limit)) {
-      throw new InvalidArgumentError('Invalid credit card limit');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_limit',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_limit' }
+      });
     }
 
     if (data.closingDay !== undefined && !Number.isInteger(data.closingDay)) {
-      throw new InvalidArgumentError('Invalid credit card closing day');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_closing_day',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_closing_day' }
+      });
     }
 
     if (data.dueDay !== undefined && !Number.isInteger(data.dueDay)) {
-      throw new InvalidArgumentError('Invalid credit card due day');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_due_day',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_due_day' }
+      });
     }
   }
 
   private validateCreditCardId(creditCardId: string): void {
     if (!creditCardId || typeof creditCardId !== 'string') {
-      throw new InvalidArgumentError('Invalid credit card id');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_credit_card_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_id' }
+      });
     }
   }
 
   private validateAccountId(accountId: string): void {
     if (!accountId || typeof accountId !== 'string') {
-      throw new InvalidArgumentError('Invalid account id');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_account_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'account_id' }
+      });
     }
   }
 
   private validateUserId(userId: string): void {
     if (!userId || typeof userId !== 'string') {
-      throw new InvalidArgumentError('Invalid user id');
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_user_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'user_id' }
+      });
     }
   }
 }

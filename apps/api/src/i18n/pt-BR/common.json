@@ -1,5 +1,36 @@
 {
   "common": {
     "internal_server_error": "Erro interno do servidor"
+  },
+  "errors": {
+    "database": {
+      "generic": "Erro de banco de dados",
+      "conflict": "Conflito de dados: o registro já existe (campo(s): {fields})",
+      "record_not_found": "Registro não encontrado no banco de dados.",
+      "foreign_key_constraint": "Falha de chave estrangeira no campo: {field}",
+      "with_code": "Erro de banco de dados (Código: {code})"
+    },
+    "not_found": {
+      "resource": "Recurso não encontrado: {resource}"
+    },
+    "accounts": {
+      "insufficient_balance": "Saldo insuficiente na conta",
+      "transfer_failed": "A transferência não pôde ser concluída"
+    },
+    "categories": {
+      "category_already_exists": "Categoria já existe"
+    },
+    "auth": {
+      "invalid_credentials": "E-mail ou senha inválidos",
+      "invalid_refresh_token": "Refresh token inválido"
+    },
+    "validation": {
+      "invalid_field": "Campo inválido: {field}",
+      "at_least_one_field_required": "Pelo menos um campo deve ser informado",
+      "source_and_destination_must_differ": "Origem e destino devem ser diferentes"
+    },
+    "conflict": {
+      "already_exists_field": "Já existe um registro para o campo: {field}"
+    }
   }
 }
