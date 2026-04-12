@@ -109,7 +109,7 @@ describe('Auth (e2e)', () => {
 
     expect(duplicateResponse.body).toMatchObject({
       statusCode: 409,
-      message: 'Email already registered',
+      code: 'auth.email_already_registered',
       error: 'already_exists'
     });
   });
@@ -126,9 +126,7 @@ describe('Auth (e2e)', () => {
       .send(invalidPayload)
       .expect(400);
 
-    expect(response.body).toMatchObject({
-      message: 'Validation failed'
-    });
+    expect(response.body.message).toEqual(expect.any(String));
     expect(response.body.errors).toBeDefined();
   });
 
@@ -187,7 +185,7 @@ describe('Auth (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 404,
-      message: 'Invalid email or password',
+      code: 'auth.invalid_credentials',
       error: 'not_found'
     });
   });
@@ -205,7 +203,7 @@ describe('Auth (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 404,
-      message: 'Invalid email or password',
+      code: 'auth.invalid_credentials',
       error: 'not_found'
     });
   });
@@ -219,9 +217,7 @@ describe('Auth (e2e)', () => {
       })
       .expect(400);
 
-    expect(response.body).toMatchObject({
-      message: 'Validation failed'
-    });
+    expect(response.body.message).toEqual(expect.any(String));
     expect(response.body.errors).toBeDefined();
   });
 
@@ -267,7 +263,8 @@ describe('Auth (e2e)', () => {
 
     expect(reusedRefreshResponse.body).toMatchObject({
       statusCode: 401,
-      message: 'Invalid refresh token'
+      code: 'auth.invalid_refresh_token',
+      error: 'unauthorized'
     });
   });
 
@@ -295,9 +292,15 @@ describe('Auth (e2e)', () => {
     const user = await usersService.findByEmail(payload.email);
     expectRefreshTokenCleared(user);
 
-    await request(app.getHttpServer())
+    const refreshAfterLogoutResponse = await request(app.getHttpServer())
       .post('/auth/refresh')
       .send({ refreshToken: loginOutput.refreshToken })
       .expect(401);
+
+    expect(refreshAfterLogoutResponse.body).toMatchObject({
+      statusCode: 401,
+      code: 'auth.invalid_refresh_token',
+      error: 'unauthorized'
+    });
   });
 });

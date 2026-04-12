@@ -182,7 +182,7 @@ describe('CreditCards (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 404,
-      message: 'Credit card not found',
+      code: 'credit_cards.credit_card_not_found',
       error: 'not_found'
     });
 
@@ -245,10 +245,16 @@ describe('CreditCards (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(204);
 
-    await request(app.getHttpServer())
+    const findDeletedCreditCardResponse = await request(app.getHttpServer())
       .get(`/credit-cards/${createResponse.body.id as string}`)
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(404);
+
+    expect(findDeletedCreditCardResponse.body).toMatchObject({
+      statusCode: 404,
+      code: 'credit_cards.credit_card_not_found',
+      error: 'not_found'
+    });
   });
 
   it('should validate credit card creation payload', async () => {
@@ -267,9 +273,7 @@ describe('CreditCards (e2e)', () => {
       })
       .expect(400);
 
-    expect(response.body).toMatchObject({
-      message: 'Validation failed'
-    });
+    expect(response.body.message).toEqual(expect.any(String));
     expect(response.body.errors).toBeDefined();
   });
 });

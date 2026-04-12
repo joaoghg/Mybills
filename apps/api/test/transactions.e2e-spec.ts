@@ -289,9 +289,15 @@ describe('Transactions (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(204);
 
-    await request(app.getHttpServer())
+    const response = await request(app.getHttpServer())
       .get(`/transactions/${created.body.id as string}`)
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(404);
+
+    expect(response.body).toMatchObject({
+      statusCode: 404,
+      code: 'transactions.transaction_not_found',
+      error: 'not_found'
+    });
   });
 });
