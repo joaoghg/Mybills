@@ -3,13 +3,13 @@ import { transactionTypeSchema } from './create-transaction-input.dto';
 
 export const updateTransactionInputSchema = z
   .object({
-    accountId: z.uuid('Invalid account id').nullable().optional(),
-    categoryId: z.uuid('Invalid category id').nullable().optional(),
-    cardId: z.uuid('Invalid credit card id').nullable().optional(),
-    description: z.string('Invalid description').trim().nullable().optional(),
+    accountId: z.uuid().nullable().optional(),
+    categoryId: z.uuid().nullable().optional(),
+    cardId: z.uuid().nullable().optional(),
+    description: z.string().trim().nullable().optional(),
     type: transactionTypeSchema.optional(),
-    amount: z.int('Invalid amount').positive('Amount must be greater than zero').optional(),
-    date: z.iso.date('Invalid date').optional()
+    amount: z.int().positive().optional(),
+    date: z.iso.date().optional()
   })
   .refine(
     (data) =>
@@ -19,10 +19,7 @@ export const updateTransactionInputSchema = z
       data.description !== undefined ||
       data.type !== undefined ||
       data.amount !== undefined ||
-      data.date !== undefined,
-    {
-      message: 'At least one field must be provided'
-    }
+      data.date !== undefined
   );
 
 export type UpdateTransactionInput = z.infer<typeof updateTransactionInputSchema>;
