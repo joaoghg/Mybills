@@ -2,10 +2,8 @@ import z from 'zod';
 
 export const updateCategoryInputSchema = z
   .object({
-    name: z.string('Invalid name').trim().min(1, 'Name is required').optional()
+    name: z.string().trim().min(1).optional()
   })
-  .refine((data) => data.name !== undefined, {
-    message: 'At least one field must be provided'
-  });
+  .refine((data) => data.name !== undefined);
 
 export type UpdateCategoryInput = z.infer<typeof updateCategoryInputSchema>;

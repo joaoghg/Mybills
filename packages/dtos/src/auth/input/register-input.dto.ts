@@ -1,14 +1,11 @@
 import z from 'zod';
 
 export const signUpInputSchema = z.object({
-  email: z.email('Invalid email'),
-  name: z.string('Invalid name'),
+  email: z.email(),
+  name: z.string(),
   password: z
-    .string('Invalid password')
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
-      'Password must contain at least 8 characters, one uppercase letter, one lowercase letter and one number'
-    )
+    .string()
+    .regex(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/)
 });
 
 export type SignUpInput = z.infer<typeof signUpInputSchema>;

@@ -134,7 +134,7 @@ describe('Accounts (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 404,
-      message: 'Account not found',
+      code: 'accounts.account_not_found',
       error: 'not_found'
     });
   });
@@ -228,7 +228,7 @@ describe('Accounts (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 400,
-      message: 'Insufficient account balance',
+      code: 'accounts.insufficient_balance',
       error: 'invalid_argument'
     });
   });
@@ -261,7 +261,7 @@ describe('Accounts (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 404,
-      message: 'Destination account not found',
+      code: 'accounts.destination_account_not_found',
       error: 'not_found'
     });
   });
@@ -280,10 +280,16 @@ describe('Accounts (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(204);
 
-    await request(app.getHttpServer())
+    const findDeletedAccountResponse = await request(app.getHttpServer())
       .get(`/accounts/${createResponse.body.id as string}`)
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(404);
+
+    expect(findDeletedAccountResponse.body).toMatchObject({
+      statusCode: 404,
+      code: 'accounts.account_not_found',
+      error: 'not_found'
+    });
   });
 
   it('should validate account creation payload', async () => {
@@ -298,9 +304,7 @@ describe('Accounts (e2e)', () => {
       })
       .expect(400);
 
-    expect(response.body).toMatchObject({
-      message: 'Validation failed'
-    });
+    expect(response.body.message).toEqual(expect.any(String));
     expect(response.body.errors).toBeDefined();
   });
 });

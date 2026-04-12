@@ -43,6 +43,15 @@ applyTo: 'apps/api/**/*.ts'
 - Use `ZodValidationPipe` for request validation.
 - Use `@Serialize(schema)` for response serialization.
 
+## Internationalization
+
+- Use `nestjs-i18n` in the API for request-aware translations.
+- For Zod validation, prefer the built-in Zod v4 locales via `z.locales` and keep DTO schemas free of hardcoded messages.
+- In domain errors, throw stable error codes and `i18nKey`/`i18nArgs` values instead of user-facing text.
+- Keep translated payloads stable for clients by asserting `code` and `error` in tests instead of literal `message` text.
+- Keep translation keys mirrored between `apps/api/src/i18n/pt-BR` and `apps/api/src/i18n/en` when adding or changing messages.
+- When adding a new message, update the API filter/pipe and the matching JSON translation files together so the contract stays consistent.
+
 ## Prisma and Imports
 
 - In API runtime and tests, import Prisma client from `src/generated/prisma/client`.

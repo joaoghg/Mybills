@@ -139,7 +139,7 @@ describe('Categories (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 404,
-      message: 'Category not found',
+      code: 'categories.category_not_found',
       error: 'not_found'
     });
   });
@@ -185,10 +185,16 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(204);
 
-    await request(app.getHttpServer())
+    const findDeletedCategoryResponse = await request(app.getHttpServer())
       .get(`/categories/${createResponse.body.id as string}`)
       .set('Authorization', `Bearer ${accessToken}`)
       .expect(404);
+
+    expect(findDeletedCategoryResponse.body).toMatchObject({
+      statusCode: 404,
+      code: 'categories.category_not_found',
+      error: 'not_found'
+    });
   });
 
   it('should validate category creation payload', async () => {
@@ -202,9 +208,7 @@ describe('Categories (e2e)', () => {
       })
       .expect(400);
 
-    expect(response.body).toMatchObject({
-      message: 'Validation failed'
-    });
+    expect(response.body.message).toEqual(expect.any(String));
     expect(response.body.errors).toBeDefined();
   });
 
@@ -229,7 +233,7 @@ describe('Categories (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 409,
-      message: 'Category already exists',
+      code: 'categories.category_already_exists',
       error: 'already_exists'
     });
   });

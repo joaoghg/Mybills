@@ -2,11 +2,11 @@ import z from 'zod';
 
 export const updateCreditCardInputSchema = z
   .object({
-    accountId: z.uuid('Invalid account id').optional(),
-    name: z.string('Invalid name').trim().min(1, 'Name is required').optional(),
-    limit: z.int('Invalid limit').optional(),
-    closingDay: z.int('Invalid closing day').optional(),
-    dueDay: z.int('Invalid due day').optional()
+    accountId: z.uuid().optional(),
+    name: z.string().trim().min(1).optional(),
+    limit: z.int().optional(),
+    closingDay: z.int().optional(),
+    dueDay: z.int().optional()
   })
   .refine(
     (data) =>
@@ -14,10 +14,7 @@ export const updateCreditCardInputSchema = z
       data.name !== undefined ||
       data.limit !== undefined ||
       data.closingDay !== undefined ||
-      data.dueDay !== undefined,
-    {
-      message: 'At least one field must be provided'
-    }
+      data.dueDay !== undefined
   );
 
 export type UpdateCreditCardInput = z.infer<typeof updateCreditCardInputSchema>;

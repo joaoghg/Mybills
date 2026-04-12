@@ -25,7 +25,11 @@ export class AccountsService {
     const account = await this.repository.findByIdAndUserId(accountId, userId);
 
     if (!account) {
-      throw new NotFoundError('Account not found');
+      throw new NotFoundError({
+        code: 'accounts.account_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'account' }
+      });
     }
 
     return account;
@@ -52,7 +56,11 @@ export class AccountsService {
     const sourceAccount = await this.repository.findByIdAndUserId(data.sourceAccountId, data.userId);
 
     if (!sourceAccount) {
-      throw new NotFoundError('Source account not found');
+      throw new NotFoundError({
+        code: 'accounts.source_account_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'source_account' }
+      });
     }
 
     const destinationAccount = await this.repository.findByIdAndUserId(
@@ -61,17 +69,27 @@ export class AccountsService {
     );
 
     if (!destinationAccount) {
-      throw new NotFoundError('Destination account not found');
+      throw new NotFoundError({
+        code: 'accounts.destination_account_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'destination_account' }
+      });
     }
 
     if (sourceAccount.balance < data.amount) {
-      throw new InvalidArgumentError('Insufficient account balance');
+      throw new InvalidArgumentError({
+        code: 'accounts.insufficient_balance',
+        i18nKey: 'errors.accounts.insufficient_balance'
+      });
     }
 
     const transferResult = await this.repository.transferBalance(data);
 
     if (!transferResult) {
-      throw new InvalidArgumentError('Transfer could not be completed');
+      throw new InvalidArgumentError({
+        code: 'accounts.transfer_failed',
+        i18nKey: 'errors.accounts.transfer_failed'
+      });
     }
 
     return transferResult;
@@ -99,25 +117,44 @@ export class AccountsService {
     this.validateUserId(data.userId);
 
     if (!data.name || typeof data.name !== 'string') {
-      throw new InvalidArgumentError('Invalid account name');
+      throw new InvalidArgumentError({
+        code: 'accounts.invalid_account_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'account_name' }
+      });
     }
 
     if (!Number.isInteger(data.balance)) {
-      throw new InvalidArgumentError('Invalid account balance');
+      throw new InvalidArgumentError({
+        code: 'accounts.invalid_account_balance',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'account_balance' }
+      });
     }
   }
 
   private validateUpdateData(data: UpdateAccountData): void {
     if (data.name === undefined && data.balance === undefined) {
-      throw new InvalidArgumentError('At least one field must be provided');
+      throw new InvalidArgumentError({
+        code: 'accounts.at_least_one_field_required',
+        i18nKey: 'errors.validation.at_least_one_field_required'
+      });
     }
 
     if (data.name !== undefined && (!data.name || typeof data.name !== 'string')) {
-      throw new InvalidArgumentError('Invalid account name');
+      throw new InvalidArgumentError({
+        code: 'accounts.invalid_account_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'account_name' }
+      });
     }
 
     if (data.balance !== undefined && !Number.isInteger(data.balance)) {
-      throw new InvalidArgumentError('Invalid account balance');
+      throw new InvalidArgumentError({
+        code: 'accounts.invalid_account_balance',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'account_balance' }
+      });
     }
   }
 
@@ -127,23 +164,38 @@ export class AccountsService {
     this.validateAccountId(data.destinationAccountId);
 
     if (data.sourceAccountId === data.destinationAccountId) {
-      throw new InvalidArgumentError('Source and destination accounts must be different');
+      throw new InvalidArgumentError({
+        code: 'accounts.source_and_destination_must_differ',
+        i18nKey: 'errors.validation.source_and_destination_must_differ'
+      });
     }
 
     if (!Number.isInteger(data.amount) || data.amount <= 0) {
-      throw new InvalidArgumentError('Invalid transfer amount');
+      throw new InvalidArgumentError({
+        code: 'accounts.invalid_transfer_amount',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transfer_amount' }
+      });
     }
   }
 
   private validateAccountId(accountId: string): void {
     if (!accountId || typeof accountId !== 'string') {
-      throw new InvalidArgumentError('Invalid account id');
+      throw new InvalidArgumentError({
+        code: 'accounts.invalid_account_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'account_id' }
+      });
     }
   }
 
   private validateUserId(userId: string): void {
     if (!userId || typeof userId !== 'string') {
-      throw new InvalidArgumentError('Invalid user id');
+      throw new InvalidArgumentError({
+        code: 'accounts.invalid_user_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'user_id' }
+      });
     }
   }
 }

@@ -142,7 +142,7 @@ describe('Users (e2e)', () => {
 
     expect(response.body).toMatchObject({
       statusCode: 404,
-      message: 'User not found',
+      code: 'users.user_not_found',
       error: 'not_found'
     });
   });

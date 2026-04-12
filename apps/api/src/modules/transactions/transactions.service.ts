@@ -32,7 +32,11 @@ export class TransactionsService {
     const transaction = await this.repository.findByIdAndUserId(transactionId, userId);
 
     if (!transaction) {
-      throw new NotFoundError('Transaction not found');
+      throw new NotFoundError({
+        code: 'transactions.transaction_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'transaction' }
+      });
     }
 
     return transaction;
@@ -103,7 +107,11 @@ export class TransactionsService {
     this.validateUserId(userId);
 
     if (typeof isPaid !== 'boolean') {
-      throw new InvalidArgumentError('Invalid paid status');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_is_paid',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'is_paid' }
+      });
     }
 
     const currentTransaction = await this.findById(transactionId, userId);
@@ -156,7 +164,11 @@ export class TransactionsService {
       const accountExists = await this.accountsService.accountExistsForUser(accountId, userId);
 
       if (!accountExists) {
-        throw new NotFoundError('Account not found');
+        throw new NotFoundError({
+          code: 'transactions.account_not_found',
+          i18nKey: 'errors.not_found.resource',
+          i18nArgs: { resource: 'account' }
+        });
       }
     }
 
@@ -203,23 +215,43 @@ export class TransactionsService {
       data.description !== null &&
       typeof data.description !== 'string'
     ) {
-      throw new InvalidArgumentError('Invalid transaction description');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_description',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_description' }
+      });
     }
 
     if (!Object.values(TransactionType).includes(data.type)) {
-      throw new InvalidArgumentError('Invalid transaction type');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_type',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_type' }
+      });
     }
 
     if (!Number.isInteger(data.amount) || data.amount <= 0) {
-      throw new InvalidArgumentError('Invalid transaction amount');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_amount',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_amount' }
+      });
     }
 
     if (!data.date || Number.isNaN(new Date(data.date).getTime())) {
-      throw new InvalidArgumentError('Invalid transaction date');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_date',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_date' }
+      });
     }
 
     if (typeof data.isPaid !== 'boolean') {
-      throw new InvalidArgumentError('Invalid paid status');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_is_paid',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'is_paid' }
+      });
     }
   }
 
@@ -233,7 +265,10 @@ export class TransactionsService {
       data.amount === undefined &&
       data.date === undefined
     ) {
-      throw new InvalidArgumentError('At least one field must be provided');
+      throw new InvalidArgumentError({
+        code: 'transactions.at_least_one_field_required',
+        i18nKey: 'errors.validation.at_least_one_field_required'
+      });
     }
 
     if (data.accountId !== undefined && data.accountId !== null) {
@@ -253,49 +288,85 @@ export class TransactionsService {
       data.description !== null &&
       typeof data.description !== 'string'
     ) {
-      throw new InvalidArgumentError('Invalid transaction description');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_description',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_description' }
+      });
     }
 
     if (data.type !== undefined && !Object.values(TransactionType).includes(data.type)) {
-      throw new InvalidArgumentError('Invalid transaction type');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_type',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_type' }
+      });
     }
 
     if (data.amount !== undefined && (!Number.isInteger(data.amount) || data.amount <= 0)) {
-      throw new InvalidArgumentError('Invalid transaction amount');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_amount',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_amount' }
+      });
     }
 
     if (data.date !== undefined && Number.isNaN(new Date(data.date).getTime())) {
-      throw new InvalidArgumentError('Invalid transaction date');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_date',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_date' }
+      });
     }
   }
 
   private validateTransactionId(transactionId: string): void {
     if (!transactionId || typeof transactionId !== 'string') {
-      throw new InvalidArgumentError('Invalid transaction id');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_id' }
+      });
     }
   }
 
   private validateAccountId(accountId: string): void {
     if (!accountId || typeof accountId !== 'string') {
-      throw new InvalidArgumentError('Invalid account id');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_account_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'account_id' }
+      });
     }
   }
 
   private validateCategoryId(categoryId: string): void {
     if (!categoryId || typeof categoryId !== 'string') {
-      throw new InvalidArgumentError('Invalid category id');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_category_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'category_id' }
+      });
     }
   }
 
   private validateCardId(cardId: string): void {
     if (!cardId || typeof cardId !== 'string') {
-      throw new InvalidArgumentError('Invalid credit card id');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_credit_card_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'credit_card_id' }
+      });
     }
   }
 
   private validateUserId(userId: string): void {
     if (!userId || typeof userId !== 'string') {
-      throw new InvalidArgumentError('Invalid user id');
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_user_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'user_id' }
+      });
     }
   }
 }

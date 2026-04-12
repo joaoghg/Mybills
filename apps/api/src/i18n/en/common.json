@@ -1,0 +1,36 @@
+{
+  "common": {
+    "internal_server_error": "Internal server error"
+  },
+  "errors": {
+    "database": {
+      "generic": "Database error",
+      "conflict": "Data conflict: the record already exists (field(s): {fields})",
+      "record_not_found": "Record not found in database.",
+      "foreign_key_constraint": "Foreign key constraint failure on field: {field}",
+      "with_code": "Database error (Code: {code})"
+    },
+    "not_found": {
+      "resource": "Resource not found: {resource}"
+    },
+    "accounts": {
+      "insufficient_balance": "Insufficient account balance",
+      "transfer_failed": "Transfer could not be completed"
+    },
+    "categories": {
+      "category_already_exists": "Category already exists"
+    },
+    "auth": {
+      "invalid_credentials": "Invalid email or password",
+      "invalid_refresh_token": "Invalid refresh token"
+    },
+    "validation": {
+      "invalid_field": "Invalid field: {field}",
+      "at_least_one_field_required": "At least one field must be provided",
+      "source_and_destination_must_differ": "Source and destination accounts must be different"
+    },
+    "conflict": {
+      "already_exists_field": "A record already exists for field: {field}"
+    }
+  }
+}

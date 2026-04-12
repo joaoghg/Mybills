@@ -24,7 +24,11 @@ export class CategoriesService {
     const category = await this.repository.findByIdAndUserId(categoryId, userId);
 
     if (!category) {
-      throw new NotFoundError('Category not found');
+      throw new NotFoundError({
+        code: 'categories.category_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'category' }
+      });
     }
 
     return category;
@@ -37,7 +41,10 @@ export class CategoriesService {
     const existingCategory = await this.repository.findByNameAndUserId(normalizedName, data.userId);
 
     if (existingCategory) {
-      throw new AlreadyExistsError('Category already exists');
+      throw new AlreadyExistsError({
+        code: 'categories.category_already_exists',
+        i18nKey: 'errors.categories.category_already_exists'
+      });
     }
 
     return await this.repository.create({
@@ -61,7 +68,10 @@ export class CategoriesService {
       const existingCategory = await this.repository.findByNameAndUserId(normalizedName, userId);
 
       if (existingCategory && existingCategory.id !== categoryId) {
-        throw new AlreadyExistsError('Category already exists');
+        throw new AlreadyExistsError({
+          code: 'categories.category_already_exists',
+          i18nKey: 'errors.categories.category_already_exists'
+        });
       }
     }
 
@@ -82,32 +92,51 @@ export class CategoriesService {
     this.validateUserId(data.userId);
 
     if (!data.name || typeof data.name !== 'string' || data.name.trim().length === 0) {
-      throw new InvalidArgumentError('Invalid category name');
+      throw new InvalidArgumentError({
+        code: 'categories.invalid_category_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'category_name' }
+      });
     }
   }
 
   private validateUpdateData(data: UpdateCategoryData): void {
     if (data.name === undefined) {
-      throw new InvalidArgumentError('At least one field must be provided');
+      throw new InvalidArgumentError({
+        code: 'categories.at_least_one_field_required',
+        i18nKey: 'errors.validation.at_least_one_field_required'
+      });
     }
 
     if (
       data.name !== undefined &&
       (!data.name || typeof data.name !== 'string' || !data.name.trim())
     ) {
-      throw new InvalidArgumentError('Invalid category name');
+      throw new InvalidArgumentError({
+        code: 'categories.invalid_category_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'category_name' }
+      });
     }
   }
 
   private validateCategoryId(categoryId: string): void {
     if (!categoryId || typeof categoryId !== 'string') {
-      throw new InvalidArgumentError('Invalid category id');
+      throw new InvalidArgumentError({
+        code: 'categories.invalid_category_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'category_id' }
+      });
     }
   }
 
   private validateUserId(userId: string): void {
     if (!userId || typeof userId !== 'string') {
-      throw new InvalidArgumentError('Invalid user id');
+      throw new InvalidArgumentError({
+        code: 'categories.invalid_user_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'user_id' }
+      });
     }
   }
 }

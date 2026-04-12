@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
+import { join } from 'path';
+import { AcceptLanguageResolver, HeaderResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
 import { validate } from '../config/env.validation';
 import { UserModule } from './user/users.module';
 import { AuthModule } from './auth/auth.module';
@@ -16,6 +18,15 @@ import { PrismaClientExceptionFilter } from '../common/filters/prisma-client-exc
     ConfigModule.forRoot({
       validate: validate,
       envFilePath: process.env.NODE_ENV ? `.env.${process.env.NODE_ENV}` : '.env'
+    }),
+    I18nModule.forRoot({
+      fallbackLanguage: 'pt-BR',
+      loader: I18nJsonLoader,
+      loaderOptions: {
+        path: join(__dirname, '../i18n/'),
+        watch: process.env.NODE_ENV !== 'production'
+      },
+      resolvers: [new HeaderResolver(['x-lang']), AcceptLanguageResolver]
     }),
     UserModule,
     AuthModule,
