@@ -1,0 +1,20 @@
+{
+  "name": "@mybills/theme",
+  "version": "1.0.0",
+  "description": "Shared theme tokens and contracts for MyBills apps",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  }
+}
