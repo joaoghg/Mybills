@@ -1,6 +1,8 @@
 import { StatusBar } from 'expo-status-bar';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
 
+import './src/core/i18n';
 import { ThemeProvider, useTheme } from './src/core/theme';
 
 export default function App() {
@@ -12,6 +14,7 @@ export default function App() {
 }
 
 function ThemedApp() {
+  const { t } = useTranslation();
   const { theme, resolvedMode, mode, setMode, toggleMode } = useTheme();
 
   const statusBarStyle = resolvedMode === 'dark' ? 'light' : 'dark';
@@ -34,12 +37,12 @@ function ThemedApp() {
           }
         ]}
       >
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>MyBills Theme</Text>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('app.title')}</Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Modo selecionado: {mode}
+          {t('app.selectedMode', { mode })}
         </Text>
         <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          Modo aplicado: {resolvedMode}
+          {t('app.appliedMode', { mode: resolvedMode })}
         </Text>
 
         <View style={styles.actions}>
@@ -53,7 +56,7 @@ function ThemedApp() {
             onPress={toggleMode}
           >
             <Text style={[styles.buttonText, { color: theme.colors.textOnSecondary }]}>
-              Alternar
+              {t('app.toggle')}
             </Text>
           </Pressable>
 
@@ -67,7 +70,7 @@ function ThemedApp() {
             onPress={() => setMode('system')}
           >
             <Text style={[styles.outlineButtonText, { color: theme.colors.textPrimary }]}>
-              Sistema
+              {t('app.system')}
             </Text>
           </Pressable>
         </View>
