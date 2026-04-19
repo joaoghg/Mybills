@@ -12,6 +12,7 @@ These instructions apply to the entire monorepo.
   - `apps/mobile`: Expo React Native app.
 - Shared package:
   - `packages/dtos`: Zod schemas and inferred types used by API and clients.
+  - `packages/theme`: Shared design tokens and theming utilities for frontend apps.
 
 ## Code Quality Rules
 

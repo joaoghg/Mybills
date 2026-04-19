@@ -30,6 +30,14 @@ Organize `src/` by **functionality** to ensure scalability and isolation:
 - **Client/UI State**: Use `zustand` for ephemeral UX state (e.g., modals, local filters, wizard steps).
 - **Modular Stores**: Favor small, focused stores within features over a single monolithic global store.
 
+## Internationalization (Hard Rule)
+
+- All user-facing text must use i18n translation keys. Do not hardcode visible strings in screens or components.
+- Use the existing i18n setup from `src/core/i18n` and consume translations via `useTranslation`.
+- New features must add translation keys for all supported locales when introducing new copy.
+- Shared/presentational components must receive already-translated text or translation keys via props. Keep translation decisions out of business logic.
+- Validation, empty states, labels, placeholders, buttons, toasts, and error messages shown in the UI must be localized.
+
 ## Cross-Platform Reuse (packages/\*)
 
 Code that is platform-agnostic **must** live in `packages/`:
