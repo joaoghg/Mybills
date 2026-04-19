@@ -6,7 +6,7 @@ These instructions apply to the entire monorepo.
 
 ## Architecture
 
-- Monorepo with npm workspaces and Turbo.
+- Monorepo with pnpm workspaces and Turbo.
 - Main apps:
   - `apps/api`: NestJS 11 backend with Prisma and PostgreSQL.
   - `apps/mobile`: Expo React Native app.

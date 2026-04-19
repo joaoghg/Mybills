@@ -20,7 +20,7 @@
     "test:e2e": "cross-env NODE_ENV=test jest --config ./test/jest-e2e.json"
   },
   "dependencies": {
-    "@mybills/dtos": "^1.0.0",
+    "@mybills/dtos": "workspace:*",
     "@nestjs/common": "^11.0.1",
     "@nestjs/config": "^4.0.3",
     "@nestjs/core": "^11.0.1",
@@ -46,8 +46,8 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
     "@eslint/js": "^9.18.0",
-    "@mybills/eslint-config": "*",
-    "@mybills/typescript-config": "*",
+    "@mybills/eslint-config": "workspace:*",
+    "@mybills/typescript-config": "workspace:*",
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
