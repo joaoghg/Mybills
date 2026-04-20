@@ -9,6 +9,8 @@ const supportedLanguages = Object.keys(resources) as AppLanguage[];
 function resolveDeviceLanguage(): AppLanguage {
   const locale = getLocales()[0];
 
+  console.log(locale);
+
   if (!locale) {
     return defaultLanguage;
   }

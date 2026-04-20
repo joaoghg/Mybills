@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "index.ts",
   "scripts": {
-    "start": "expo start",
+    "dev": "expo start",
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web"
@@ -16,7 +16,8 @@
     "i18next": "^25.6.0",
     "react": "19.2.5",
     "react-i18next": "^16.1.6",
-    "react-native": "0.83.2"
+    "react-native": "0.83.2",
+    "react-native-safe-area-context": "^5.7.0"
   },
   "devDependencies": {
     "@mybills/typescript-config": "workspace:*",
