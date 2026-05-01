@@ -1,10 +1,10 @@
 ---
-description: 'Use when implementing or refactoring apps/api NestJS modules, controllers, services, repositories and API tests. Enforces MyBills API architecture, domain error handling, and repository conventions.'
-name: 'MyBills API Instructions'
-applyTo: 'apps/api/**/*.ts'
+description: Rules for implementing or refactoring NestJS modules, controllers, services, repositories and API tests
+globs: apps/api/**/*.ts
+alwaysApply: false
 ---
 
-# MyBills API Instructions
+# MyBills API Rules
 
 ## Module and Layering Rules
 
@@ -60,4 +60,4 @@ applyTo: 'apps/api/**/*.ts'
 ## Testing
 
 - After implementing or refactoring API code, update or add Jest unit and e2e tests under `apps/api/src/modules/*/test/` and `apps/api/test/e2e/` to cover new or changed behavior.
-- Follow tests.instructions.md for test structure, naming, and dependency inversion rules in API tests.
+- Follow the test rules in `testing.mdc` for test structure, naming, and dependency inversion rules in API tests.

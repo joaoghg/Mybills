@@ -1,10 +1,10 @@
 ---
-description: 'Use when implementing or refactoring apps/mobile screens, components, hooks, and data flows. Enforces Feature-First architecture, dumb UI components, Zustand + React Query usage, and shared logic in packages/.'
-name: 'MyBills Mobile Instructions'
-applyTo: 'apps/mobile/**/*.{ts,tsx}'
+description: Rules for implementing or refactoring mobile screens, components, hooks, and data flows
+globs: apps/mobile/**/*.ts,apps/mobile/**/*.tsx
+alwaysApply: false
 ---
 
-# MyBills Mobile UI Instructions
+# MyBills Mobile Rules
 
 ## Project Structure (Feature-First)
 

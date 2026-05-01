@@ -1,10 +1,10 @@
 ---
-description: 'Use when creating or refactoring Jest unit and e2e tests in apps/api. Enforces scenario naming, dependency inversion, no direct Prisma usage, and strong typing aligned with real module types.'
-name: 'MyBills Test Instructions'
-applyTo: 'apps/api/**/*.spec.ts, apps/api/test/**/*.ts'
+description: Rules for creating or refactoring Jest unit and e2e tests in the API
+globs: apps/api/**/*.spec.ts,apps/api/test/**/*.ts
+alwaysApply: false
 ---
 
-# MyBills Test Instructions
+# MyBills Test Rules
 
 ## Scope
 

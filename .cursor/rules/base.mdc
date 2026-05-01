@@ -1,8 +1,10 @@
-# MyBills Project Guidelines
+---
+description: Project-wide rules for MyBills monorepo - architecture, tech stack, and general code quality
+globs: ["**/*"]
+alwaysApply: true
+---
 
-## Scope
-
-These instructions apply to the entire monorepo.
+# MyBills Project Base Rules
 
 ## Architecture
 
@@ -10,9 +12,10 @@ These instructions apply to the entire monorepo.
 - Main apps:
   - `apps/api`: NestJS 11 backend with Prisma and PostgreSQL.
   - `apps/mobile`: Expo React Native app.
-- Shared package:
+- Shared packages:
   - `packages/dtos`: Zod schemas and inferred types used by API and clients.
   - `packages/theme`: Shared design tokens and theming utilities for frontend apps.
+  - `packages/utils`: Shared helper functions and types.
 
 ## Code Quality Rules
 
@@ -20,7 +23,3 @@ These instructions apply to the entire monorepo.
 - Keep controllers thin; move business logic to services.
 - Keep functions focused and side effects explicit.
 - Preserve existing naming and module boundaries unless a task explicitly requires refactoring.
-
-## Utilities
-
-- Use `@mybills/utils` for shared helper functions and types.
