@@ -1,4 +1,7 @@
 export const ptBR = {
+  home: {
+    title: 'Início'
+  },
   auth: {
     title: 'MyBills',
     subtitle: 'Entre ou crie sua conta para continuar organizando suas finanças.',
@@ -23,6 +26,7 @@ export const ptBR = {
     switchToLogin: 'Já tenho conta',
     signupLoading: 'Criando conta…',
     loginLoading: 'Entrando…',
+    signOut: 'Sair',
     errors: {
       network: 'Sem conexão. Verifique a internet e tente de novo.',
       emailTaken: 'Este e-mail já está cadastrado.',

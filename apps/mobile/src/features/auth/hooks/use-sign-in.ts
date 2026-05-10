@@ -1,13 +1,15 @@
 import { useMutation } from '@tanstack/react-query';
 import type { SignInInput } from '@mybills/dtos/auth';
 
-import { getHttpClient } from '../../../core/api/http-client';
+import { useHttpClient } from '../../../core/api/http-client-provider';
+import { saveSessionTokens } from '../../../core/session/session-tokens';
 import { loginUser } from '../services/auth.service';
-import { saveSessionTokens } from '../storage/session-tokens';
 
 export function useSignIn() {
+  const client = useHttpClient();
+
   return useMutation({
-    mutationFn: (input: SignInInput) => loginUser(getHttpClient(), input),
+    mutationFn: (input: SignInInput) => loginUser(client, input),
     onSuccess: (data) => {
       void saveSessionTokens(data);
     }

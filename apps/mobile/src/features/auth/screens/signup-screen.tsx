@@ -12,9 +12,14 @@ import { translateSignupError } from '../utils/sign-up-error';
 type SignupScreenProps = {
   theme: AppTheme;
   onSwitchToLogin: () => void;
+  onAuthenticated?: () => void;
 };
 
-export function SignupScreen({ theme, onSwitchToLogin }: SignupScreenProps) {
+export function SignupScreen({
+  theme,
+  onSwitchToLogin,
+  onAuthenticated
+}: SignupScreenProps) {
   const { t } = useTranslation();
   const { mutate, isPending, isError, error } = useSignUp();
 
@@ -42,7 +47,11 @@ export function SignupScreen({ theme, onSwitchToLogin }: SignupScreenProps) {
       return;
     }
 
-    mutate(parsed.data);
+    mutate(parsed.data, {
+      onSuccess: () => {
+        onAuthenticated?.();
+      }
+    });
   }
 
   return (

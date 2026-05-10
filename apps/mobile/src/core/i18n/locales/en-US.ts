@@ -1,4 +1,7 @@
 export const enUS = {
+  home: {
+    title: 'Home'
+  },
   auth: {
     title: 'MyBills',
     subtitle: 'Sign in or create an account to keep your finances organized.',
@@ -23,6 +26,7 @@ export const enUS = {
     switchToLogin: 'I already have an account',
     signupLoading: 'Creating account…',
     loginLoading: 'Signing in…',
+    signOut: 'Sign out',
     errors: {
       network: 'No connection. Check your network and try again.',
       emailTaken: 'This email is already registered.',

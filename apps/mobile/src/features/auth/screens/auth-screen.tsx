@@ -2,8 +2,6 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { SignInOutput } from '@mybills/dtos/auth';
-
 import type { AppTheme } from '../../../core/theme';
 import { AuthHeader } from '../components/auth-header';
 import { LoginScreen } from './login-screen';
@@ -13,10 +11,10 @@ type AuthMode = 'login' | 'signup';
 
 type AuthScreenProps = {
   theme: AppTheme;
-  onLoginSuccess?: (output: SignInOutput) => void;
+  onAuthenticated?: () => void;
 };
 
-export function AuthScreen({ theme, onLoginSuccess }: AuthScreenProps) {
+export function AuthScreen({ theme, onAuthenticated }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>('login');
   const insets = useSafeAreaInsets();
 
@@ -39,12 +37,18 @@ export function AuthScreen({ theme, onLoginSuccess }: AuthScreenProps) {
 
         <View style={styles.formContainer}>
           {mode === 'signup' ? (
-            <SignupScreen theme={theme} onSwitchToLogin={() => setMode('login')} />
+            <SignupScreen
+              theme={theme}
+              onSwitchToLogin={() => setMode('login')}
+              onAuthenticated={onAuthenticated}
+            />
           ) : (
             <LoginScreen
               theme={theme}
               onSwitchToSignup={() => setMode('signup')}
-              onLoginSuccess={onLoginSuccess}
+              onLoginSuccess={() => {
+                onAuthenticated?.();
+              }}
             />
           )}
         </View>
