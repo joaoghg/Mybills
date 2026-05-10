@@ -178,9 +178,18 @@ importers:
 
   apps/mobile:
     dependencies:
+      '@mybills/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
+      '@mybills/dtos':
+        specifier: workspace:*
+        version: link:../../packages/dtos
       '@mybills/theme':
         specifier: workspace:*
         version: link:../../packages/theme
+      '@tanstack/react-query':
+        specifier: ^5.62.0
+        version: 5.100.9(react@19.2.5)
       expo:
         specifier: ~55.0.4
         version: 55.0.15(@babel/core@7.29.0)(@expo/dom-webview@55.0.5)(react-dom@19.2.5(react@19.2.5))(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.5))(react@19.2.5)(typescript@5.9.2)
@@ -205,6 +214,9 @@ importers:
       react-native-safe-area-context:
         specifier: ^5.7.0
         version: 5.7.0(react-native@0.83.2(@babel/core@7.29.0)(@types/react@19.2.14)(react@19.2.5))(react@19.2.5)
+      zod:
+        specifier: ^4.3.6
+        version: 4.3.6
     devDependencies:
       '@mybills/typescript-config':
         specifier: workspace:*
@@ -212,6 +224,19 @@ importers:
       '@types/react':
         specifier: ~19.2.2
         version: 19.2.14
+      typescript:
+        specifier: ~5.9.2
+        version: 5.9.2
+
+  packages/api-client:
+    dependencies:
+      '@mybills/dtos':
+        specifier: workspace:*
+        version: link:../dtos
+    devDependencies:
+      '@mybills/typescript-config':
+        specifier: workspace:*
+        version: link:../typescript-config
       typescript:
         specifier: ~5.9.2
         version: 5.9.2
@@ -1741,6 +1766,14 @@ packages:
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
+
+  '@tanstack/query-core@5.100.9':
+    resolution: {integrity: sha512-SJSFw1S8+kQ0+knv/XGfrbocWoAlT7vDKsSImtLx3ZPQmEcR46hkDjLSvynSy25N8Ms4tIEini1FuBd5k7IscQ==}
+
+  '@tanstack/react-query@5.100.9':
+    resolution: {integrity: sha512-Oa44XkaI3kCNN6ME0KByU3xT3SEUNOMfZpHxL6+wFoTm+OeUFYHKdeYVe0aOXlRDm/f15sgLwEt2HDorIdW8+A==}
+    peerDependencies:
+      react: ^18 || ^19
 
   '@tokenizer/inflate@0.4.1':
     resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
@@ -7873,6 +7906,13 @@ snapshots:
       '@sinonjs/commons': 3.0.1
 
   '@standard-schema/spec@1.1.0': {}
+
+  '@tanstack/query-core@5.100.9': {}
+
+  '@tanstack/react-query@5.100.9(react@19.2.5)':
+    dependencies:
+      '@tanstack/query-core': 5.100.9
+      react: 19.2.5
 
   '@tokenizer/inflate@0.4.1':
     dependencies:

@@ -20,6 +20,14 @@ export const enUS = {
     languagePtBR: 'PT-BR',
     languageUS: 'US',
     switchToSignup: "Don't have an account yet? Create one",
-    switchToLogin: 'I already have an account'
+    switchToLogin: 'I already have an account',
+    signupLoading: 'Creating account…',
+    errors: {
+      network: 'No connection. Check your network and try again.',
+      emailTaken: 'This email is already registered.',
+      validation: 'Check your details and try again.',
+      generic: 'Could not complete sign-up. Please try again.',
+      passwordMismatch: 'Passwords do not match.'
+    }
   }
 } as const;
