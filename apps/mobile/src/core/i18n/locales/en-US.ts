@@ -22,11 +22,14 @@ export const enUS = {
     switchToSignup: "Don't have an account yet? Create one",
     switchToLogin: 'I already have an account',
     signupLoading: 'Creating account…',
+    loginLoading: 'Signing in…',
     errors: {
       network: 'No connection. Check your network and try again.',
       emailTaken: 'This email is already registered.',
       validation: 'Check your details and try again.',
       generic: 'Could not complete sign-up. Please try again.',
+      signInGeneric: 'Could not sign in. Please try again.',
+      invalidCredentials: 'Invalid email or password.',
       passwordMismatch: 'Passwords do not match.'
     }
   }

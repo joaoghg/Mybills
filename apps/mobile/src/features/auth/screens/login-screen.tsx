@@ -1,17 +1,52 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
+import { signInInputSchema } from '@mybills/dtos/auth';
+import type { SignInOutput } from '@mybills/dtos/auth';
 
 import type { AppTheme } from '../../../core/theme';
+import { useSignIn } from '../hooks/use-sign-in';
 import { InputField } from '../components/input-field';
 import { AuthDivider, GoogleButton } from '../components/auth-common';
+import { translateSignInError } from '../utils/sign-in-error';
 
 type LoginScreenProps = {
   theme: AppTheme;
   onSwitchToSignup: () => void;
+  onLoginSuccess?: (output: SignInOutput) => void;
 };
 
-export function LoginScreen({ theme, onSwitchToSignup }: LoginScreenProps) {
+export function LoginScreen({
+  theme,
+  onSwitchToSignup,
+  onLoginSuccess
+}: LoginScreenProps) {
   const { t } = useTranslation();
+  const { mutate, isPending, isError, error } = useSignIn();
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [localError, setLocalError] = useState<string | null>(null);
+
+  const remoteMessage =
+    isError && error ? translateSignInError(error, t) : null;
+  const displayError = localError ?? remoteMessage;
+
+  function handleSubmit() {
+    setLocalError(null);
+
+    const parsed = signInInputSchema.safeParse({ email, password });
+    if (!parsed.success) {
+      setLocalError(t('auth.errors.validation'));
+      return;
+    }
+
+    mutate(parsed.data, {
+      onSuccess: (output) => {
+        onLoginSuccess?.(output);
+      }
+    });
+  }
 
   return (
     <ScrollView
@@ -27,6 +62,8 @@ export function LoginScreen({ theme, onSwitchToSignup }: LoginScreenProps) {
           keyboardType="email-address"
           autoCapitalize="none"
           autoCorrect={false}
+          value={email}
+          onChangeText={setEmail}
         />
         <InputField
           theme={theme}
@@ -35,13 +72,33 @@ export function LoginScreen({ theme, onSwitchToSignup }: LoginScreenProps) {
           secureTextEntry
           autoCapitalize="none"
           autoCorrect={false}
+          value={password}
+          onChangeText={setPassword}
         />
+
+        {displayError ? (
+          <Text
+            accessibilityLiveRegion="polite"
+            style={[styles.errorText, styles.errorColor]}
+          >
+            {displayError}
+          </Text>
+        ) : null}
+
         <Pressable
           accessibilityRole="button"
-          style={[styles.primaryButton, { backgroundColor: theme.colors.primary }]}
+          accessibilityState={{ disabled: isPending }}
+          disabled={isPending}
+          onPress={handleSubmit}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            { backgroundColor: theme.colors.primary },
+            isPending && styles.primaryButtonDisabled,
+            pressed && !isPending && styles.primaryButtonPressed
+          ]}
         >
           <Text style={[styles.primaryButtonText, { color: theme.colors.textOnPrimary }]}>
-            {t('auth.loginAction')}
+            {isPending ? t('auth.loginLoading') : t('auth.loginAction')}
           </Text>
         </Pressable>
       </View>
@@ -66,12 +123,26 @@ const styles = StyleSheet.create({
   form: {
     gap: 14
   },
+  errorText: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600'
+  },
+  errorColor: {
+    color: '#c62828'
+  },
   primaryButton: {
     minHeight: 54,
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 18
+  },
+  primaryButtonDisabled: {
+    opacity: 0.65
+  },
+  primaryButtonPressed: {
+    opacity: 0.92
   },
   primaryButtonText: {
     fontSize: 15,

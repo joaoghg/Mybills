@@ -1,13 +1,13 @@
 import { useMutation } from '@tanstack/react-query';
-import type { SignUpInput } from '@mybills/dtos/auth';
+import type { SignInInput } from '@mybills/dtos/auth';
 
 import { getHttpClient } from '../../../core/api/http-client';
-import { registerUser } from '../services/auth.service';
+import { loginUser } from '../services/auth.service';
 import { saveSessionTokens } from '../storage/session-tokens';
 
-export function useSignUp() {
+export function useSignIn() {
   return useMutation({
-    mutationFn: (input: SignUpInput) => registerUser(getHttpClient(), input),
+    mutationFn: (input: SignInInput) => loginUser(getHttpClient(), input),
     onSuccess: (data) => {
       void saveSessionTokens(data);
     }

@@ -22,11 +22,14 @@ export const ptBR = {
     switchToSignup: 'Ainda não tem conta? Criar cadastro',
     switchToLogin: 'Já tenho conta',
     signupLoading: 'Criando conta…',
+    loginLoading: 'Entrando…',
     errors: {
       network: 'Sem conexão. Verifique a internet e tente de novo.',
       emailTaken: 'Este e-mail já está cadastrado.',
       validation: 'Confira os dados e tente de novo.',
       generic: 'Não foi possível concluir o cadastro. Tente novamente.',
+      signInGeneric: 'Não foi possível entrar. Tente novamente.',
+      invalidCredentials: 'E-mail ou senha inválidos.',
       passwordMismatch: 'As senhas não coincidem.'
     }
   }
