@@ -2,7 +2,6 @@ import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import './src/core/i18n';
 import { HttpClientProvider } from './src/core/api/http-client-provider';
 import { AppQueryProvider } from './src/core/query/query-provider';
 import { AuthSessionProvider, useAuthSession } from './src/core/session/auth-session-provider';
