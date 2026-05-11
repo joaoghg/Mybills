@@ -15,6 +15,14 @@ export const ptBR = {
     passwordPlaceholder: 'Digite sua senha',
     confirmPasswordLabel: 'Confirmar senha',
     confirmPasswordPlaceholder: 'Repita sua senha',
+    passwordRulesHint:
+      'Use pelo menos 8 caracteres, com letra maiúscula, minúscula e um número.',
+    validation: {
+      nameRequired: 'Informe seu nome.',
+      emailInvalid: 'Digite um e-mail válido.',
+      passwordRequirements:
+        'A senha deve ter pelo menos 8 caracteres e incluir maiúscula, minúscula e um número.'
+    },
     loginAction: 'Entrar',
     signupAction: 'Criar conta',
     or: 'ou',

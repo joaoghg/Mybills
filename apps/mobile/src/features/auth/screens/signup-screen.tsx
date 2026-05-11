@@ -8,6 +8,7 @@ import { useSignUp } from '../hooks/use-sign-up';
 import { InputField } from '../components/input-field';
 import { AuthDivider, GoogleButton } from '../components/auth-common';
 import { translateSignupError } from '../utils/sign-up-error';
+import { translateSignUpZodError } from '../utils/signup-validation';
 
 type SignupScreenProps = {
   theme: AppTheme;
@@ -43,7 +44,7 @@ export function SignupScreen({
 
     const parsed = signUpInputSchema.safeParse({ name, email, password });
     if (!parsed.success) {
-      setLocalError(t('auth.errors.validation'));
+      setLocalError(translateSignUpZodError(t, parsed.error));
       return;
     }
 
@@ -89,6 +90,9 @@ export function SignupScreen({
           value={password}
           onChangeText={setPassword}
         />
+        <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+          {t('auth.passwordRulesHint')}
+        </Text>
         <InputField
           theme={theme}
           label={t('auth.confirmPasswordLabel')}
@@ -146,6 +150,12 @@ const styles = StyleSheet.create({
   },
   form: {
     gap: 14
+  },
+  fieldHint: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: '500',
+    marginTop: 4
   },
   errorText: {
     fontSize: 14,

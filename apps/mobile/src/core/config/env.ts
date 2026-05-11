@@ -5,5 +5,9 @@ export function getApiBaseUrl(): string {
       'EXPO_PUBLIC_API_URL is missing. Add it to apps/mobile/.env (example in .env.example).'
     );
   }
-  return url.replace(/\/$/, '');
+  const trimmed = url.replace(/\/$/, '');
+  if (trimmed.endsWith('/api')) {
+    return trimmed;
+  }
+  return `${trimmed}/api`;
 }

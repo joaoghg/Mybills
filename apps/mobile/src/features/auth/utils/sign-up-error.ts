@@ -2,9 +2,11 @@ import { ApiClientError } from '@mybills/api-client';
 import type { TFunction } from 'i18next';
 import { ZodError } from 'zod';
 
+import { translateSignUpZodError } from './signup-validation';
+
 export function translateSignupError(error: unknown, t: TFunction): string {
   if (error instanceof ZodError) {
-    return t('auth.errors.validation');
+    return translateSignUpZodError(t, error);
   }
   if (error instanceof ApiClientError) {
     if (error.statusCode === 0 || error.code === 'client.network_error') {

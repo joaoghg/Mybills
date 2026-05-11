@@ -15,6 +15,14 @@ export const enUS = {
     passwordPlaceholder: 'Enter your password',
     confirmPasswordLabel: 'Confirm password',
     confirmPasswordPlaceholder: 'Repeat your password',
+    passwordRulesHint:
+      'Use at least 8 characters, including uppercase, lowercase, and a number.',
+    validation: {
+      nameRequired: 'Please enter your name.',
+      emailInvalid: 'Enter a valid email address.',
+      passwordRequirements:
+        'Password must be at least 8 characters and include uppercase, lowercase, and a number.'
+    },
     loginAction: 'Sign in',
     signupAction: 'Create account',
     or: 'or',
