@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTranslation } from 'react-i18next';
 import { Dimensions, FlatList, StyleSheet, Text, View } from 'react-native';
 
-import type { AppTheme } from '../../../core/theme';
-import type { PhysicalCard } from '../hooks/use-home-dashboard';
+import type { AppTheme } from '@/core/theme';
+import type { PhysicalCard } from '@/features/home/hooks/use-home-dashboard';
 
 const CARD_WIDTH = Math.min(Dimensions.get('window').width * 0.78, 320);
 

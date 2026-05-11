@@ -2,7 +2,7 @@ import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../../../core/theme';
+import { useTheme } from '@/core/theme';
 
 export function HistoryScreen() {
   const { theme } = useTheme();

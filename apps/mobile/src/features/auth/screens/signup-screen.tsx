@@ -3,12 +3,12 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 import { signUpInputSchema } from '@mybills/dtos/auth';
 
-import type { AppTheme } from '../../../core/theme';
-import { useSignUp } from '../hooks/use-sign-up';
-import { InputField } from '../components/input-field';
-import { AuthDivider, GoogleButton } from '../components/auth-common';
-import { translateSignupError } from '../utils/sign-up-error';
-import { translateSignUpZodError } from '../utils/signup-validation';
+import type { AppTheme } from '@/core/theme';
+import { useSignUp } from '@/features/auth/hooks/use-sign-up';
+import { InputField } from '@/features/auth/components/input-field';
+import { AuthDivider, GoogleButton } from '@/features/auth/components/auth-common';
+import { translateSignupError } from '@/features/auth/utils/sign-up-error';
+import { translateSignUpZodError } from '@/features/auth/utils/signup-validation';
 
 type SignupScreenProps = {
   theme: AppTheme;

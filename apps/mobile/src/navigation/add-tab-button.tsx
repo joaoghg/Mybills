@@ -4,8 +4,8 @@ import { useNavigation } from '@react-navigation/native';
 import type { NavigationProp } from '@react-navigation/native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import type { AppTheme } from '../core/theme';
-import type { RootStackParamList } from './types';
+import type { AppTheme } from '@/core/theme';
+import type { RootStackParamList } from '@/navigation/types';
 
 type AddTabButtonProps = BottomTabBarButtonProps & {
   theme: AppTheme;

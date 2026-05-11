@@ -2,15 +2,15 @@ import { useTranslation } from 'react-i18next';
 import { ScrollView, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../../../core/theme';
-import { AccountsSection } from '../components/accounts-section';
-import { HomeHeader } from '../components/home-header';
-import { InvoiceCard } from '../components/invoice-card';
-import { PhysicalCardsCarousel } from '../components/physical-cards-carousel';
-import { RecentTransactionsSection } from '../components/recent-transactions-section';
-import { useHomeDashboard } from '../hooks/use-home-dashboard';
-import { formatCurrencyValue } from '../../../shared/utils/format-currency';
-import { formatDecimalValue } from '../../../shared/utils/format-number';
+import { useTheme } from '@/core/theme';
+import { AccountsSection } from '@/features/home/components/accounts-section';
+import { HomeHeader } from '@/features/home/components/home-header';
+import { InvoiceCard } from '@/features/home/components/invoice-card';
+import { PhysicalCardsCarousel } from '@/features/home/components/physical-cards-carousel';
+import { RecentTransactionsSection } from '@/features/home/components/recent-transactions-section';
+import { useHomeDashboard } from '@/features/home/hooks/use-home-dashboard';
+import { formatCurrencyValue } from '@/shared/utils/format-currency';
+import { formatDecimalValue } from '@/shared/utils/format-number';
 
 export function HomeScreen() {
   const { theme } = useTheme();

@@ -1,6 +1,6 @@
 import { StyleSheet, Text, TextInput, View, type TextInputProps } from 'react-native';
 
-import type { AppTheme } from '../../../core/theme';
+import type { AppTheme } from '@/core/theme';
 
 export type InputFieldProps = TextInputProps & {
   theme: AppTheme;

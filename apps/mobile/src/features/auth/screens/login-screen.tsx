@@ -4,11 +4,11 @@ import { useTranslation } from 'react-i18next';
 import { signInInputSchema } from '@mybills/dtos/auth';
 import type { SignInOutput } from '@mybills/dtos/auth';
 
-import type { AppTheme } from '../../../core/theme';
-import { useSignIn } from '../hooks/use-sign-in';
-import { InputField } from '../components/input-field';
-import { AuthDivider, GoogleButton } from '../components/auth-common';
-import { translateSignInError } from '../utils/sign-in-error';
+import type { AppTheme } from '@/core/theme';
+import { useSignIn } from '@/features/auth/hooks/use-sign-in';
+import { InputField } from '@/features/auth/components/input-field';
+import { AuthDivider, GoogleButton } from '@/features/auth/components/auth-common';
+import { translateSignInError } from '@/features/auth/utils/sign-in-error';
 
 type LoginScreenProps = {
   theme: AppTheme;

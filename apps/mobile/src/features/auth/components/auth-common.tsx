@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
 
-import type { AppTheme } from '../../../core/theme';
+import type { AppTheme } from '@/core/theme';
 
 type AuthDividerProps = {
   theme: AppTheme;

@@ -2,8 +2,8 @@ import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { AppTheme } from '../../../core/theme';
-import type { AccountSummary } from '../hooks/use-home-dashboard';
+import type { AppTheme } from '@/core/theme';
+import type { AccountSummary } from '@/features/home/hooks/use-home-dashboard';
 
 type AccountsSectionProps = {
   theme: AppTheme;

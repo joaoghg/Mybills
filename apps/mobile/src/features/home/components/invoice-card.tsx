@@ -1,8 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { AppTheme } from '../../../core/theme';
-import type { InvoiceSummary } from '../hooks/use-home-dashboard';
+import type { AppTheme } from '@/core/theme';
+import type { InvoiceSummary } from '@/features/home/hooks/use-home-dashboard';
 
 type InvoiceCardProps = {
   theme: AppTheme;

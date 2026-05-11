@@ -1,7 +1,7 @@
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { useTheme } from '../../../core/theme';
+import { useTheme } from '@/core/theme';
 
 export function AddPlaceholderScreen() {
   const { theme } = useTheme();

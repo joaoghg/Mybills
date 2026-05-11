@@ -2,8 +2,8 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTranslation } from 'react-i18next';
 
-import { i18next } from '../../../core/i18n/i18n';
-import type { AppTheme } from '../../../core/theme';
+import { i18next } from '@/core/i18n/i18n';
+import type { AppTheme } from '@/core/theme';
 
 type AuthHeaderProps = {
   theme: AppTheme;

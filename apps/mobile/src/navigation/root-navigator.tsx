@@ -8,10 +8,10 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import { useTheme } from '../core/theme';
-import { AddPlaceholderScreen } from '../features/add/screens/add-placeholder-screen';
-import { AppTabNavigator } from './app-tab-navigator';
-import type { RootStackParamList } from './types';
+import { useTheme } from '@/core/theme';
+import { AddPlaceholderScreen } from '@/features/add/screens/add-placeholder-screen';
+import { AppTabNavigator } from '@/navigation/app-tab-navigator';
+import type { RootStackParamList } from '@/navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 

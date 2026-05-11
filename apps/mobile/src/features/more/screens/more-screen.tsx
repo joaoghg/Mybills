@@ -11,10 +11,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { logout } from '@mybills/api-client';
 
-import { useHttpClient } from '../../../core/api/http-client-provider';
-import { useAuthSession } from '../../../core/session/auth-session-provider';
-import { clearSessionTokens } from '../../../core/session/session-tokens';
-import { useTheme } from '../../../core/theme';
+import { useHttpClient } from '@/core/api/http-client-provider';
+import { useAuthSession } from '@/core/session/auth-session-provider';
+import { clearSessionTokens } from '@/core/session/session-tokens';
+import { useTheme } from '@/core/theme';
 
 export function MoreScreen() {
   const { theme } = useTheme();

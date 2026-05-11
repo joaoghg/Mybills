@@ -7,14 +7,14 @@ import {
   useMemo
 } from 'react';
 
-import { getApiBaseUrl } from '../config/env';
-import { useAuthSession } from '../session/auth-session-provider';
+import { getApiBaseUrl } from '@/core/config/env';
+import { useAuthSession } from '@/core/session/auth-session-provider';
 import {
   clearSessionTokens,
   getAccessToken,
   getRefreshToken,
   saveSessionTokens
-} from '../session/session-tokens';
+} from '@/core/session/session-tokens';
 
 const HttpClientContext = createContext<HttpClient | null>(null);
 

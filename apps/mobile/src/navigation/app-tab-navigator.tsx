@@ -4,13 +4,13 @@ import { useTranslation } from 'react-i18next';
 import { Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { useTheme } from '../core/theme';
-import { HistoryScreen } from '../features/history/screens/history-screen';
-import { HomeScreen } from '../features/home/screens/home-screen';
-import { MoreScreen } from '../features/more/screens/more-screen';
-import { WalletScreen } from '../features/wallet/screens/wallet-screen';
-import { AddTabButton } from './add-tab-button';
-import type { AppTabParamList } from './types';
+import { useTheme } from '@/core/theme';
+import { HistoryScreen } from '@/features/history/screens/history-screen';
+import { HomeScreen } from '@/features/home/screens/home-screen';
+import { MoreScreen } from '@/features/more/screens/more-screen';
+import { WalletScreen } from '@/features/wallet/screens/wallet-screen';
+import { AddTabButton } from '@/navigation/add-tab-button';
+import type { AppTabParamList } from '@/navigation/types';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 

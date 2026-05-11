@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import type { AppTheme } from '../../../core/theme';
+import type { AppTheme } from '@/core/theme';
 
 type HomeHeaderProps = {
   theme: AppTheme;
