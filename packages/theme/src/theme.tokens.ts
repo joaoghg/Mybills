@@ -67,7 +67,9 @@ export const lightTheme: AppTheme = {
     textOnPrimary: '#F8FAFC',
     textOnSecondary: '#020617',
     border: '#CBD5E1',
-    overlay: 'rgba(15, 23, 42, 0.08)'
+    overlay: 'rgba(15, 23, 42, 0.08)',
+    danger: '#DC2626',
+    positive: '#059669'
   }
 };
 
@@ -87,6 +89,8 @@ export const darkTheme: AppTheme = {
     textOnPrimary: '#F8FAFC',
     textOnSecondary: '#020617',
     border: '#334155',
-    overlay: 'rgba(2, 6, 23, 0.45)'
+    overlay: 'rgba(2, 6, 23, 0.45)',
+    danger: '#F87171',
+    positive: '#34D399'
   }
 };

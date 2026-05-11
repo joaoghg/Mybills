@@ -7,20 +7,19 @@ import {
   Text,
   View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { logout } from '@mybills/api-client';
 
 import { useHttpClient } from '../../../core/api/http-client-provider';
 import { useAuthSession } from '../../../core/session/auth-session-provider';
 import { clearSessionTokens } from '../../../core/session/session-tokens';
-import type { AppTheme } from '../../../core/theme';
+import { useTheme } from '../../../core/theme';
 
-type HomePlaceholderScreenProps = {
-  theme: AppTheme;
-};
-
-export function HomePlaceholderScreen({ theme }: HomePlaceholderScreenProps) {
+export function MoreScreen() {
+  const { theme } = useTheme();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const client = useHttpClient();
   const { markSignedOut } = useAuthSession();
   const queryClient = useQueryClient();
@@ -43,10 +42,19 @@ export function HomePlaceholderScreen({ theme }: HomePlaceholderScreenProps) {
   }
 
   return (
-    <View style={[styles.root, { backgroundColor: theme.colors.background }]}>
-      <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-        {t('home.title')}
-      </Text>
+    <View
+      style={[
+        styles.root,
+        { backgroundColor: theme.colors.background, paddingBottom: insets.bottom + 24 }
+      ]}
+    >
+      <View style={[styles.headerBlock, { paddingTop: insets.top + 16 }]}>
+        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('more.title')}</Text>
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          {t('more.subtitle')}
+        </Text>
+      </View>
+
       <Pressable
         accessibilityRole="button"
         accessibilityState={{ disabled: signingOut }}
@@ -63,7 +71,7 @@ export function HomePlaceholderScreen({ theme }: HomePlaceholderScreenProps) {
           <ActivityIndicator color={theme.colors.textOnPrimary} />
         ) : (
           <Text style={[styles.buttonLabel, { color: theme.colors.textOnPrimary }]}>
-            {t('auth.signOut')}
+            {t('more.signOut')}
           </Text>
         )}
       </Pressable>
@@ -75,13 +83,18 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 24,
-    gap: 20
+    gap: 24
+  },
+  headerBlock: {
+    gap: 8
   },
   title: {
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: 28,
     fontWeight: '800'
+  },
+  subtitle: {
+    fontSize: 16,
+    lineHeight: 22
   },
   button: {
     minHeight: 48,
