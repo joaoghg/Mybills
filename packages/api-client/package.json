@@ -1,0 +1,28 @@
+{
+  "name": "@mybills/api-client",
+  "version": "1.0.0",
+  "description": "HTTP client and API helpers for MyBills",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "dependencies": {
+    "@mybills/dtos": "workspace:*"
+  },
+  "devDependencies": {
+    "@mybills/typescript-config": "workspace:*",
+    "typescript": "~5.9.2"
+  }
+}

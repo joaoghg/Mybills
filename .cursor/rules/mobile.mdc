@@ -1,0 +1,61 @@
+---
+description: Rules for implementing or refactoring mobile screens, components, hooks, and data flows
+globs: apps/mobile/**/*.ts,apps/mobile/**/*.tsx
+alwaysApply: false
+---
+
+# MyBills Mobile Rules
+
+## Project Structure (Feature-First)
+
+Organize `src/` by **functionality** to ensure scalability and isolation:
+
+- **`src/features/[feature-name]/`**: Self-contained modules (e.g., `home`, `auth`, `transactions`).
+  - Contains: `screens/`, `components/` (feature-specific), `hooks/`, and `store/` (Zustand slices).
+- **`src/shared/`**: UI components, hooks, and utils used across multiple features.
+- **`src/core/`**: Global infrastructure (i18n setup, theme, API clients, splash screen logic).
+- **`src/navigation/`**: Route definitions and navigators.
+
+**Rule:** Features must not import directly from other features. Shared logic must be moved to `src/shared/` or `packages/`.
+
+## UI and Business Logic Separation (Hard Rule)
+
+- **Presentational Components**: Must be "dumb". Receive data via props and emit actions via callbacks. No API calls or business decisions inside.
+- **Screens (Containers)**: Act as orchestrators. They fetch data via hooks and pass "ready-to-render" props to presentational components.
+- **Business Logic**: Must reside in hooks, services, or stores outside the JSX.
+
+## State Management
+
+- **Server State**: Use `@tanstack/react-query` for all async data. Do not duplicate or mirror server state in Zustand.
+- **Client/UI State**: Use `zustand` for ephemeral UX state (e.g., modals, local filters, wizard steps).
+- **Modular Stores**: Favor small, focused stores within features over a single monolithic global store.
+
+## Internationalization (Hard Rule)
+
+- All user-facing text must use i18n translation keys. Do not hardcode visible strings in screens or components.
+- Use the existing i18n setup from `src/core/i18n` and consume translations via `useTranslation`.
+- New features must add translation keys for all supported locales when introducing new copy.
+- Shared/presentational components must receive already-translated text or translation keys via props. Keep translation decisions out of business logic.
+- Validation, empty states, labels, placeholders, buttons, toasts, and error messages shown in the UI must be localized.
+
+## Cross-Platform Reuse (packages/\*)
+
+Code that is platform-agnostic **must** live in `packages/`:
+
+- API client functions and request helpers.
+- Formatters, mappers, validators, and DTO schemas.
+- Shared logic hooks with no React Native or Web dependencies.
+
+**Constraint**: No `react-native` or DOM-specific imports inside `packages/`.
+
+## Composition Pattern
+
+1. **Navigation Layer**: Defines the route and imports the **Screen**.
+2. **Screen Layer**: Consumes React Query/Zustand hooks and maps domain data to view-model props.
+3. **Component Layer**: Renders UI based on props.
+
+## Non-Goals
+
+- Do not embed API calls or business rules directly in JSX.
+- Do not create duplicated logic in `apps/mobile` if it can be shared in `packages/`.
+- Do not allow features to become tightly coupled.

@@ -2,18 +2,6 @@ import type { AppTheme, ThemePalette } from './theme.types';
 
 export const palette: ThemePalette = {
   primary: {
-    50: '#F8FAFC',
-    100: '#E2E8F0',
-    200: '#CBD5E1',
-    300: '#94A3B8',
-    400: '#64748B',
-    500: '#475569',
-    600: '#334155',
-    700: '#1E293B',
-    800: '#0F172A',
-    900: '#020617'
-  },
-  secondary: {
     50: '#ECFDF5',
     100: '#D1FAE5',
     200: '#A7F3D0',
@@ -24,6 +12,18 @@ export const palette: ThemePalette = {
     700: '#047857',
     800: '#065F46',
     900: '#064E3B'
+  },
+  secondary: {
+    50: '#F8FAFC',
+    100: '#E2E8F0',
+    200: '#CBD5E1',
+    300: '#94A3B8',
+    400: '#64748B',
+    500: '#475569',
+    600: '#334155',
+    700: '#1E293B',
+    800: '#0F172A',
+    900: '#020617'
   },
   tertiary: {
     50: '#F8FAFC',
@@ -55,8 +55,8 @@ export const lightTheme: AppTheme = {
   mode: 'light',
   palette,
   colors: {
-    primary: '#0F172A',
-    secondary: '#10B981',
+    primary: '#10B981',
+    secondary: '#0F172A',
     tertiary: '#334155',
     neutral: '#F8FAFC',
     background: '#F8FAFC',
@@ -75,8 +75,8 @@ export const darkTheme: AppTheme = {
   mode: 'dark',
   palette,
   colors: {
-    primary: '#0F172A',
-    secondary: '#10B981',
+    primary: '#10B981',
+    secondary: '#0F172A',
     tertiary: '#334155',
     neutral: '#F8FAFC',
     background: '#020617',

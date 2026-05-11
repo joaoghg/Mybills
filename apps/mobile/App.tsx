@@ -1,132 +1,59 @@
 import { StatusBar } from 'expo-status-bar';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { useTranslation } from 'react-i18next';
+import { ActivityIndicator, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import './src/core/i18n';
+import { HttpClientProvider } from './src/core/api/http-client-provider';
+import { AppQueryProvider } from './src/core/query/query-provider';
+import { AuthSessionProvider, useAuthSession } from './src/core/session/auth-session-provider';
 import { ThemeProvider, useTheme } from './src/core/theme';
+import { AuthScreen } from './src/features/auth/screens/auth-screen';
+import { HomePlaceholderScreen } from './src/features/home/screens/home-placeholder-screen';
 
 export default function App() {
   return (
-    <ThemeProvider>
-      <ThemedApp />
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <AppQueryProvider>
+        <AuthSessionProvider>
+          <HttpClientProvider>
+            <ThemeProvider>
+              <ThemedApp />
+            </ThemeProvider>
+          </HttpClientProvider>
+        </AuthSessionProvider>
+      </AppQueryProvider>
+    </SafeAreaProvider>
   );
 }
 
 function ThemedApp() {
-  const { t } = useTranslation();
-  const { theme, resolvedMode, mode, setMode, toggleMode } = useTheme();
+  const { theme, resolvedMode } = useTheme();
+  const { status, markSignedIn } = useAuthSession();
 
   const statusBarStyle = resolvedMode === 'dark' ? 'light' : 'dark';
 
-  return (
-    <View
-      style={[
-        styles.container,
-        {
-          backgroundColor: theme.colors.background
-        }
-      ]}
-    >
+  if (status === 'loading') {
+    return (
       <View
-        style={[
-          styles.card,
-          {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border
-          }
-        ]}
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: theme.colors.background
+        }}
       >
-        <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('app.title')}</Text>
-        <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          {t('app.selectedMode', { mode })}
-        </Text>
-        <Text style={[styles.body, { color: theme.colors.textSecondary }]}>
-          {t('app.appliedMode', { mode: resolvedMode })}
-        </Text>
-
-        <View style={styles.actions}>
-          <Pressable
-            style={[
-              styles.button,
-              {
-                backgroundColor: theme.colors.secondary
-              }
-            ]}
-            onPress={toggleMode}
-          >
-            <Text style={[styles.buttonText, { color: theme.colors.textOnSecondary }]}>
-              {t('app.toggle')}
-            </Text>
-          </Pressable>
-
-          <Pressable
-            style={[
-              styles.outlineButton,
-              {
-                borderColor: theme.colors.border
-              }
-            ]}
-            onPress={() => setMode('system')}
-          >
-            <Text style={[styles.outlineButtonText, { color: theme.colors.textPrimary }]}>
-              {t('app.system')}
-            </Text>
-          </Pressable>
-        </View>
+        <ActivityIndicator size="large" color={theme.colors.primary} />
       </View>
+    );
+  }
 
+  return (
+    <>
+      {status === 'guest' ? (
+        <AuthScreen theme={theme} onAuthenticated={markSignedIn} />
+      ) : (
+        <HomePlaceholderScreen theme={theme} />
+      )}
       <StatusBar style={statusBarStyle} />
-    </View>
+    </>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16
-  },
-  card: {
-    width: '100%',
-    maxWidth: 380,
-    borderWidth: 1,
-    borderRadius: 20,
-    padding: 20,
-    gap: 8
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 8
-  },
-  body: {
-    fontSize: 16,
-    fontWeight: '500'
-  },
-  actions: {
-    marginTop: 16,
-    flexDirection: 'row',
-    gap: 12
-  },
-  button: {
-    borderRadius: 999,
-    paddingVertical: 10,
-    paddingHorizontal: 18
-  },
-  buttonText: {
-    fontSize: 14,
-    fontWeight: '700'
-  },
-  outlineButton: {
-    borderRadius: 999,
-    borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 18
-  },
-  outlineButtonText: {
-    fontSize: 14,
-    fontWeight: '700'
-  }
-});

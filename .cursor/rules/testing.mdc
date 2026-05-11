@@ -1,0 +1,58 @@
+---
+description: Rules for creating or refactoring Jest unit and e2e tests in the API
+globs: apps/api/**/*.spec.ts,apps/api/test/**/*.ts
+alwaysApply: false
+---
+
+# MyBills Test Rules
+
+## Scope
+
+- Applies to Jest unit tests and e2e tests for the API app.
+- Prefer aligning tests with module boundaries under `apps/api/src/modules/*`.
+
+## Scenario Naming
+
+- Use behavior-focused names in English with `should ...`.
+- Name suites by unit under test (`describe('AuthService')`, `describe('Auth (e2e)')`).
+- Keep scenario titles explicit about expected behavior and conditions.
+- Prefer patterns like:
+  - `should return ... when ...`
+  - `should throw ... if ...`
+  - `should call ... with ...`
+
+## Dependency Inversion in Tests
+
+- Preserve DIP in tests exactly as in application code.
+- Unit tests must mock/stub dependencies injected by NestJS DI.
+- Test services against repository/service abstractions, not concrete infrastructure.
+- Do not bypass service boundaries to assert business rules.
+
+## Prisma Rule (Hard)
+
+- Never use Prisma directly in unit tests.
+- Do not instantiate Prisma client in unit tests.
+- For persistence behavior in unit tests, mock repository contracts.
+- In e2e tests, interact through HTTP endpoints and service APIs used by the app.
+
+## Strong Typing in Tests (Hard)
+
+- Keep strong typing in test code; avoid `any` in handwritten tests.
+- Reuse real application types, contracts, and DTO inferred types whenever possible.
+- Type mocked return values with module entity/contracts used in production code.
+- Type parsed HTTP responses with DTO output schemas (`zod.parse`) and inferred types.
+- DTOs are found in `@mybills/dtos` and module-local `contracts/` directories.
+
+## Assertions and Structure
+
+- Assert observable behavior first (return value, thrown domain error, side effect).
+- Verify dependency interaction only when relevant to behavior.
+- Keep one primary behavior per test case.
+- Keep setup minimal and explicit.
+
+## Command Hints
+
+- Focused unit run:
+  - `npm run test`
+- Focused e2e run:
+  - `npm run test:e2e`
