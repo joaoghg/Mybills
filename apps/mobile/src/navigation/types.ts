@@ -1,6 +1,8 @@
 export type RootStackParamList = {
   MainTabs: undefined;
   AddPlaceholder: undefined;
+  LanguageSettings: undefined;
+  ThemeSettings: undefined;
 };
 
 export type AppTabParamList = {

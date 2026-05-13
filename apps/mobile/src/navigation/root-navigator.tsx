@@ -10,7 +10,10 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/core/theme';
 import { AddPlaceholderScreen } from '@/features/add/screens/add-placeholder-screen';
+import { LanguageSettingsScreen } from '@/features/more/screens/language-settings-screen';
+import { ThemeSettingsScreen } from '@/features/more/screens/theme-settings-screen';
 import { AppTabNavigator } from '@/navigation/app-tab-navigator';
+import { rootNavigationRef } from '@/navigation/root-navigation-ref';
 import type { RootStackParamList } from '@/navigation/types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -37,7 +40,7 @@ export function AuthenticatedRoot() {
   }, [resolvedMode, theme]);
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer ref={rootNavigationRef} theme={navigationTheme}>
       <Stack.Navigator
         screenOptions={{
           headerTintColor: theme.colors.primary,
@@ -54,6 +57,20 @@ export function AuthenticatedRoot() {
           options={{
             presentation: 'modal',
             title: t('add.title')
+          }}
+        />
+        <Stack.Screen
+          name="LanguageSettings"
+          component={LanguageSettingsScreen}
+          options={{
+            presentation: 'modal'
+          }}
+        />
+        <Stack.Screen
+          name="ThemeSettings"
+          component={ThemeSettingsScreen}
+          options={{
+            presentation: 'modal'
           }}
         />
       </Stack.Navigator>

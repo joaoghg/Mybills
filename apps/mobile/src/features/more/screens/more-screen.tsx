@@ -15,6 +15,7 @@ import { useHttpClient } from '@/core/api/http-client-provider';
 import { useAuthSession } from '@/core/session/auth-session-provider';
 import { clearSessionTokens } from '@/core/session/session-tokens';
 import { useTheme } from '@/core/theme';
+import { navigateRoot } from '@/navigation/root-navigation-ref';
 
 export function MoreScreen() {
   const { theme } = useTheme();
@@ -55,26 +56,62 @@ export function MoreScreen() {
         </Text>
       </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityState={{ disabled: signingOut }}
-        disabled={signingOut}
-        onPress={handleSignOut}
-        style={({ pressed }) => [
-          styles.button,
-          { backgroundColor: theme.colors.primary },
-          signingOut && styles.buttonDisabled,
-          pressed && !signingOut && styles.buttonPressed
-        ]}
-      >
-        {signingOut ? (
-          <ActivityIndicator color={theme.colors.textOnPrimary} />
-        ) : (
-          <Text style={[styles.buttonLabel, { color: theme.colors.textOnPrimary }]}>
-            {t('more.signOut')}
+      <View style={styles.actions}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigateRoot('LanguageSettings')}
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            {
+              backgroundColor: theme.colors.surfaceAlt,
+              borderColor: theme.colors.border
+            },
+            pressed && styles.buttonPressed
+          ]}
+        >
+          <Text style={[styles.secondaryButtonLabel, { color: theme.colors.textPrimary }]}>
+            {t('more.languageRow')}
           </Text>
-        )}
-      </Pressable>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => navigateRoot('ThemeSettings')}
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            {
+              backgroundColor: theme.colors.surfaceAlt,
+              borderColor: theme.colors.border
+            },
+            pressed && styles.buttonPressed
+          ]}
+        >
+          <Text style={[styles.secondaryButtonLabel, { color: theme.colors.textPrimary }]}>
+            {t('more.themeRow')}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{ disabled: signingOut }}
+          disabled={signingOut}
+          onPress={handleSignOut}
+          style={({ pressed }) => [
+            styles.button,
+            { backgroundColor: theme.colors.primary },
+            signingOut && styles.buttonDisabled,
+            pressed && !signingOut && styles.buttonPressed
+          ]}
+        >
+          {signingOut ? (
+            <ActivityIndicator color={theme.colors.textOnPrimary} />
+          ) : (
+            <Text style={[styles.buttonLabel, { color: theme.colors.textOnPrimary }]}>
+              {t('more.signOut')}
+            </Text>
+          )}
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -95,6 +132,22 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 16,
     lineHeight: 22
+  },
+  actions: {
+    gap: 12
+  },
+  secondaryButton: {
+    minHeight: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 18,
+    borderWidth: 1
+  },
+  secondaryButtonLabel: {
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: '700'
   },
   button: {
     minHeight: 48,
