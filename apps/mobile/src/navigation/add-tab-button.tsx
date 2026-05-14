@@ -1,43 +1,58 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { BottomTabBarButtonProps } from '@react-navigation/bottom-tabs';
-import { useNavigation } from '@react-navigation/native';
-import type { NavigationProp } from '@react-navigation/native';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { useRef } from 'react';
+import { Animated, Pressable, StyleSheet } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-import type { RootStackParamList } from '@/navigation/types';
+import { useQuickAddMenu } from '@/navigation/quick-add-menu-context';
 
 type AddTabButtonProps = BottomTabBarButtonProps & {
   theme: AppTheme;
 };
 
+const FAB_SCALE_PRESSED = 0.88;
+
 export function AddTabButton({
   theme,
-  accessibilityState,
   accessibilityLabel,
   style,
   testID,
   onLongPress,
   delayLongPress
 }: AddTabButtonProps) {
-  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
+  const { isOpen, toggle } = useQuickAddMenu();
+  const scale = useRef(new Animated.Value(1)).current;
+
+  function runScale(toValue: number) {
+    Animated.spring(scale, {
+      toValue,
+      useNativeDriver: true,
+      friction: 6,
+      tension: 220
+    }).start();
+  }
 
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={accessibilityState}
+      accessibilityState={{ expanded: isOpen }}
       accessibilityLabel={accessibilityLabel}
       testID={testID}
       onLongPress={onLongPress}
       delayLongPress={delayLongPress}
       style={[styles.wrapper, style]}
-      onPress={() => {
-        navigation.navigate('AddPlaceholder');
-      }}
+      onPressIn={() => runScale(FAB_SCALE_PRESSED)}
+      onPressOut={() => runScale(1)}
+      onPress={toggle}
     >
-      <View style={[styles.fab, { backgroundColor: theme.colors.primary }]}>
+      <Animated.View
+        style={[
+          styles.fab,
+          { backgroundColor: theme.colors.primary, transform: [{ scale }] }
+        ]}
+      >
         <Ionicons name="add" size={28} color={theme.colors.textOnPrimary} />
-      </View>
+      </Animated.View>
     </Pressable>
   );
 }

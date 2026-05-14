@@ -10,18 +10,36 @@ import { HomeScreen } from '@/features/home/screens/home-screen';
 import { MoreScreen } from '@/features/more/screens/more-screen';
 import { WalletScreen } from '@/features/wallet/screens/wallet-screen';
 import { AddTabButton } from '@/navigation/add-tab-button';
+import { CustomTabBar } from '@/navigation/custom-tab-bar';
+import { QuickAddMenuProvider, useQuickAddMenu } from '@/navigation/quick-add-menu-context';
 import type { AppTabParamList } from '@/navigation/types';
 
 const Tab = createBottomTabNavigator<AppTabParamList>();
 
 export function AppTabNavigator() {
+  return (
+    <QuickAddMenuProvider>
+      <AppTabNavigatorContent />
+    </QuickAddMenuProvider>
+  );
+}
+
+function AppTabNavigatorContent() {
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { close } = useQuickAddMenu();
   const insets = useSafeAreaInsets();
   const tabBarBottomPadding = Platform.OS === 'ios' ? Math.max(insets.bottom, 8) : insets.bottom + 8;
 
+  const closeRailOnTab = {
+    tabPress: () => {
+      close();
+    }
+  };
+
   return (
     <Tab.Navigator
+      tabBar={(props) => <CustomTabBar {...props} />}
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
@@ -67,11 +85,13 @@ export function AppTabNavigator() {
         name="HomeTab"
         component={HomeScreen}
         options={{ tabBarLabel: t('tabs.home') }}
+        listeners={closeRailOnTab}
       />
       <Tab.Screen
         name="HistoryTab"
         component={HistoryScreen}
         options={{ tabBarLabel: t('tabs.history') }}
+        listeners={closeRailOnTab}
       />
       <Tab.Screen
         name="AddTab"
@@ -86,11 +106,13 @@ export function AppTabNavigator() {
         name="WalletTab"
         component={WalletScreen}
         options={{ tabBarLabel: t('tabs.wallet') }}
+        listeners={closeRailOnTab}
       />
       <Tab.Screen
         name="MoreTab"
         component={MoreScreen}
         options={{ tabBarLabel: t('tabs.more') }}
+        listeners={closeRailOnTab}
       />
     </Tab.Navigator>
   );

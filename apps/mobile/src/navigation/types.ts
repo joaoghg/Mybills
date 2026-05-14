@@ -1,6 +1,8 @@
 export type RootStackParamList = {
   MainTabs: undefined;
-  AddPlaceholder: undefined;
+  AddAccount: undefined;
+  AddTransaction: undefined;
+  AddCreditCard: undefined;
   LanguageSettings: undefined;
   ThemeSettings: undefined;
 };
