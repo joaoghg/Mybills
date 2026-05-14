@@ -48,8 +48,6 @@ export function HomeScreen() {
       <HomeHeader
         theme={theme}
         brandName={t('home.brandName')}
-        notificationsLabel={t('home.notificationsHint')}
-        profileLabel={t('home.profileHint')}
       />
 
       {dashboard.isLoading ? (

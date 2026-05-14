@@ -6,33 +6,15 @@ import type { AppTheme } from '@/core/theme';
 type HomeHeaderProps = {
   theme: AppTheme;
   brandName: string;
-  notificationsLabel: string;
-  profileLabel: string;
 };
 
 export function HomeHeader({
   theme,
-  brandName,
-  notificationsLabel,
-  profileLabel
+  brandName
 }: HomeHeaderProps) {
   return (
     <View style={styles.row}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={profileLabel}
-        style={[styles.avatar, { backgroundColor: theme.colors.surfaceAlt }]}
-      >
-        <Ionicons name="person" size={22} color={theme.colors.textSecondary} />
-      </Pressable>
       <Text style={[styles.brand, { color: theme.colors.textPrimary }]}>{brandName}</Text>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={notificationsLabel}
-        style={styles.bell}
-      >
-        <Ionicons name="notifications-outline" size={22} color={theme.colors.textPrimary} />
-      </Pressable>
     </View>
   );
 }
