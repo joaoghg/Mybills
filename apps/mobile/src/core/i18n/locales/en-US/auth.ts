@@ -9,6 +9,8 @@ export const auth = {
   emailPlaceholder: 'you@example.com',
   passwordLabel: 'Password',
   passwordPlaceholder: 'Enter your password',
+  showPassword: 'Show password',
+  hidePassword: 'Hide password',
   confirmPasswordLabel: 'Confirm password',
   confirmPasswordPlaceholder: 'Repeat your password',
   passwordRulesHint:

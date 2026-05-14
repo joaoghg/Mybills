@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useTranslation } from 'react-i18next';
@@ -26,6 +27,7 @@ export function LoginScreen({
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const remoteMessage =
@@ -69,11 +71,29 @@ export function LoginScreen({
           theme={theme}
           label={t('auth.passwordLabel')}
           placeholder={t('auth.passwordPlaceholder')}
-          secureTextEntry
+          secureTextEntry={!passwordVisible}
           autoCapitalize="none"
           autoCorrect={false}
           value={password}
           onChangeText={setPassword}
+          textContentType="password"
+          autoComplete="password"
+          rightAccessory={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                passwordVisible ? t('auth.hidePassword') : t('auth.showPassword')
+              }
+              hitSlop={8}
+              onPress={() => setPasswordVisible((v) => !v)}
+            >
+              <Ionicons
+                name={passwordVisible ? 'eye-off-outline' : 'eye-outline'}
+                size={22}
+                color={theme.colors.textSecondary}
+              />
+            </Pressable>
+          }
         />
 
         {displayError ? (
