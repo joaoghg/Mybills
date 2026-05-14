@@ -3,32 +3,34 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-import type { AccountSummary } from '@/features/home/hooks/use-home-dashboard';
+import type { HomeAccountRow } from '@/features/home/hooks/use-home-dashboard';
 
 type AccountsSectionProps = {
   theme: AppTheme;
   sectionTitle: string;
-  newAccountLabel: string;
-  formatPercentLine: (account: AccountSummary) => string;
-  accounts: AccountSummary[];
+  headerActionLabel: string;
+  onHeaderActionPress?: () => void;
+  accounts: HomeAccountRow[];
   formatCurrency: (amount: number) => string;
-  accountTitle: (id: AccountSummary['id']) => string;
-  accountSubtitle: (id: AccountSummary['id']) => string;
+  emptyLabel?: string;
+  emptyActionLabel?: string;
+  onEmptyActionPress?: () => void;
 };
 
-function accountIcon(id: AccountSummary['id']): ComponentProps<typeof Ionicons>['name'] {
-  return id === 'main' ? 'briefcase-outline' : 'cash-outline';
+function accountIcon(): ComponentProps<typeof Ionicons>['name'] {
+  return 'wallet-outline';
 }
 
 export function AccountsSection({
   theme,
   sectionTitle,
-  newAccountLabel,
-  formatPercentLine,
+  headerActionLabel,
+  onHeaderActionPress,
   accounts,
   formatCurrency,
-  accountTitle,
-  accountSubtitle
+  emptyLabel,
+  emptyActionLabel,
+  onEmptyActionPress
 }: AccountsSectionProps) {
   return (
     <View style={styles.section}>
@@ -36,45 +38,67 @@ export function AccountsSection({
         <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
           {sectionTitle}
         </Text>
-        <Pressable accessibilityRole="button">
-          <Text style={[styles.link, { color: theme.colors.primary }]}>{newAccountLabel}</Text>
-        </Pressable>
+        {onHeaderActionPress ? (
+          <Pressable accessibilityRole="button" onPress={onHeaderActionPress}>
+            <Text style={[styles.link, { color: theme.colors.primary }]}>{headerActionLabel}</Text>
+          </Pressable>
+        ) : (
+          <Text style={[styles.link, { color: theme.colors.primary }]}>{headerActionLabel}</Text>
+        )}
       </View>
-      <View style={styles.cards}>
-        {accounts.map((account) => (
-          <View
-            key={account.id}
-            style={[
-              styles.card,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.border,
-                shadowColor: theme.colors.textPrimary
-              }
-            ]}
-          >
-            <View style={[styles.iconCircle, { backgroundColor: theme.colors.surfaceAlt }]}>
-              <Ionicons name={accountIcon(account.id)} size={22} color={theme.colors.textSecondary} />
+      {accounts.length === 0 ? (
+        <View style={styles.emptyBlock}>
+          {emptyLabel ? (
+            <Text style={[styles.empty, { color: theme.colors.textSecondary }]}>{emptyLabel}</Text>
+          ) : null}
+          {emptyActionLabel && onEmptyActionPress ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={onEmptyActionPress}
+              style={[styles.emptyCta, { borderColor: theme.colors.primary }]}
+            >
+              <Text style={[styles.emptyCtaLabel, { color: theme.colors.primary }]}>
+                {emptyActionLabel}
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : (
+        <View style={styles.cards}>
+          {accounts.map((account) => (
+            <View
+              key={account.id}
+              style={[
+                styles.card,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
+                  shadowColor: theme.colors.textPrimary
+                }
+              ]}
+            >
+              <View style={[styles.iconCircle, { backgroundColor: theme.colors.surfaceAlt }]}>
+                <Ionicons name={accountIcon()} size={22} color={theme.colors.textSecondary} />
+              </View>
+              <View style={styles.cardMid}>
+                <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+                  {account.title}
+                </Text>
+                {account.subtitle ? (
+                  <Text style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}>
+                    {account.subtitle}
+                  </Text>
+                ) : null}
+              </View>
+              <View style={styles.cardRight}>
+                <Text style={[styles.balance, { color: theme.colors.textPrimary }]}>
+                  {formatCurrency(account.balanceMajor)}
+                </Text>
+              </View>
             </View>
-            <View style={styles.cardMid}>
-              <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-                {accountTitle(account.id)}
-              </Text>
-              <Text style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}>
-                {accountSubtitle(account.id)}
-              </Text>
-            </View>
-            <View style={styles.cardRight}>
-              <Text style={[styles.balance, { color: theme.colors.textPrimary }]}>
-                {formatCurrency(account.balance)}
-              </Text>
-              <Text style={[styles.percent, { color: theme.colors.positive }]}>
-                {formatPercentLine(account)}
-              </Text>
-            </View>
-          </View>
-        ))}
-      </View>
+          ))}
+        </View>
+      )}
     </View>
   );
 }
@@ -95,6 +119,24 @@ const styles = StyleSheet.create({
   },
   link: {
     fontSize: 14,
+    fontWeight: '700'
+  },
+  emptyBlock: {
+    gap: 12,
+    paddingVertical: 4
+  },
+  empty: {
+    fontSize: 14
+  },
+  emptyCta: {
+    alignSelf: 'flex-start',
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1.5
+  },
+  emptyCtaLabel: {
+    fontSize: 15,
     fontWeight: '700'
   },
   cards: {
@@ -138,9 +180,5 @@ const styles = StyleSheet.create({
   balance: {
     fontSize: 16,
     fontWeight: '800'
-  },
-  percent: {
-    fontSize: 12,
-    fontWeight: '600'
   }
 });

@@ -2,11 +2,16 @@ import { Ionicons } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-import type { InvoiceSummary } from '@/features/home/hooks/use-home-dashboard';
+
+export type InvoiceCardDisplay = {
+  totalMajor: number;
+  dueInDays: number;
+  cardName?: string;
+};
 
 type InvoiceCardProps = {
   theme: AppTheme;
-  invoice: InvoiceSummary;
+  invoice: InvoiceCardDisplay;
   invoiceLabel: string;
   dueLabel: string;
   payLabel: string;
@@ -35,8 +40,13 @@ export function InvoiceCard({
       <View style={styles.topRow}>
         <View style={styles.labels}>
           <Text style={[styles.kicker, { color: theme.colors.textSecondary }]}>{invoiceLabel}</Text>
+          {invoice.cardName ? (
+            <Text style={[styles.cardName, { color: theme.colors.textSecondary }]} numberOfLines={1}>
+              {invoice.cardName}
+            </Text>
+          ) : null}
           <Text style={[styles.amount, { color: theme.colors.textPrimary }]}>
-            {formatCurrency(invoice.total)}
+            {formatCurrency(invoice.totalMajor)}
           </Text>
           <View style={styles.dueRow}>
             <Ionicons name="time-outline" size={16} color={theme.colors.danger} />
@@ -82,6 +92,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1.2
+  },
+  cardName: {
+    fontSize: 13,
+    fontWeight: '600'
   },
   amount: {
     fontSize: 28,
