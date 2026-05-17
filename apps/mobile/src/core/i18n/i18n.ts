@@ -6,7 +6,7 @@ import { defaultLanguage, type AppLanguage, resources } from './resources';
 
 const supportedLanguages = Object.keys(resources) as AppLanguage[];
 
-function resolveDeviceLanguage(): AppLanguage {
+export function resolveDeviceLanguage(): AppLanguage {
   const locale = getLocales()[0];
 
   if (!locale) {

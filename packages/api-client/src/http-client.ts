@@ -34,6 +34,7 @@ export type CreateHttpClientOptions = {
 export type HttpClient = {
   readonly baseUrl: string;
   postJson: <TResponse>(path: string, body: unknown) => Promise<TResponse>;
+  getJson: <TResponse>(path: string) => Promise<TResponse>;
 };
 
 function normalizeErrorMessage(body: Record<string, unknown>): string {
@@ -103,6 +104,48 @@ async function fetchPostJson(
         ...extraHeaders
       },
       body: JSON.stringify(body)
+    });
+  } catch (cause) {
+    const message =
+      cause instanceof Error ? cause.message : 'Network request failed';
+    throw new ApiClientError({
+      statusCode: 0,
+      message,
+      code: 'client.network_error'
+    });
+  }
+
+  const rawText = await response.text();
+  let json: unknown;
+  try {
+    json = rawText ? JSON.parse(rawText) : undefined;
+  } catch {
+    json = undefined;
+  }
+
+  return {
+    status: response.status,
+    ok: response.ok,
+    json,
+    rawText
+  };
+}
+
+async function fetchGetJson(
+  baseUrl: string,
+  normalizedPath: string,
+  extraHeaders?: Record<string, string>
+): Promise<FetchJsonResult> {
+  const url = `${baseUrl}${normalizedPath}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...extraHeaders
+      }
     });
   } catch (cause) {
     const message =
@@ -211,6 +254,35 @@ export function createHttpClient(options: CreateHttpClientOptions): HttpClient {
           retryHeaders.Authorization = `Bearer ${newToken}`;
         }
         result = await fetchPostJson(baseUrl, normalizedPath, body, retryHeaders);
+      }
+
+      return assertOk(result) as TResponse;
+    },
+
+    async getJson<TResponse>(path: string): Promise<TResponse> {
+      const normalizedPath = normalizePath(path);
+
+      if (!auth) {
+        const result = await fetchGetJson(baseUrl, normalizedPath);
+        return assertOk(result) as TResponse;
+      }
+
+      const token = await auth.getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      let result = await fetchGetJson(baseUrl, normalizedPath, headers);
+
+      if (result.status === 401) {
+        await refreshWithMutex();
+        const newToken = await auth.getAccessToken();
+        const retryHeaders: Record<string, string> = {};
+        if (newToken) {
+          retryHeaders.Authorization = `Bearer ${newToken}`;
+        }
+        result = await fetchGetJson(baseUrl, normalizedPath, retryHeaders);
       }
 
       return assertOk(result) as TResponse;

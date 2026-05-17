@@ -36,6 +36,8 @@ export type ThemeColors = {
   textOnSecondary: string;
   border: string;
   overlay: string;
+  danger: string;
+  positive: string;
 };
 
 export type AppTheme = {

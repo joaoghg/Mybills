@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { AppTheme } from '../../../core/theme';
-import { AuthHeader } from '../components/auth-header';
-import { LoginScreen } from './login-screen';
-import { SignupScreen } from './signup-screen';
+import type { AppTheme } from '@/core/theme';
+import { AuthHeader } from '@/features/auth/components/auth-header';
+import { LoginScreen } from '@/features/auth/screens/login-screen';
+import { SignupScreen } from '@/features/auth/screens/signup-screen';
 
 type AuthMode = 'login' | 'signup';
 
