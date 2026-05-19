@@ -1,3 +1,4 @@
+import { accounts } from './accounts';
 import { auth } from './auth';
 import { history } from './history';
 import { home } from './home';
@@ -7,4 +8,4 @@ import { quickAdd } from './quickAdd';
 import { tabs } from './tabs';
 import { wallet } from './wallet';
 
-export const enUS = { auth, history, home, more, onboarding, quickAdd, tabs, wallet } as const;
+export const enUS = { accounts, auth, history, home, more, onboarding, quickAdd, tabs, wallet } as const;

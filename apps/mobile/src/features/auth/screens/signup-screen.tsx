@@ -5,7 +5,7 @@ import { signUpInputSchema } from '@mybills/dtos/auth';
 
 import type { AppTheme } from '@/core/theme';
 import { useSignUp } from '@/features/auth/hooks/use-sign-up';
-import { InputField } from '@/features/auth/components/input-field';
+import { InputField } from '@/shared/components/input-field';
 import { AuthDivider, GoogleButton } from '@/features/auth/components/auth-common';
 import { translateSignupError } from '@/features/auth/utils/sign-up-error';
 import { translateSignUpZodError } from '@/features/auth/utils/signup-validation';

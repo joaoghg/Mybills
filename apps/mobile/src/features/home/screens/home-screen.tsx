@@ -12,6 +12,7 @@ import { InvoiceCard } from '@/features/home/components/invoice-card';
 import { PhysicalCardsCarousel } from '@/features/home/components/physical-cards-carousel';
 import { RecentTransactionsSection } from '@/features/home/components/recent-transactions-section';
 import { useHomeDashboard } from '@/features/home/hooks/use-home-dashboard';
+import { navigateRoot } from '@/navigation/root-navigation-ref';
 import type { AppTabParamList } from '@/navigation/types';
 import { formatCurrencyValue } from '@/shared/utils/format-currency';
 
@@ -78,9 +79,7 @@ export function HomeScreen() {
             formatCurrency={formatMoney}
             emptyLabel={t('home.emptyAccounts')}
             emptyActionLabel={t('home.addAccount')}
-            onEmptyActionPress={() => {
-              /* placeholder: add account flow */
-            }}
+            onEmptyActionPress={() => navigateRoot('AddAccount')}
           />
           <PhysicalCardsCarousel
             theme={theme}
