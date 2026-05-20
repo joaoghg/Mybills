@@ -3,14 +3,14 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-import type { HomeAccountRow } from '@/features/home/hooks/use-home-dashboard';
+import type { WalletAccountRow } from '@/features/wallet/hooks/use-wallet-dashboard';
 
 type AccountsSectionProps = {
   theme: AppTheme;
   sectionTitle: string;
-  headerActionLabel: string;
+  headerActionLabel?: string;
   onHeaderActionPress?: () => void;
-  accounts: HomeAccountRow[];
+  accounts: WalletAccountRow[];
   formatCurrency: (amount: number) => string;
   emptyLabel?: string;
   emptyActionLabel?: string;
@@ -38,13 +38,13 @@ export function AccountsSection({
         <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
           {sectionTitle}
         </Text>
-        {onHeaderActionPress ? (
+        {headerActionLabel && onHeaderActionPress ? (
           <Pressable accessibilityRole="button" onPress={onHeaderActionPress}>
             <Text style={[styles.link, { color: theme.colors.primary }]}>{headerActionLabel}</Text>
           </Pressable>
-        ) : (
+        ) : headerActionLabel ? (
           <Text style={[styles.link, { color: theme.colors.primary }]}>{headerActionLabel}</Text>
-        )}
+        ) : null}
       </View>
       {accounts.length === 0 ? (
         <View style={styles.emptyBlock}>

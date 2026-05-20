@@ -3,20 +3,23 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-import type { HomeRecentAmountVariant, HomeRecentTransaction } from '@/features/home/hooks/use-home-dashboard';
+import type {
+  WalletRecentAmountVariant,
+  WalletRecentTransaction
+} from '@/features/wallet/hooks/use-wallet-dashboard';
 
 type RecentTransactionsSectionProps = {
   theme: AppTheme;
   sectionTitle: string;
   seeAllLabel: string;
-  transactions: HomeRecentTransaction[];
+  transactions: WalletRecentTransaction[];
   emptyLabel: string;
   emptyActionLabel?: string;
   onEmptyActionPress?: () => void;
   formatCurrency: (amount: number) => string;
 };
 
-function amountColor(theme: AppTheme, variant: HomeRecentAmountVariant): string {
+function amountColor(theme: AppTheme, variant: WalletRecentAmountVariant): string {
   if (variant === 'income') return theme.colors.positive;
   if (variant === 'expense') return theme.colors.danger;
   return theme.colors.textPrimary;

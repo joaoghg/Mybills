@@ -1,4 +1,23 @@
 export const wallet = {
   title: 'Wallet',
-  placeholder: 'A summary of your accounts and cards will appear here soon.'
+  brandName: 'MyBills',
+  accountsSection: 'My accounts',
+  seeAllAccounts: 'See all',
+  physicalCards: 'My cards',
+  contactlessHint: 'Contactless payment',
+  availableLimit: 'AVAILABLE LIMIT',
+  currentInvoiceLabel: 'CURRENT INVOICE',
+  payInvoice: 'Pay invoice',
+  dueInDays: 'Due in {{days}} days',
+  recentSection: 'Recent',
+  seeAll: 'SEE ALL',
+  loadError: 'Could not load data.',
+  retry: 'Try again',
+  emptyAccounts: 'No accounts yet.',
+  emptyCards: 'No cards yet.',
+  emptyTransactions: 'No transactions yet.',
+  addAccount: 'New account',
+  addCard: 'New card',
+  addTransaction: 'New transaction',
+  noDescription: 'No description'
 } as const;

@@ -1,4 +1,23 @@
 export const wallet = {
   title: 'Carteira',
-  placeholder: 'Resumo das suas contas e cartões nesta aba em breve.'
+  brandName: 'MyBills',
+  accountsSection: 'Minhas Contas',
+  seeAllAccounts: 'Ver tudo',
+  physicalCards: 'Meus cartões',
+  contactlessHint: 'Pagamento por aproximação',
+  availableLimit: 'LIMITE DISPONÍVEL',
+  currentInvoiceLabel: 'FATURA ATUAL',
+  payInvoice: 'Pagar Fatura',
+  dueInDays: 'Vence em {{days}} dias',
+  recentSection: 'Recentes',
+  seeAll: 'VER TUDO',
+  loadError: 'Não foi possível carregar os dados.',
+  retry: 'Tentar novamente',
+  emptyAccounts: 'Nenhuma conta ainda.',
+  emptyCards: 'Nenhum cartão cadastrado.',
+  emptyTransactions: 'Nenhuma transação ainda.',
+  addAccount: 'Nova conta',
+  addCard: 'Novo cartão',
+  addTransaction: 'Nova transação',
+  noDescription: 'Sem descrição'
 } as const;

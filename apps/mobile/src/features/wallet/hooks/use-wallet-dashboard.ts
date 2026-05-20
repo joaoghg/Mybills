@@ -13,40 +13,40 @@ import {
   daysUntilNextDueDay,
   getCurrentBillingCycleRange,
   ymdFromLocalDate
-} from '@/features/home/lib/billing-cycle';
+} from '@/features/wallet/lib/billing-cycle';
 import { centsToMajor } from '@/shared/utils/cents-to-major';
 
 const STALE_MS = 45_000;
 const RECENT_LIMIT = 8;
 
-export type HomeAccountRow = {
+export type WalletAccountRow = {
   id: string;
   title: string;
   subtitle: string;
   balanceMajor: number;
 };
 
-export type HomePhysicalCard = {
+export type WalletPhysicalCard = {
   id: string;
   name: string;
   availableLimitMajor: number;
   variant: 'navy' | 'green';
 };
 
-export type HomeInvoice = {
+export type WalletInvoice = {
   totalMajor: number;
   dueInDays: number;
   cardName: string;
 };
 
-export type HomeRecentAmountVariant = 'expense' | 'income' | 'neutral';
+export type WalletRecentAmountVariant = 'expense' | 'income' | 'neutral';
 
-export type HomeRecentTransaction = {
+export type WalletRecentTransaction = {
   id: string;
   merchant: string;
   timeLabel: string;
   displayAmountMajor: number;
-  amountVariant: HomeRecentAmountVariant;
+  amountVariant: WalletRecentAmountVariant;
   iconName: 'cart-outline' | 'restaurant-outline' | 'receipt-outline';
 };
 
@@ -86,7 +86,7 @@ function sumUnpaidCardExpensesAllTime(transactions: TransactionOutput[], cardId:
   return sum;
 }
 
-function pickCategoryIcon(categoryName: string | undefined): HomeRecentTransaction['iconName'] {
+function pickCategoryIcon(categoryName: string | undefined): WalletRecentTransaction['iconName'] {
   const n = (categoryName ?? '').toLowerCase();
   if (/(food|restaurant|lunch|almoço|jantar|pizza)/i.test(n)) return 'restaurant-outline';
   if (/(market|grocery|super|mercado)/i.test(n)) return 'cart-outline';
@@ -109,16 +109,16 @@ function formatRecentTimeLabel(dateStr: string, locale: string): string {
   }
 }
 
-export function useHomeDashboard(locale: string): {
+export function useWalletDashboard(locale: string): {
   isLoading: boolean;
   isError: boolean;
   refetchAll: () => Promise<void>;
-  account: HomeAccountRow | null;
-  physicalCards: HomePhysicalCard[];
+  account: WalletAccountRow | null;
+  physicalCards: WalletPhysicalCard[];
   selectedCardId: string | null;
   setSelectedCardId: (id: string) => void;
-  invoice: HomeInvoice | null;
-  recent: HomeRecentTransaction[];
+  invoice: WalletInvoice | null;
+  recent: WalletRecentTransaction[];
 } {
   const client = useHttpClient();
 
@@ -176,7 +176,7 @@ export function useHomeDashboard(locale: string): {
     return map;
   }, [categoriesQuery.data]);
 
-  const account = useMemo((): HomeAccountRow | null => {
+  const account = useMemo((): WalletAccountRow | null => {
     const list = accountsQuery.data ?? [];
     if (list.length === 0) return null;
     const sorted = [...list].sort(
@@ -192,7 +192,7 @@ export function useHomeDashboard(locale: string): {
     };
   }, [accountsQuery.data]);
 
-  const physicalCards = useMemo((): HomePhysicalCard[] => {
+  const physicalCards = useMemo((): WalletPhysicalCard[] => {
     const cards = creditCardsQuery.data ?? [];
     const txs = transactionsQuery.data ?? [];
     return cards.map((c, index) => {
@@ -220,7 +220,7 @@ export function useHomeDashboard(locale: string): {
     }
   }, [physicalCards, selectedCardId]);
 
-  const invoice = useMemo((): HomeInvoice | null => {
+  const invoice = useMemo((): WalletInvoice | null => {
     const cards = creditCardsQuery.data ?? [];
     const txs = transactionsQuery.data ?? [];
     if (!selectedCardId || cards.length === 0) return null;
@@ -237,7 +237,7 @@ export function useHomeDashboard(locale: string): {
     };
   }, [creditCardsQuery.data, transactionsQuery.data, selectedCardId]);
 
-  const recent = useMemo((): HomeRecentTransaction[] => {
+  const recent = useMemo((): WalletRecentTransaction[] => {
     const txs = transactionsQuery.data ?? [];
     const sorted = [...txs].sort((a, b) => {
       const byDate = compareYmd(b.date, a.date);
@@ -253,7 +253,7 @@ export function useHomeDashboard(locale: string): {
         '';
       const timeLabel = formatRecentTimeLabel(tx.date, locale);
       let displayAmountMajor: number;
-      let amountVariant: HomeRecentAmountVariant;
+      let amountVariant: WalletRecentAmountVariant;
       if (tx.type === 'EXPENSE') {
         displayAmountMajor = -centsToMajor(tx.amount);
         amountVariant = 'expense';

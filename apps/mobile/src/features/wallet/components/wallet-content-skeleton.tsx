@@ -3,11 +3,11 @@ import { StyleSheet, View } from 'react-native';
 import type { AppTheme } from '@/core/theme';
 import { SkeletonBox } from '@/shared/components/skeleton-box';
 
-type HomeContentSkeletonProps = {
+type WalletContentSkeletonProps = {
   theme: AppTheme;
 };
 
-export function HomeContentSkeleton({ theme }: HomeContentSkeletonProps) {
+export function WalletContentSkeleton({ theme }: WalletContentSkeletonProps) {
   return (
     <View style={styles.root}>
       <View style={styles.rowBetween}>

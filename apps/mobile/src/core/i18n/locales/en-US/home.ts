@@ -1,25 +1,4 @@
 export const home = {
   title: 'Home',
-  brandName: 'MyBills',
-  notificationsHint: 'Notifications',
-  profileHint: 'Profile',
-  accountsSection: 'My accounts',
-  seeAllAccounts: 'See all',
-  physicalCards: 'My cards',
-  contactlessHint: 'Contactless payment',
-  availableLimit: 'AVAILABLE LIMIT',
-  currentInvoiceLabel: 'CURRENT INVOICE',
-  payInvoice: 'Pay invoice',
-  dueInDays: 'Due in {{days}} days',
-  recentSection: 'Recent',
-  seeAll: 'SEE ALL',
-  loadError: 'Could not load data.',
-  retry: 'Try again',
-  emptyAccounts: 'No accounts yet.',
-  emptyCards: 'No cards yet.',
-  emptyTransactions: 'No transactions yet.',
-  addAccount: 'New account',
-  addCard: 'New card',
-  addTransaction: 'New transaction',
-  noDescription: 'No description'
+  placeholder: 'Your personalized home dashboard will appear here soon.'
 } as const;
