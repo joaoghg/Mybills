@@ -14,7 +14,11 @@ import {
 } from '@mybills/dtos';
 import { UsersService } from 'src/modules/user/users.service';
 import { User } from 'src/modules/user/entities/user.entity';
-import { refreshTokenOutputSchema, RefreshTokenOutput } from '@mybills/dtos';
+import {
+  refreshTokenOutputSchema,
+  RefreshTokenOutput,
+  userOutputSchema
+} from '@mybills/dtos';
 
 describe('Auth (e2e)', () => {
   let app: INestApplication<App>;
@@ -266,6 +270,34 @@ describe('Auth (e2e)', () => {
       code: 'auth.invalid_refresh_token',
       error: 'unauthorized'
     });
+  });
+
+  it('should return the authenticated user from GET /auth/me', async () => {
+    const payload: SignUpInput = {
+      name: 'Me User',
+      email: 'me-user@mybills.dev',
+      password: 'Teste123'
+    };
+
+    await request(app.getHttpServer()).post('/auth/register').send(payload).expect(201);
+
+    const loginResponse = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email: payload.email, password: payload.password })
+      .expect(200);
+
+    const loginOutput = parseSignInOutput(loginResponse.body as object);
+
+    const meResponse = await request(app.getHttpServer())
+      .get('/auth/me')
+      .set('Authorization', `Bearer ${loginOutput.accessToken}`)
+      .expect(200);
+
+    const meUser = userOutputSchema.parse(meResponse.body as object);
+
+    expect(meUser.name).toBe(payload.name);
+    expect(meUser.email).toBe(payload.email);
+    expect(meUser.id).toEqual(expect.any(String));
   });
 
   it('should logout and invalidate the current refresh token', async () => {

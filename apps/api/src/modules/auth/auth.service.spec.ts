@@ -30,8 +30,8 @@ describe('AuthService', () => {
     email: 'joao@example.com',
     password: 'hashed-password',
     refreshToken: 'stored-refresh-token-hash',
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
   beforeEach(async () => {
@@ -42,6 +42,7 @@ describe('AuthService', () => {
           provide: UsersService,
           useValue: {
             findByEmail: jest.fn(),
+            findById: jest.fn(),
             updateRefreshToken: jest.fn(),
             create: jest.fn()
           }
@@ -245,6 +246,23 @@ describe('AuthService', () => {
       await authService.logout('user-123');
 
       expect(usersService.updateRefreshToken).toHaveBeenCalledWith('user-123', null);
+    });
+  });
+
+  describe('getMe', () => {
+    it('should return the authenticated user profile', async () => {
+      usersService.findById.mockResolvedValue(mockUser);
+
+      const result = await authService.getMe('user-123');
+
+      expect(result).toEqual({
+        id: mockUser.id,
+        name: mockUser.name,
+        email: mockUser.email,
+        createdAt: mockUser.createdAt,
+        updatedAt: mockUser.updatedAt
+      });
+      expect(usersService.findById).toHaveBeenCalledWith('user-123');
     });
   });
 });

@@ -13,6 +13,7 @@ import { JwtPayload } from './contracts/jwt-payload.contract';
 import { UsersService } from '../user/users.service';
 import { RefreshTokenData } from './contracts/refresh-token-data.contract';
 import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
+import type { UserOutput } from '@mybills/dtos';
 
 @Injectable()
 export class AuthService {
@@ -164,5 +165,17 @@ export class AuthService {
 
   async logout(userId: string) {
     await this.usersService.updateRefreshToken(userId, null);
+  }
+
+  async getMe(userId: string): Promise<UserOutput> {
+    const user = await this.usersService.findById(userId);
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
   }
 }
