@@ -1,4 +1,18 @@
 export const home = {
-  title: 'Início',
-  placeholder: 'Seu painel personalizado na tela inicial estará disponível em breve.'
+  greeting: 'Olá, {{name}}',
+  generalBalance: 'SALDO GERAL',
+  creditCard: 'Cartão de Crédito',
+  dueOn: 'Vence em {{date}}',
+  invoiceStatusOpen: 'ABERTA',
+  currentInvoice: 'Fatura atual',
+  availableLimit: 'Limite disponível',
+  recentSection: 'Atividades Recentes',
+  seeAll: 'VER TUDO',
+  loadError: 'Não foi possível carregar os dados.',
+  retry: 'Tentar novamente',
+  emptyCards: 'Nenhum cartão cadastrado.',
+  emptyTransactions: 'Nenhuma transação ainda.',
+  noDescription: 'Sem descrição',
+  todayAt: 'Hoje, {{time}}',
+  yesterdayAt: 'Ontem, {{time}}'
 } as const;

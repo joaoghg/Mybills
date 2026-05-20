@@ -1,6 +1,5 @@
 export const wallet = {
   title: 'Wallet',
-  brandName: 'MyBills',
   accountsSection: 'My accounts',
   seeAllAccounts: 'See all',
   physicalCards: 'My cards',
@@ -9,15 +8,10 @@ export const wallet = {
   currentInvoiceLabel: 'CURRENT INVOICE',
   payInvoice: 'Pay invoice',
   dueInDays: 'Due in {{days}} days',
-  recentSection: 'Recent',
-  seeAll: 'SEE ALL',
   loadError: 'Could not load data.',
   retry: 'Try again',
   emptyAccounts: 'No accounts yet.',
   emptyCards: 'No cards yet.',
-  emptyTransactions: 'No transactions yet.',
   addAccount: 'New account',
-  addCard: 'New card',
-  addTransaction: 'New transaction',
-  noDescription: 'No description'
+  addCard: 'New card'
 } as const;

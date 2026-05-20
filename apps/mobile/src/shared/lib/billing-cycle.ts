@@ -15,6 +15,14 @@ function closingYmd(year: number, monthIndex: number, closingDay: number): strin
   return `${year}-${pad2(monthIndex + 1)}-${pad2(day)}`;
 }
 
+function ymdToLocalDate(ymd: string): Date {
+  const parts = ymd.split('-').map((p) => Number(p));
+  const y = parts[0] ?? 1970;
+  const m = parts[1] ?? 1;
+  const d = parts[2] ?? 1;
+  return new Date(y, m - 1, d);
+}
+
 function addOneCalendarDay(ymd: string): string {
   const parts = ymd.split('-').map((p) => Number(p));
   const y = parts[0] ?? 1970;
@@ -67,6 +75,30 @@ export function daysUntilNextDueDay(dueDay: number, today: Date): number {
   const nm = m0 === 11 ? 0 : m0 + 1;
   const nextDue = closingYmd(ny, nm, dueDay);
   return diffDaysUtcMidnight(todayYmd, nextDue);
+}
+
+export function getNextDueDate(dueDay: number, today: Date): Date {
+  const todayYmd = ymdFromLocalDate(today);
+  const y = today.getFullYear();
+  const m0 = today.getMonth();
+  const thisDue = closingYmd(y, m0, dueDay);
+  const dueYmd =
+    compareYmd(thisDue, todayYmd) >= 0
+      ? thisDue
+      : closingYmd(m0 === 11 ? y + 1 : y, m0 === 11 ? 0 : m0 + 1, dueDay);
+  return ymdToLocalDate(dueYmd);
+}
+
+export function formatDueDate(dueDay: number, today: Date, locale: string): string {
+  const dueDate = getNextDueDate(dueDay, today);
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      day: 'numeric',
+      month: 'short'
+    }).format(dueDate);
+  } catch {
+    return ymdFromLocalDate(dueDate);
+  }
 }
 
 function diffDaysUtcMidnight(fromYmd: string, toYmd: string): number {

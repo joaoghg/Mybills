@@ -48,21 +48,6 @@ export function WalletContentSkeleton({ theme }: WalletContentSkeletonProps) {
         <SkeletonBox theme={theme} height={16} width={160} borderRadius={6} style={{ marginTop: 12 }} />
         <SkeletonBox theme={theme} height={48} width="100%" borderRadius={14} style={{ marginTop: 16 }} />
       </View>
-
-      <View style={styles.rowBetween}>
-        <SkeletonBox theme={theme} height={22} width="40%" borderRadius={8} />
-        <SkeletonBox theme={theme} height={14} width={56} borderRadius={6} />
-      </View>
-      {[0, 1, 2].map((i) => (
-        <View key={i} style={[styles.txRow, { borderBottomColor: theme.colors.border }]}>
-          <SkeletonBox theme={theme} width={44} height={44} borderRadius={22} />
-          <View style={styles.txMid}>
-            <SkeletonBox theme={theme} height={16} width="60%" borderRadius={6} />
-            <SkeletonBox theme={theme} height={13} width="35%" borderRadius={6} style={{ marginTop: 6 }} />
-          </View>
-          <SkeletonBox theme={theme} height={16} width={72} borderRadius={6} />
-        </View>
-      ))}
     </View>
   );
 }
@@ -95,15 +80,5 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     padding: 18
-  },
-  txRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12
-  },
-  txMid: {
-    flex: 1
   }
 });

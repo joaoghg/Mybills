@@ -1,6 +1,5 @@
 export const wallet = {
   title: 'Carteira',
-  brandName: 'MyBills',
   accountsSection: 'Minhas Contas',
   seeAllAccounts: 'Ver tudo',
   physicalCards: 'Meus cartões',
@@ -9,15 +8,10 @@ export const wallet = {
   currentInvoiceLabel: 'FATURA ATUAL',
   payInvoice: 'Pagar Fatura',
   dueInDays: 'Vence em {{days}} dias',
-  recentSection: 'Recentes',
-  seeAll: 'VER TUDO',
   loadError: 'Não foi possível carregar os dados.',
   retry: 'Tentar novamente',
   emptyAccounts: 'Nenhuma conta ainda.',
   emptyCards: 'Nenhum cartão cadastrado.',
-  emptyTransactions: 'Nenhuma transação ainda.',
   addAccount: 'Nova conta',
-  addCard: 'Novo cartão',
-  addTransaction: 'Nova transação',
-  noDescription: 'Sem descrição'
+  addCard: 'Novo cartão'
 } as const;

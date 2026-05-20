@@ -1,10 +1,9 @@
 import {
   listAccounts,
-  listCategories,
   listCreditCards,
   listTransactions
 } from '@mybills/api-client';
-import type { CreditCardOutput, TransactionOutput } from '@mybills/dtos';
+import type { CreditCardOutput } from '@mybills/dtos';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -13,11 +12,14 @@ import {
   daysUntilNextDueDay,
   getCurrentBillingCycleRange,
   ymdFromLocalDate
-} from '@/features/wallet/lib/billing-cycle';
+} from '@/shared/lib/billing-cycle';
+import {
+  sumUnpaidCardExpensesAllTime,
+  sumUnpaidCardExpensesInRange
+} from '@/shared/lib/card-expenses';
 import { centsToMajor } from '@/shared/utils/cents-to-major';
 
 const STALE_MS = 45_000;
-const RECENT_LIMIT = 8;
 
 export type WalletAccountRow = {
   id: string;
@@ -39,77 +41,7 @@ export type WalletInvoice = {
   cardName: string;
 };
 
-export type WalletRecentAmountVariant = 'expense' | 'income' | 'neutral';
-
-export type WalletRecentTransaction = {
-  id: string;
-  merchant: string;
-  timeLabel: string;
-  displayAmountMajor: number;
-  amountVariant: WalletRecentAmountVariant;
-  iconName: 'cart-outline' | 'restaurant-outline' | 'receipt-outline';
-};
-
-function compareYmd(a: string, b: string): number {
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
-}
-
-function sumUnpaidCardExpensesInRange(
-  transactions: TransactionOutput[],
-  cardId: string,
-  start: string,
-  end: string,
-  todayYmd: string
-): number {
-  const effectiveEnd = compareYmd(end, todayYmd) <= 0 ? end : todayYmd;
-  let sum = 0;
-  for (const tx of transactions) {
-    if (tx.cardId !== cardId) continue;
-    if (tx.type !== 'EXPENSE') continue;
-    if (tx.isPaid) continue;
-    if (compareYmd(tx.date, start) < 0) continue;
-    if (compareYmd(tx.date, effectiveEnd) > 0) continue;
-    sum += tx.amount;
-  }
-  return sum;
-}
-
-function sumUnpaidCardExpensesAllTime(transactions: TransactionOutput[], cardId: string): number {
-  let sum = 0;
-  for (const tx of transactions) {
-    if (tx.cardId !== cardId) continue;
-    if (tx.type !== 'EXPENSE') continue;
-    if (tx.isPaid) continue;
-    sum += tx.amount;
-  }
-  return sum;
-}
-
-function pickCategoryIcon(categoryName: string | undefined): WalletRecentTransaction['iconName'] {
-  const n = (categoryName ?? '').toLowerCase();
-  if (/(food|restaurant|lunch|almoço|jantar|pizza)/i.test(n)) return 'restaurant-outline';
-  if (/(market|grocery|super|mercado)/i.test(n)) return 'cart-outline';
-  return 'receipt-outline';
-}
-
-function formatRecentTimeLabel(dateStr: string, locale: string): string {
-  const parts = dateStr.split('-').map((p) => Number(p));
-  const y = parts[0] ?? 1970;
-  const m = parts[1] ?? 1;
-  const d = parts[2] ?? 1;
-  const day = new Date(y, m - 1, d);
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: 'numeric',
-      month: 'short'
-    }).format(day);
-  } catch {
-    return dateStr;
-  }
-}
-
-export function useWalletDashboard(locale: string): {
+export function useWalletDashboard(): {
   isLoading: boolean;
   isError: boolean;
   refetchAll: () => Promise<void>;
@@ -118,7 +50,6 @@ export function useWalletDashboard(locale: string): {
   selectedCardId: string | null;
   setSelectedCardId: (id: string) => void;
   invoice: WalletInvoice | null;
-  recent: WalletRecentTransaction[];
 } {
   const client = useHttpClient();
 
@@ -140,41 +71,19 @@ export function useWalletDashboard(locale: string): {
     staleTime: STALE_MS
   });
 
-  const categoriesQuery = useQuery({
-    queryKey: ['categories'],
-    queryFn: () => listCategories(client),
-    staleTime: STALE_MS
-  });
-
   const isLoading =
-    accountsQuery.isPending ||
-    creditCardsQuery.isPending ||
-    transactionsQuery.isPending ||
-    categoriesQuery.isPending;
+    accountsQuery.isPending || creditCardsQuery.isPending || transactionsQuery.isPending;
 
   const isError =
-    accountsQuery.isError ||
-    creditCardsQuery.isError ||
-    transactionsQuery.isError ||
-    categoriesQuery.isError;
+    accountsQuery.isError || creditCardsQuery.isError || transactionsQuery.isError;
 
   const refetchAll = useCallback(async () => {
     await Promise.all([
       accountsQuery.refetch(),
       creditCardsQuery.refetch(),
-      transactionsQuery.refetch(),
-      categoriesQuery.refetch()
+      transactionsQuery.refetch()
     ]);
-  }, [accountsQuery, creditCardsQuery, transactionsQuery, categoriesQuery]);
-
-  const categoryNameById = useMemo(() => {
-    const map = new Map<string, string>();
-    const list = categoriesQuery.data ?? [];
-    for (const c of list) {
-      map.set(c.id, c.name);
-    }
-    return map;
-  }, [categoriesQuery.data]);
+  }, [accountsQuery, creditCardsQuery, transactionsQuery]);
 
   const account = useMemo((): WalletAccountRow | null => {
     const list = accountsQuery.data ?? [];
@@ -237,44 +146,6 @@ export function useWalletDashboard(locale: string): {
     };
   }, [creditCardsQuery.data, transactionsQuery.data, selectedCardId]);
 
-  const recent = useMemo((): WalletRecentTransaction[] => {
-    const txs = transactionsQuery.data ?? [];
-    const sorted = [...txs].sort((a, b) => {
-      const byDate = compareYmd(b.date, a.date);
-      if (byDate !== 0) return byDate;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-    const slice = sorted.slice(0, RECENT_LIMIT);
-    return slice.map((tx) => {
-      const catName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
-      const merchant =
-        tx.description?.trim() ||
-        catName ||
-        '';
-      const timeLabel = formatRecentTimeLabel(tx.date, locale);
-      let displayAmountMajor: number;
-      let amountVariant: WalletRecentAmountVariant;
-      if (tx.type === 'EXPENSE') {
-        displayAmountMajor = -centsToMajor(tx.amount);
-        amountVariant = 'expense';
-      } else if (tx.type === 'INCOME') {
-        displayAmountMajor = centsToMajor(tx.amount);
-        amountVariant = 'income';
-      } else {
-        displayAmountMajor = centsToMajor(tx.amount);
-        amountVariant = 'neutral';
-      }
-      return {
-        id: tx.id,
-        merchant,
-        timeLabel,
-        displayAmountMajor,
-        amountVariant,
-        iconName: pickCategoryIcon(catName)
-      };
-    });
-  }, [transactionsQuery.data, categoryNameById, locale]);
-
   return {
     isLoading,
     isError,
@@ -283,7 +154,6 @@ export function useWalletDashboard(locale: string): {
     physicalCards,
     selectedCardId,
     setSelectedCardId,
-    invoice,
-    recent
+    invoice
   };
 }

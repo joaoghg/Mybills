@@ -3,23 +3,21 @@ import type { ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-import type {
-  WalletRecentAmountVariant,
-  WalletRecentTransaction
-} from '@/features/wallet/hooks/use-wallet-dashboard';
+import type { RecentAmountVariant, RecentTransactionRow } from '@/shared/types/recent-transaction';
 
 type RecentTransactionsSectionProps = {
   theme: AppTheme;
   sectionTitle: string;
   seeAllLabel: string;
-  transactions: WalletRecentTransaction[];
+  transactions: RecentTransactionRow[];
   emptyLabel: string;
   emptyActionLabel?: string;
   onEmptyActionPress?: () => void;
+  onSeeAllPress?: () => void;
   formatCurrency: (amount: number) => string;
 };
 
-function amountColor(theme: AppTheme, variant: WalletRecentAmountVariant): string {
+function amountColor(theme: AppTheme, variant: RecentAmountVariant): string {
   if (variant === 'income') return theme.colors.positive;
   if (variant === 'expense') return theme.colors.danger;
   return theme.colors.textPrimary;
@@ -33,6 +31,7 @@ export function RecentTransactionsSection({
   emptyLabel,
   emptyActionLabel,
   onEmptyActionPress,
+  onSeeAllPress,
   formatCurrency
 }: RecentTransactionsSectionProps) {
   return (
@@ -41,11 +40,13 @@ export function RecentTransactionsSection({
         <Text style={[styles.sectionTitle, { color: theme.colors.textPrimary }]}>
           {sectionTitle}
         </Text>
-        <Pressable accessibilityRole="button">
-          <Text style={[styles.seeAll, { color: theme.colors.textSecondary }]}>
-            {seeAllLabel}
-          </Text>
-        </Pressable>
+        {onSeeAllPress ? (
+          <Pressable accessibilityRole="button" onPress={onSeeAllPress}>
+            <Text style={[styles.seeAll, { color: theme.colors.primary }]}>{seeAllLabel}</Text>
+          </Pressable>
+        ) : (
+          <Text style={[styles.seeAll, { color: theme.colors.primary }]}>{seeAllLabel}</Text>
+        )}
       </View>
       <View style={styles.list}>
         {transactions.length === 0 ? (
@@ -66,13 +67,33 @@ export function RecentTransactionsSection({
         ) : (
           transactions.map((tx) => {
             const iconName = tx.iconName as ComponentProps<typeof Ionicons>['name'];
+            const iconBg =
+              tx.amountVariant === 'income'
+                ? `${theme.colors.positive}22`
+                : tx.amountVariant === 'expense'
+                  ? `${theme.colors.danger}22`
+                  : theme.colors.surfaceAlt;
+            const iconColor =
+              tx.amountVariant === 'income'
+                ? theme.colors.positive
+                : tx.amountVariant === 'expense'
+                  ? theme.colors.danger
+                  : theme.colors.textSecondary;
+
             return (
               <View
                 key={tx.id}
-                style={[styles.row, { borderBottomColor: theme.colors.border }]}
+                style={[
+                  styles.row,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    shadowColor: theme.colors.textPrimary
+                  }
+                ]}
               >
-                <View style={[styles.iconCircle, { backgroundColor: theme.colors.surfaceAlt }]}>
-                  <Ionicons name={iconName} size={20} color={theme.colors.textSecondary} />
+                <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
+                  <Ionicons name={iconName} size={20} color={iconColor} />
                 </View>
                 <View style={styles.mid}>
                   <Text style={[styles.merchant, { color: theme.colors.textPrimary }]}>
@@ -114,7 +135,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6
   },
   list: {
-    gap: 0
+    gap: 10
   },
   emptyBlock: {
     gap: 12,
@@ -137,9 +158,15 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 12,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1
   },
   iconCircle: {
     width: 44,

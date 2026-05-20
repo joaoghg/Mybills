@@ -6,11 +6,11 @@ import { useTheme } from '@/core/theme';
 import { AccountsSection } from '@/features/wallet/components/accounts-section';
 import { InvoiceCard } from '@/features/wallet/components/invoice-card';
 import { PhysicalCardsCarousel } from '@/features/wallet/components/physical-cards-carousel';
-import { RecentTransactionsSection } from '@/features/wallet/components/recent-transactions-section';
 import { WalletContentSkeleton } from '@/features/wallet/components/wallet-content-skeleton';
-import { WalletHeader } from '@/features/wallet/components/wallet-header';
 import { useWalletDashboard } from '@/features/wallet/hooks/use-wallet-dashboard';
 import { navigateRoot } from '@/navigation/root-navigation-ref';
+import { AppScreenHeader } from '@/shared/components/app-screen-header';
+import { firstNameFromUserName, useCurrentUser } from '@/shared/hooks/use-current-user';
 import { formatCurrencyValue } from '@/shared/utils/format-currency';
 
 export function WalletScreen() {
@@ -18,15 +18,23 @@ export function WalletScreen() {
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
   const locale = i18n.language;
-  const dashboard = useWalletDashboard(locale);
+  const userQuery = useCurrentUser();
+  const dashboard = useWalletDashboard();
 
   const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
 
   const accountRows = dashboard.account ? [dashboard.account] : [];
-  const recentRows = dashboard.recent.map((row) => ({
-    ...row,
-    merchant: row.merchant.trim() ? row.merchant : t('wallet.noDescription')
-  }));
+
+  const isLoading = dashboard.isLoading || userQuery.isPending;
+  const isError = dashboard.isError || userQuery.isError;
+
+  const refetchAll = async () => {
+    await Promise.all([dashboard.refetchAll(), userQuery.refetch()]);
+  };
+
+  const firstName = firstNameFromUserName(userQuery.data?.name);
+  const greeting =
+    firstName.length > 0 ? t('home.greeting', { name: firstName }) : undefined;
 
   const scrollContent = {
     paddingHorizontal: 20,
@@ -40,18 +48,22 @@ export function WalletScreen() {
       contentContainerStyle={scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <WalletHeader theme={theme} brandName={t('wallet.brandName')} />
+      <AppScreenHeader
+        theme={theme}
+        greeting={greeting}
+        isLoadingGreeting={userQuery.isPending}
+      />
 
-      {dashboard.isLoading ? (
+      {isLoading ? (
         <WalletContentSkeleton theme={theme} />
-      ) : dashboard.isError ? (
+      ) : isError ? (
         <View style={styles.errorBox}>
           <Text style={[styles.errorText, { color: theme.colors.textPrimary }]}>
             {t('wallet.loadError')}
           </Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => void dashboard.refetchAll()}
+            onPress={() => void refetchAll()}
             style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
           >
             <Text style={[styles.retryLabel, { color: theme.colors.textOnPrimary }]}>
@@ -99,18 +111,6 @@ export function WalletScreen() {
               formatCurrency={formatMoney}
             />
           ) : null}
-          <RecentTransactionsSection
-            theme={theme}
-            sectionTitle={t('wallet.recentSection')}
-            seeAllLabel={t('wallet.seeAll')}
-            transactions={recentRows}
-            emptyLabel={t('wallet.emptyTransactions')}
-            emptyActionLabel={t('wallet.addTransaction')}
-            onEmptyActionPress={() => {
-              /* placeholder: add transaction flow */
-            }}
-            formatCurrency={formatMoney}
-          />
         </>
       )}
     </ScrollView>

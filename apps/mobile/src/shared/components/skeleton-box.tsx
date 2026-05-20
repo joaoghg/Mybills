@@ -8,6 +8,7 @@ type SkeletonBoxProps = {
   width?: number | `${number}%`;
   height: number;
   borderRadius?: number;
+  highlightColor?: string;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -16,6 +17,7 @@ export function SkeletonBox({
   width = '100%',
   height,
   borderRadius = 8,
+  highlightColor,
   style
 }: SkeletonBoxProps) {
   const opacity = useRef(new Animated.Value(0.45)).current;
@@ -48,7 +50,7 @@ export function SkeletonBox({
           width,
           height,
           borderRadius,
-          backgroundColor: theme.colors.surfaceAlt,
+          backgroundColor: highlightColor ?? theme.colors.surfaceAlt,
           opacity
         },
         style
