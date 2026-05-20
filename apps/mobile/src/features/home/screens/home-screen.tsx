@@ -1,33 +1,51 @@
+import { useNavigation } from '@react-navigation/native';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
-import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 
 import { useTheme } from '@/core/theme';
-import { AccountsSection } from '@/features/home/components/accounts-section';
+import { CreditCardSummaryCard } from '@/features/home/components/credit-card-summary-card';
+import { GeneralBalanceCard } from '@/features/home/components/general-balance-card';
 import { HomeContentSkeleton } from '@/features/home/components/home-content-skeleton';
-import { HomeHeader } from '@/features/home/components/home-header';
-import { InvoiceCard } from '@/features/home/components/invoice-card';
-import { PhysicalCardsCarousel } from '@/features/home/components/physical-cards-carousel';
-import { RecentTransactionsSection } from '@/features/home/components/recent-transactions-section';
 import { useHomeDashboard } from '@/features/home/hooks/use-home-dashboard';
 import type { AppTabParamList } from '@/navigation/types';
+import { AppScreenHeader } from '@/shared/components/app-screen-header';
+import { RecentTransactionsSection } from '@/shared/components/recent-transactions-section';
+import { firstNameFromUserName, useCurrentUser } from '@/shared/hooks/use-current-user';
 import { formatCurrencyValue } from '@/shared/utils/format-currency';
-
-type HomeTabNav = BottomTabNavigationProp<AppTabParamList, 'HomeTab'>;
 
 export function HomeScreen() {
   const { theme } = useTheme();
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
-  const navigation = useNavigation<HomeTabNav>();
+  const navigation = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
   const locale = i18n.language;
-  const dashboard = useHomeDashboard(locale);
+  const userQuery = useCurrentUser();
 
+  const timeLabels = useMemo(
+    () => ({
+      todayAt: (time: string) => t('home.todayAt', { time }),
+      yesterdayAt: (time: string) => t('home.yesterdayAt', { time })
+    }),
+    [t]
+  );
+
+  const dashboard = useHomeDashboard(locale, timeLabels);
   const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
 
-  const accountRows = dashboard.account ? [dashboard.account] : [];
+  const isLoading = dashboard.isLoading || userQuery.isPending;
+  const isError = dashboard.isError || userQuery.isError;
+
+  const refetchAll = async () => {
+    await Promise.all([dashboard.refetchAll(), userQuery.refetch()]);
+  };
+
+  const firstName = firstNameFromUserName(userQuery.data?.name);
+  const greeting =
+    firstName.length > 0 ? t('home.greeting', { name: firstName }) : undefined;
+
   const recentRows = dashboard.recent.map((row) => ({
     ...row,
     merchant: row.merchant.trim() ? row.merchant : t('home.noDescription')
@@ -45,21 +63,22 @@ export function HomeScreen() {
       contentContainerStyle={scrollContent}
       showsVerticalScrollIndicator={false}
     >
-      <HomeHeader
+      <AppScreenHeader
         theme={theme}
-        brandName={t('home.brandName')}
+        greeting={greeting}
+        isLoadingGreeting={userQuery.isPending}
       />
 
-      {dashboard.isLoading ? (
+      {isLoading ? (
         <HomeContentSkeleton theme={theme} />
-      ) : dashboard.isError ? (
+      ) : isError ? (
         <View style={styles.errorBox}>
           <Text style={[styles.errorText, { color: theme.colors.textPrimary }]}>
             {t('home.loadError')}
           </Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => void dashboard.refetchAll()}
+            onPress={() => void refetchAll()}
             style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
           >
             <Text style={[styles.retryLabel, { color: theme.colors.textOnPrimary }]}>
@@ -69,60 +88,32 @@ export function HomeScreen() {
         </View>
       ) : (
         <>
-          <AccountsSection
+          <GeneralBalanceCard
             theme={theme}
-            sectionTitle={t('home.accountsSection')}
-            headerActionLabel={t('home.seeAllAccounts')}
-            onHeaderActionPress={() => navigation.navigate('WalletTab')}
-            accounts={accountRows}
+            label={t('home.generalBalance')}
+            balanceMajor={dashboard.totalBalanceMajor}
             formatCurrency={formatMoney}
-            emptyLabel={t('home.emptyAccounts')}
-            emptyActionLabel={t('home.addAccount')}
-            onEmptyActionPress={() => {
-              /* placeholder: add account flow */
-            }}
           />
-          <PhysicalCardsCarousel
+          <CreditCardSummaryCard
             theme={theme}
-            sectionTitle={t('home.physicalCards')}
-            headerActionLabel={t('home.seeAllAccounts')}
-            onHeaderActionPress={() => navigation.navigate('WalletTab')}
-            cards={dashboard.physicalCards}
-            selectedCardId={dashboard.selectedCardId}
-            onSelectCard={dashboard.setSelectedCardId}
+            card={dashboard.creditCard}
+            title={t('home.creditCard')}
+            dueOnLabel={t('home.dueOn', {
+              date: dashboard.creditCard?.dueDateLabel ?? ''
+            })}
+            statusOpenLabel={t('home.invoiceStatusOpen')}
+            currentInvoiceLabel={t('home.currentInvoice')}
             availableLimitLabel={t('home.availableLimit')}
-            contactlessLabel={t('home.contactlessHint')}
-            formatCurrency={formatMoney}
             emptyLabel={t('home.emptyCards')}
-            emptyActionLabel={t('home.addCard')}
-            onEmptyActionPress={() => {
-              /* placeholder: add card flow */
-            }}
+            formatCurrency={formatMoney}
           />
-          {dashboard.invoice ? (
-            <InvoiceCard
-              theme={theme}
-              invoice={{
-                totalMajor: dashboard.invoice.totalMajor,
-                dueInDays: dashboard.invoice.dueInDays,
-                cardName: dashboard.invoice.cardName
-              }}
-              invoiceLabel={t('home.currentInvoiceLabel')}
-              dueLabel={t('home.dueInDays', { days: dashboard.invoice.dueInDays })}
-              payLabel={t('home.payInvoice')}
-              formatCurrency={formatMoney}
-            />
-          ) : null}
           <RecentTransactionsSection
             theme={theme}
             sectionTitle={t('home.recentSection')}
             seeAllLabel={t('home.seeAll')}
             transactions={recentRows}
             emptyLabel={t('home.emptyTransactions')}
-            emptyActionLabel={t('home.addTransaction')}
-            onEmptyActionPress={() => {
-              /* placeholder: add transaction flow */
-            }}
+            onSeeAllPress={() => navigation.navigate('HistoryTab')}
             formatCurrency={formatMoney}
           />
         </>

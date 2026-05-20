@@ -1,45 +1,142 @@
 import { useTranslation } from 'react-i18next';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/core/theme';
+import { AccountsSection } from '@/features/wallet/components/accounts-section';
+import { InvoiceCard } from '@/features/wallet/components/invoice-card';
+import { PhysicalCardsCarousel } from '@/features/wallet/components/physical-cards-carousel';
+import { WalletContentSkeleton } from '@/features/wallet/components/wallet-content-skeleton';
+import { useWalletDashboard } from '@/features/wallet/hooks/use-wallet-dashboard';
+import { navigateRoot } from '@/navigation/root-navigation-ref';
+import { AppScreenHeader } from '@/shared/components/app-screen-header';
+import { firstNameFromUserName, useCurrentUser } from '@/shared/hooks/use-current-user';
+import { formatCurrencyValue } from '@/shared/utils/format-currency';
 
 export function WalletScreen() {
   const { theme } = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
+  const locale = i18n.language;
+  const userQuery = useCurrentUser();
+  const dashboard = useWalletDashboard();
+
+  const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
+
+  const accountRows = dashboard.account ? [dashboard.account] : [];
+
+  const isLoading = dashboard.isLoading || userQuery.isPending;
+  const isError = dashboard.isError || userQuery.isError;
+
+  const refetchAll = async () => {
+    await Promise.all([dashboard.refetchAll(), userQuery.refetch()]);
+  };
+
+  const firstName = firstNameFromUserName(userQuery.data?.name);
+  const greeting =
+    firstName.length > 0 ? t('home.greeting', { name: firstName }) : undefined;
+
+  const scrollContent = {
+    paddingHorizontal: 20,
+    paddingTop: insets.top + 12,
+    paddingBottom: insets.bottom + 32
+  };
 
   return (
-    <View
-      style={[
-        styles.root,
-        {
-          backgroundColor: theme.colors.background,
-          paddingTop: insets.top + 24,
-          paddingBottom: insets.bottom + 24
-        }
-      ]}
+    <ScrollView
+      style={[styles.scroll, { backgroundColor: theme.colors.background }]}
+      contentContainerStyle={scrollContent}
+      showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('wallet.title')}</Text>
-      <Text style={[styles.placeholder, { color: theme.colors.textSecondary }]}>
-        {t('wallet.placeholder')}
-      </Text>
-    </View>
+      <AppScreenHeader
+        theme={theme}
+        greeting={greeting}
+        isLoadingGreeting={userQuery.isPending}
+      />
+
+      {isLoading ? (
+        <WalletContentSkeleton theme={theme} />
+      ) : isError ? (
+        <View style={styles.errorBox}>
+          <Text style={[styles.errorText, { color: theme.colors.textPrimary }]}>
+            {t('wallet.loadError')}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void refetchAll()}
+            style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
+          >
+            <Text style={[styles.retryLabel, { color: theme.colors.textOnPrimary }]}>
+              {t('wallet.retry')}
+            </Text>
+          </Pressable>
+        </View>
+      ) : (
+        <>
+          <AccountsSection
+            theme={theme}
+            sectionTitle={t('wallet.accountsSection')}
+            accounts={accountRows}
+            formatCurrency={formatMoney}
+            emptyLabel={t('wallet.emptyAccounts')}
+            emptyActionLabel={t('wallet.addAccount')}
+            onEmptyActionPress={() => navigateRoot('AddAccount')}
+          />
+          <PhysicalCardsCarousel
+            theme={theme}
+            sectionTitle={t('wallet.physicalCards')}
+            cards={dashboard.physicalCards}
+            selectedCardId={dashboard.selectedCardId}
+            onSelectCard={dashboard.setSelectedCardId}
+            availableLimitLabel={t('wallet.availableLimit')}
+            contactlessLabel={t('wallet.contactlessHint')}
+            formatCurrency={formatMoney}
+            emptyLabel={t('wallet.emptyCards')}
+            emptyActionLabel={t('wallet.addCard')}
+            onEmptyActionPress={() => {
+              /* placeholder: add card flow */
+            }}
+          />
+          {dashboard.invoice ? (
+            <InvoiceCard
+              theme={theme}
+              invoice={{
+                totalMajor: dashboard.invoice.totalMajor,
+                dueInDays: dashboard.invoice.dueInDays,
+                cardName: dashboard.invoice.cardName
+              }}
+              invoiceLabel={t('wallet.currentInvoiceLabel')}
+              dueLabel={t('wallet.dueInDays', { days: dashboard.invoice.dueInDays })}
+              payLabel={t('wallet.payInvoice')}
+              formatCurrency={formatMoney}
+            />
+          ) : null}
+        </>
+      )}
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
+  scroll: {
+    flex: 1
+  },
+  errorBox: {
+    gap: 16,
+    paddingVertical: 24
+  },
+  errorText: {
+    fontSize: 15,
+    fontWeight: '600'
+  },
+  retryBtn: {
+    alignSelf: 'flex-start',
     paddingHorizontal: 20,
-    gap: 12
+    paddingVertical: 12,
+    borderRadius: 12
   },
-  title: {
-    fontSize: 28,
-    fontWeight: '800'
-  },
-  placeholder: {
-    fontSize: 16,
-    lineHeight: 22
+  retryLabel: {
+    fontSize: 15,
+    fontWeight: '700'
   }
 });

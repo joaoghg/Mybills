@@ -6,119 +6,61 @@ import {
 } from '@mybills/api-client';
 import type { CreditCardOutput, TransactionOutput } from '@mybills/dtos';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo } from 'react';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
+import type { RecentTimeLabels } from '@/shared/lib/recent-transactions';
+import {
+  mapTransactionToRecentRow,
+  sortTransactionsByRecency
+} from '@/shared/lib/recent-transactions';
 import {
   daysUntilNextDueDay,
+  formatDueDate,
   getCurrentBillingCycleRange,
   ymdFromLocalDate
-} from '@/features/home/lib/billing-cycle';
+} from '@/shared/lib/billing-cycle';
+import {
+  sumUnpaidCardExpensesAllTime,
+  sumUnpaidCardExpensesInRange
+} from '@/shared/lib/card-expenses';
+import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
 import { centsToMajor } from '@/shared/utils/cents-to-major';
 
 const STALE_MS = 45_000;
-const RECENT_LIMIT = 8;
+const RECENT_LIMIT = 3;
 
-export type HomeAccountRow = {
-  id: string;
-  title: string;
-  subtitle: string;
-  balanceMajor: number;
-};
-
-export type HomePhysicalCard = {
-  id: string;
-  name: string;
-  availableLimitMajor: number;
-  variant: 'navy' | 'green';
-};
-
-export type HomeInvoice = {
-  totalMajor: number;
-  dueInDays: number;
+export type HomeCreditCardSummary = {
+  cardId: string;
   cardName: string;
+  dueDateLabel: string;
+  invoiceTotalMajor: number;
+  limitMajor: number;
+  usedMajor: number;
+  availableMajor: number;
+  usageRatio: number;
+  isOpen: boolean;
 };
 
-export type HomeRecentAmountVariant = 'expense' | 'income' | 'neutral';
-
-export type HomeRecentTransaction = {
-  id: string;
-  merchant: string;
-  timeLabel: string;
-  displayAmountMajor: number;
-  amountVariant: HomeRecentAmountVariant;
-  iconName: 'cart-outline' | 'restaurant-outline' | 'receipt-outline';
-};
-
-function compareYmd(a: string, b: string): number {
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
+function pickNearestDueCard(cards: CreditCardOutput[], today: Date): CreditCardOutput | null {
+  if (cards.length === 0) return null;
+  return cards.reduce((best, card) => {
+    const bestDays = daysUntilNextDueDay(best.dueDay, today);
+    const cardDays = daysUntilNextDueDay(card.dueDay, today);
+    return cardDays < bestDays ? card : best;
+  });
 }
 
-function sumUnpaidCardExpensesInRange(
-  transactions: TransactionOutput[],
-  cardId: string,
-  start: string,
-  end: string,
-  todayYmd: string
-): number {
-  const effectiveEnd = compareYmd(end, todayYmd) <= 0 ? end : todayYmd;
-  let sum = 0;
-  for (const tx of transactions) {
-    if (tx.cardId !== cardId) continue;
-    if (tx.type !== 'EXPENSE') continue;
-    if (tx.isPaid) continue;
-    if (compareYmd(tx.date, start) < 0) continue;
-    if (compareYmd(tx.date, effectiveEnd) > 0) continue;
-    sum += tx.amount;
-  }
-  return sum;
-}
-
-function sumUnpaidCardExpensesAllTime(transactions: TransactionOutput[], cardId: string): number {
-  let sum = 0;
-  for (const tx of transactions) {
-    if (tx.cardId !== cardId) continue;
-    if (tx.type !== 'EXPENSE') continue;
-    if (tx.isPaid) continue;
-    sum += tx.amount;
-  }
-  return sum;
-}
-
-function pickCategoryIcon(categoryName: string | undefined): HomeRecentTransaction['iconName'] {
-  const n = (categoryName ?? '').toLowerCase();
-  if (/(food|restaurant|lunch|almoço|jantar|pizza)/i.test(n)) return 'restaurant-outline';
-  if (/(market|grocery|super|mercado)/i.test(n)) return 'cart-outline';
-  return 'receipt-outline';
-}
-
-function formatRecentTimeLabel(dateStr: string, locale: string): string {
-  const parts = dateStr.split('-').map((p) => Number(p));
-  const y = parts[0] ?? 1970;
-  const m = parts[1] ?? 1;
-  const d = parts[2] ?? 1;
-  const day = new Date(y, m - 1, d);
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: 'numeric',
-      month: 'short'
-    }).format(day);
-  } catch {
-    return dateStr;
-  }
-}
-
-export function useHomeDashboard(locale: string): {
+export function useHomeDashboard(
+  locale: string,
+  timeLabels: RecentTimeLabels
+): {
   isLoading: boolean;
   isError: boolean;
   refetchAll: () => Promise<void>;
-  account: HomeAccountRow | null;
-  physicalCards: HomePhysicalCard[];
-  selectedCardId: string | null;
-  setSelectedCardId: (id: string) => void;
-  invoice: HomeInvoice | null;
-  recent: HomeRecentTransaction[];
+  totalBalanceMajor: number;
+  creditCard: HomeCreditCardSummary | null;
+  recent: RecentTransactionRow[];
 } {
   const client = useHttpClient();
 
@@ -169,121 +111,62 @@ export function useHomeDashboard(locale: string): {
 
   const categoryNameById = useMemo(() => {
     const map = new Map<string, string>();
-    const list = categoriesQuery.data ?? [];
-    for (const c of list) {
+    for (const c of categoriesQuery.data ?? []) {
       map.set(c.id, c.name);
     }
     return map;
   }, [categoriesQuery.data]);
 
-  const account = useMemo((): HomeAccountRow | null => {
+  const totalBalanceMajor = useMemo(() => {
     const list = accountsQuery.data ?? [];
-    if (list.length === 0) return null;
-    const sorted = [...list].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-    const a = sorted[0];
-    if (!a) return null;
-    return {
-      id: a.id,
-      title: a.name,
-      subtitle: '',
-      balanceMajor: centsToMajor(a.balance)
-    };
+    const totalCents = list.reduce((sum, account) => sum + account.balance, 0);
+    return centsToMajor(totalCents);
   }, [accountsQuery.data]);
 
-  const physicalCards = useMemo((): HomePhysicalCard[] => {
+  const creditCard = useMemo((): HomeCreditCardSummary | null => {
     const cards = creditCardsQuery.data ?? [];
     const txs = transactionsQuery.data ?? [];
-    return cards.map((c, index) => {
-      const usedCents = sumUnpaidCardExpensesAllTime(txs, c.id);
-      const available = Math.max(0, c.limit - usedCents);
-      return {
-        id: c.id,
-        name: c.name,
-        availableLimitMajor: centsToMajor(available),
-        variant: index % 2 === 0 ? 'navy' : 'green'
-      };
-    });
-  }, [creditCardsQuery.data, transactionsQuery.data]);
-
-  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (physicalCards.length === 0) {
-      return;
-    }
-    const exists = selectedCardId && physicalCards.some((c) => c.id === selectedCardId);
-    if (!exists) {
-      const first = physicalCards[0];
-      if (first) setSelectedCardId(first.id);
-    }
-  }, [physicalCards, selectedCardId]);
-
-  const invoice = useMemo((): HomeInvoice | null => {
-    const cards = creditCardsQuery.data ?? [];
-    const txs = transactionsQuery.data ?? [];
-    if (!selectedCardId || cards.length === 0) return null;
-    const card: CreditCardOutput | undefined = cards.find((c) => c.id === selectedCardId);
-    if (!card) return null;
     const today = new Date();
-    const { start, end } = getCurrentBillingCycleRange(card.closingDay, today);
-    const todayYmd = ymdFromLocalDate(today);
-    const totalCents = sumUnpaidCardExpensesInRange(txs, card.id, start, end, todayYmd);
-    return {
-      totalMajor: centsToMajor(totalCents),
-      dueInDays: daysUntilNextDueDay(card.dueDay, today),
-      cardName: card.name
-    };
-  }, [creditCardsQuery.data, transactionsQuery.data, selectedCardId]);
+    const primary = pickNearestDueCard(cards, today);
+    if (!primary) return null;
 
-  const recent = useMemo((): HomeRecentTransaction[] => {
+    const { start, end } = getCurrentBillingCycleRange(primary.closingDay, today);
+    const todayYmd = ymdFromLocalDate(today);
+    const invoiceCents = sumUnpaidCardExpensesInRange(txs, primary.id, start, end, todayYmd);
+    const usedCents = sumUnpaidCardExpensesAllTime(txs, primary.id);
+    const limitMajor = centsToMajor(primary.limit);
+    const usedMajor = centsToMajor(usedCents);
+    const availableMajor = Math.max(0, centsToMajor(primary.limit - usedCents));
+    const usageRatio = primary.limit > 0 ? Math.min(1, usedCents / primary.limit) : 0;
+
+    return {
+      cardId: primary.id,
+      cardName: primary.name,
+      dueDateLabel: formatDueDate(primary.dueDay, today, locale),
+      invoiceTotalMajor: centsToMajor(invoiceCents),
+      limitMajor,
+      usedMajor,
+      availableMajor,
+      usageRatio,
+      isOpen: invoiceCents > 0
+    };
+  }, [creditCardsQuery.data, transactionsQuery.data, locale]);
+
+  const recent = useMemo((): RecentTransactionRow[] => {
     const txs = transactionsQuery.data ?? [];
-    const sorted = [...txs].sort((a, b) => {
-      const byDate = compareYmd(b.date, a.date);
-      if (byDate !== 0) return byDate;
-      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
-    });
-    const slice = sorted.slice(0, RECENT_LIMIT);
-    return slice.map((tx) => {
+    const sorted = sortTransactionsByRecency(txs);
+    return sorted.slice(0, RECENT_LIMIT).map((tx: TransactionOutput) => {
       const catName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
-      const merchant =
-        tx.description?.trim() ||
-        catName ||
-        '';
-      const timeLabel = formatRecentTimeLabel(tx.date, locale);
-      let displayAmountMajor: number;
-      let amountVariant: HomeRecentAmountVariant;
-      if (tx.type === 'EXPENSE') {
-        displayAmountMajor = -centsToMajor(tx.amount);
-        amountVariant = 'expense';
-      } else if (tx.type === 'INCOME') {
-        displayAmountMajor = centsToMajor(tx.amount);
-        amountVariant = 'income';
-      } else {
-        displayAmountMajor = centsToMajor(tx.amount);
-        amountVariant = 'neutral';
-      }
-      return {
-        id: tx.id,
-        merchant,
-        timeLabel,
-        displayAmountMajor,
-        amountVariant,
-        iconName: pickCategoryIcon(catName)
-      };
+      return mapTransactionToRecentRow(tx, catName, locale, timeLabels);
     });
-  }, [transactionsQuery.data, categoryNameById, locale]);
+  }, [transactionsQuery.data, categoryNameById, locale, timeLabels]);
 
   return {
     isLoading,
     isError,
     refetchAll,
-    account,
-    physicalCards,
-    selectedCardId,
-    setSelectedCardId,
-    invoice,
+    totalBalanceMajor,
+    creditCard,
     recent
   };
 }

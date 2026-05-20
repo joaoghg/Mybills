@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Dimensions, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-import type { HomePhysicalCard } from '@/features/home/hooks/use-home-dashboard';
+import type { WalletPhysicalCard } from '@/features/wallet/hooks/use-wallet-dashboard';
 
 const CARD_WIDTH = Math.min(Dimensions.get('window').width * 0.78, 320);
 
@@ -11,7 +11,7 @@ type PhysicalCardsCarouselProps = {
   sectionTitle: string;
   headerActionLabel?: string;
   onHeaderActionPress?: () => void;
-  cards: HomePhysicalCard[];
+  cards: WalletPhysicalCard[];
   selectedCardId: string | null;
   onSelectCard: (id: string) => void;
   availableLimitLabel: string;

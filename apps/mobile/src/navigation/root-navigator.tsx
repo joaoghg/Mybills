@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/core/theme';
 import { AddFlowPlaceholderScreen } from '@/features/add/screens/add-flow-placeholder-screen';
+import { CreateAccountScreen } from '@/features/accounts/screens/create-account-screen';
 import { LanguageSettingsScreen } from '@/features/more/screens/language-settings-screen';
 import { ThemeSettingsScreen } from '@/features/more/screens/theme-settings-screen';
 import { AppTabNavigator } from '@/navigation/app-tab-navigator';
@@ -53,7 +54,7 @@ export function AuthenticatedRoot() {
         <Stack.Screen name="MainTabs" options={{ headerShown: false }} component={AppTabNavigator} />
         <Stack.Screen
           name="AddAccount"
-          component={AddFlowPlaceholderScreen}
+          component={CreateAccountScreen}
           options={{
             presentation: 'modal',
             title: t('quickAdd.accountTitle')
