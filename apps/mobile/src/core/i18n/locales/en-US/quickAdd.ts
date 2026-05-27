@@ -7,5 +7,7 @@ export const quickAdd = {
   transactionTitle: 'New transaction',
   transactionSubtitle: 'Quick income and expense entry will be available soon.',
   creditCardTitle: 'New card',
-  creditCardSubtitle: 'Card registration will be available soon.'
+  creditCardSubtitle: 'Card registration will be available soon.',
+  category: 'Category',
+  categoryTitle: 'New category'
 } as const;

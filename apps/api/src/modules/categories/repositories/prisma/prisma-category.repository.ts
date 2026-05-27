@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { CategoryIcon } from '@mybills/dtos';
 import { Category as PrismaCategory } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
 import { CreateCategoryData } from '../../contracts/create-category-data.contract';
@@ -15,6 +16,7 @@ export class PrismaCategoryRepository implements CategoryRepository {
       id: category.id,
       userId: category.userId,
       name: category.name,
+      icon: category.icon as CategoryIcon,
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString()
     };
@@ -63,7 +65,8 @@ export class PrismaCategoryRepository implements CategoryRepository {
     const category = await this.prisma.category.create({
       data: {
         userId: data.userId,
-        name: data.name
+        name: data.name,
+        icon: data.icon
       }
     });
 
@@ -74,7 +77,8 @@ export class PrismaCategoryRepository implements CategoryRepository {
     const category = await this.prisma.category.update({
       where: { id: categoryId },
       data: {
-        name: data.name
+        name: data.name,
+        icon: data.icon
       }
     });
 

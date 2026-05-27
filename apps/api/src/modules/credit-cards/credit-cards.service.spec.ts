@@ -118,6 +118,29 @@ describe('CreditCardsService', () => {
       });
     });
 
+    it('should create credit card without linked account', async () => {
+      const cardWithoutAccount: CreditCard = { ...creditCard, accountId: null };
+      repository.create.mockResolvedValue(cardWithoutAccount);
+
+      const result = await service.create({
+        userId: creditCard.userId,
+        name: creditCard.name,
+        limit: creditCard.limit,
+        closingDay: creditCard.closingDay,
+        dueDay: creditCard.dueDay
+      });
+
+      expect(result).toEqual(cardWithoutAccount);
+      expect(accountsService.accountExistsForUser).not.toHaveBeenCalled();
+      expect(repository.create).toHaveBeenCalledWith({
+        userId: creditCard.userId,
+        name: creditCard.name,
+        limit: creditCard.limit,
+        closingDay: creditCard.closingDay,
+        dueDay: creditCard.dueDay
+      });
+    });
+
     it('should throw NotFoundError when account does not belong to user', async () => {
       accountsService.accountExistsForUser.mockResolvedValue(false);
 

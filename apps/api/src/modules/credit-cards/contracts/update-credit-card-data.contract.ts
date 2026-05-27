@@ -1,5 +1,5 @@
 export interface UpdateCreditCardData {
-  accountId?: string;
+  accountId?: string | null;
   name?: string;
   limit?: number;
   closingDay?: number;

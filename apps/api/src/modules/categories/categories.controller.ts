@@ -88,7 +88,8 @@ export class CategoriesController {
   ): Promise<CategoryOutput> {
     return await this.categoriesService.create({
       userId,
-      name: data.name
+      name: data.name,
+      icon: data.icon
     });
   }
 

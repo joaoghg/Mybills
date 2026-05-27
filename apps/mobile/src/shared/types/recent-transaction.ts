@@ -1,3 +1,5 @@
+import type { CategoryIcon } from '@mybills/dtos';
+
 export type RecentAmountVariant = 'expense' | 'income' | 'neutral';
 
 export type RecentTransactionRow = {
@@ -6,5 +8,5 @@ export type RecentTransactionRow = {
   timeLabel: string;
   displayAmountMajor: number;
   amountVariant: RecentAmountVariant;
-  iconName: 'cart-outline' | 'restaurant-outline' | 'receipt-outline';
+  iconName: CategoryIcon;
 };

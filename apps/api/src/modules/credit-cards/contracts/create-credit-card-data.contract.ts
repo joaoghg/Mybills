@@ -1,5 +1,5 @@
 export interface CreateCreditCardData {
-  accountId: string;
+  accountId?: string | null;
   userId: string;
   name: string;
   limit: number;

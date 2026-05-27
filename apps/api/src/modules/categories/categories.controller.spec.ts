@@ -16,6 +16,7 @@ describe('CategoriesController', () => {
     id: '0ef9f98d-a8d2-470e-a8c4-3a46ad278f0f',
     userId: 'ba5f8ccd-5a24-4e41-9dbd-6ddb49a93fdd',
     name: 'Food',
+    icon: 'restaurant-outline',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   };
@@ -69,7 +70,8 @@ describe('CategoriesController', () => {
   describe('create', () => {
     it('should call categoriesService.create with payload and user id', async () => {
       const input: CreateCategoryInput = {
-        name: 'Food'
+        name: 'Food',
+        icon: 'restaurant-outline'
       };
 
       service.create.mockResolvedValue(baseCategory);
@@ -80,7 +82,8 @@ describe('CategoriesController', () => {
       expect(service.create).toHaveBeenCalledTimes(1);
       expect(service.create).toHaveBeenCalledWith({
         userId: baseCategory.userId,
-        name: input.name
+        name: input.name,
+        icon: input.icon
       });
     });
   });

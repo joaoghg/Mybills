@@ -40,17 +40,19 @@ export class CreditCardsService {
   async create(data: CreateCreditCardData): Promise<CreditCard> {
     this.validateCreateData(data);
 
-    const accountExists = await this.accountsService.accountExistsForUser(
-      data.accountId,
-      data.userId
-    );
+    if (data.accountId !== undefined && data.accountId !== null) {
+      const accountExists = await this.accountsService.accountExistsForUser(
+        data.accountId,
+        data.userId
+      );
 
-    if (!accountExists) {
-      throw new NotFoundError({
-        code: 'credit_cards.account_not_found',
-        i18nKey: 'errors.not_found.resource',
-        i18nArgs: { resource: 'account' }
-      });
+      if (!accountExists) {
+        throw new NotFoundError({
+          code: 'credit_cards.account_not_found',
+          i18nKey: 'errors.not_found.resource',
+          i18nArgs: { resource: 'account' }
+        });
+      }
     }
 
     return await this.repository.create(data);
@@ -67,7 +69,7 @@ export class CreditCardsService {
 
     await this.findById(creditCardId, userId);
 
-    if (data.accountId !== undefined) {
+    if (data.accountId !== undefined && data.accountId !== null) {
       const accountExists = await this.accountsService.accountExistsForUser(data.accountId, userId);
 
       if (!accountExists) {
@@ -98,7 +100,10 @@ export class CreditCardsService {
 
   private validateCreateData(data: CreateCreditCardData): void {
     this.validateUserId(data.userId);
-    this.validateAccountId(data.accountId);
+
+    if (data.accountId !== undefined && data.accountId !== null) {
+      this.validateAccountId(data.accountId);
+    }
 
     if (!data.name || typeof data.name !== 'string') {
       throw new InvalidArgumentError({
@@ -147,7 +152,7 @@ export class CreditCardsService {
       });
     }
 
-    if (data.accountId !== undefined) {
+    if (data.accountId !== undefined && data.accountId !== null) {
       this.validateAccountId(data.accountId);
     }
 

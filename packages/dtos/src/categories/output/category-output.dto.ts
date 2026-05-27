@@ -1,9 +1,12 @@
 import z from 'zod';
 
+import { categoryIconSchema } from '../category-icon.js';
+
 export const categoryOutputSchema = z.object({
   id: z.uuid(),
   userId: z.uuid(),
   name: z.string(),
+  icon: categoryIconSchema,
   createdAt: z.string(),
   updatedAt: z.string()
 });
