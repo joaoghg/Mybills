@@ -65,18 +65,29 @@ export function CreateTransactionScreen({ navigation }: Props) {
 
   function handleSelectAccount(accountId: string | null) {
     setSelectedAccountId(accountId);
-    if (accountId) {
-      setSelectedCardId(null);
-      if (type === 'INCOME') {
-        setIsPaid(true);
+    if (accountId && type === 'INCOME') {
+      setIsPaid(true);
+    }
+
+    if (!accountId) return;
+
+    if (selectedCardId) {
+      const card = creditCards.find((c) => c.id === selectedCardId) ?? null;
+      const linkedAccountId = card?.accountId ?? null;
+      if (linkedAccountId && linkedAccountId !== accountId) {
+        setSelectedCardId(null);
       }
     }
   }
 
   function handleSelectCard(cardId: string | null) {
     setSelectedCardId(cardId);
-    if (cardId) {
-      setSelectedAccountId(null);
+    if (!cardId) return;
+
+    const card = creditCards.find((c) => c.id === cardId) ?? null;
+    const linkedAccountId = card?.accountId ?? null;
+    if (linkedAccountId) {
+      setSelectedAccountId(linkedAccountId);
     }
   }
 
