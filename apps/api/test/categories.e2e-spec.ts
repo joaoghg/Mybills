@@ -5,6 +5,8 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { SignInInput, SignUpInput, signInOutputSchema } from '@mybills/dtos';
 
+const defaultCategoryIcon = 'restaurant-outline' as const;
+
 describe('Categories (e2e)', () => {
   let app: INestApplication<App>;
 
@@ -52,7 +54,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        name: 'Food'
+        name: 'Food',
+        icon: defaultCategoryIcon
       })
       .expect(201);
 
@@ -60,6 +63,7 @@ describe('Categories (e2e)', () => {
       id: expect.any(String),
       userId: expect.any(String),
       name: 'Food',
+      icon: defaultCategoryIcon,
       createdAt: expect.any(String),
       updatedAt: expect.any(String)
     });
@@ -73,7 +77,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${firstUserToken}`)
       .send({
-        name: 'A Category'
+        name: 'A Category',
+        icon: defaultCategoryIcon
       })
       .expect(201);
 
@@ -81,7 +86,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${secondUserToken}`)
       .send({
-        name: 'B Category'
+        name: 'B Category',
+        icon: 'cart-outline'
       })
       .expect(201);
 
@@ -105,7 +111,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        name: 'Find Category'
+        name: 'Find Category',
+        icon: defaultCategoryIcon
       })
       .expect(201);
 
@@ -116,7 +123,8 @@ describe('Categories (e2e)', () => {
 
     expect(response.body).toMatchObject({
       id: createResponse.body.id,
-      name: 'Find Category'
+      name: 'Find Category',
+      icon: defaultCategoryIcon
     });
   });
 
@@ -128,7 +136,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${firstUserToken}`)
       .send({
-        name: 'Private Category'
+        name: 'Private Category',
+        icon: defaultCategoryIcon
       })
       .expect(201);
 
@@ -151,7 +160,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        name: 'Before Update'
+        name: 'Before Update',
+        icon: defaultCategoryIcon
       })
       .expect(201);
 
@@ -176,7 +186,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        name: 'Delete Category'
+        name: 'Delete Category',
+        icon: defaultCategoryIcon
       })
       .expect(201);
 
@@ -219,7 +230,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        name: 'Bills'
+        name: 'Bills',
+        icon: defaultCategoryIcon
       })
       .expect(201);
 
@@ -227,7 +239,8 @@ describe('Categories (e2e)', () => {
       .post('/categories')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
-        name: 'Bills'
+        name: 'Bills',
+        icon: 'cart-outline'
       })
       .expect(409);
 
@@ -236,5 +249,21 @@ describe('Categories (e2e)', () => {
       code: 'categories.category_already_exists',
       error: 'already_exists'
     });
+  });
+
+  it('should reject category creation when icon is not allowed', async () => {
+    const accessToken = await authenticateUser('categories-invalid-icon@mybills.dev');
+
+    const response = await request(app.getHttpServer())
+      .post('/categories')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        name: 'Invalid Icon Category',
+        icon: 'not-a-real-icon'
+      })
+      .expect(400);
+
+    expect(response.body.message).toEqual(expect.any(String));
+    expect(response.body.errors).toBeDefined();
   });
 });

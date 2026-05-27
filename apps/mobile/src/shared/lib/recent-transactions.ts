@@ -1,4 +1,4 @@
-import type { TransactionOutput } from '@mybills/dtos';
+import type { CategoryIcon, TransactionOutput } from '@mybills/dtos';
 
 import type { RecentAmountVariant, RecentTransactionRow } from '@/shared/types/recent-transaction';
 import { centsToMajor } from '@/shared/utils/cents-to-major';
@@ -14,9 +14,7 @@ function compareYmd(a: string, b: string): number {
   return a < b ? -1 : 1;
 }
 
-export function pickCategoryIcon(
-  categoryName: string | undefined
-): RecentTransactionRow['iconName'] {
+export function pickCategoryIcon(categoryName: string | undefined): CategoryIcon {
   const n = (categoryName ?? '').toLowerCase();
   if (/(food|restaurant|lunch|almoço|jantar|pizza)/i.test(n)) return 'restaurant-outline';
   if (/(market|grocery|super|mercado)/i.test(n)) return 'cart-outline';
@@ -73,6 +71,7 @@ export function formatRecentTimeLabel(
 export function mapTransactionToRecentRow(
   tx: TransactionOutput,
   categoryName: string | undefined,
+  categoryIcon: CategoryIcon | undefined,
   locale: string,
   labels: RecentTimeLabels
 ): RecentTransactionRow {
@@ -98,7 +97,7 @@ export function mapTransactionToRecentRow(
     timeLabel,
     displayAmountMajor,
     amountVariant,
-    iconName: pickCategoryIcon(categoryName)
+    iconName: categoryIcon ?? pickCategoryIcon(categoryName)
   };
 }
 

@@ -3,7 +3,7 @@ import z from 'zod';
 export const creditCardOutputSchema = z.object({
   id: z.uuid(),
   userId: z.uuid(),
-  accountId: z.uuid(),
+  accountId: z.uuid().nullable(),
   name: z.string(),
   limit: z.int(),
   closingDay: z.int(),

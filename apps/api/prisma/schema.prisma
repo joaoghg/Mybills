@@ -49,7 +49,7 @@ model Account {
 model CreditCard {
   id         String   @id @default(uuid())
   userId     String   @map("user_id")
-  accountId  String   @map("account_id")
+  accountId  String?  @map("account_id")
   name       String
   limit      Int // Valor em centavos
   closingDay Int      @map("closing_day")
@@ -58,7 +58,7 @@ model CreditCard {
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account      Account       @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  account      Account?      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   transactions Transaction[]
 
   @@map("credit_cards")
@@ -68,6 +68,7 @@ model Category {
   id        String   @id @default(uuid())
   userId    String   @map("user_id")
   name      String
+  icon      String   @default("receipt-outline")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 

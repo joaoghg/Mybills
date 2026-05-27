@@ -14,6 +14,7 @@ describe('CategoriesService', () => {
     id: '0ef9f98d-a8d2-470e-a8c4-3a46ad278f0f',
     userId: 'ba5f8ccd-5a24-4e41-9dbd-6ddb49a93fdd',
     name: 'Food',
+    icon: 'restaurant-outline',
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   };
@@ -81,14 +82,16 @@ describe('CategoriesService', () => {
 
       const result = await service.create({
         userId: category.userId,
-        name: ` ${category.name} `
+        name: ` ${category.name} `,
+        icon: category.icon
       });
 
       expect(result).toEqual(category);
       expect(repository.findByNameAndUserId).toHaveBeenCalledWith(category.name, category.userId);
       expect(repository.create).toHaveBeenCalledWith({
         userId: category.userId,
-        name: category.name
+        name: category.name,
+        icon: category.icon
       });
     });
 
@@ -98,7 +101,8 @@ describe('CategoriesService', () => {
       await expect(
         service.create({
           userId: category.userId,
-          name: category.name
+          name: category.name,
+          icon: category.icon
         })
       ).rejects.toThrow(AlreadyExistsError);
     });
@@ -117,7 +121,10 @@ describe('CategoriesService', () => {
       });
 
       expect(result).toEqual(updatedCategory);
-      expect(repository.update).toHaveBeenCalledWith(category.id, { name: 'Transport' });
+      expect(repository.update).toHaveBeenCalledWith(category.id, {
+        name: 'Transport',
+        icon: undefined
+      });
     });
 
     it('should throw InvalidArgumentError when no fields are provided', async () => {

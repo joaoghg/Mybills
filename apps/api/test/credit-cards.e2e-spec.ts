@@ -84,6 +84,33 @@ describe('CreditCards (e2e)', () => {
     });
   });
 
+  it('should create a credit card without a linked account', async () => {
+    const accessToken = await authenticateUser('credit-cards-create-no-account@mybills.dev');
+
+    const response = await request(app.getHttpServer())
+      .post('/credit-cards')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        name: 'Standalone Card',
+        limit: 500000,
+        closingDay: 5,
+        dueDay: 12
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      id: expect.any(String),
+      userId: expect.any(String),
+      accountId: null,
+      name: 'Standalone Card',
+      limit: 500000,
+      closingDay: 5,
+      dueDay: 12,
+      createdAt: expect.any(String),
+      updatedAt: expect.any(String)
+    });
+  });
+
   it('should list only credit cards from the authenticated user', async () => {
     const firstUserToken = await authenticateUser('credit-cards-list-user-a@mybills.dev');
     const secondUserToken = await authenticateUser('credit-cards-list-user-b@mybills.dev');

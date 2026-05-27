@@ -52,7 +52,7 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     const creditCard = await this.prisma.creditCard.create({
       data: {
         userId: data.userId,
-        accountId: data.accountId,
+        accountId: data.accountId ?? null,
         name: data.name,
         limit: data.limit,
         closingDay: data.closingDay,

@@ -9,7 +9,7 @@ import { useTheme } from '@/core/theme';
 import { useQuickAddMenu } from '@/navigation/quick-add-menu-context';
 import type { RootStackParamList } from '@/navigation/types';
 
-type QuickAddStackRoute = 'AddAccount' | 'AddTransaction' | 'AddCreditCard';
+type QuickAddStackRoute = 'AddAccount' | 'AddTransaction' | 'AddCreditCard' | 'AddCategory';
 
 export function CustomTabBar(props: BottomTabBarProps) {
   const { isOpen, close } = useQuickAddMenu();
@@ -93,6 +93,24 @@ export function CustomTabBar(props: BottomTabBarProps) {
               <Ionicons name="card-outline" size={20} color={theme.colors.primary} />
               <Text style={[styles.chipLabel, { color: theme.colors.textPrimary }]}>
                 {t('quickAdd.creditCard')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('quickAdd.category')}
+              onPress={() => handleSelect('AddCategory')}
+              style={({ pressed }) => [
+                styles.chip,
+                {
+                  backgroundColor: theme.colors.surfaceAlt,
+                  borderColor: theme.colors.border
+                },
+                pressed && styles.chipPressed
+              ]}
+            >
+              <Ionicons name="pricetag-outline" size={20} color={theme.colors.primary} />
+              <Text style={[styles.chipLabel, { color: theme.colors.textPrimary }]}>
+                {t('quickAdd.category')}
               </Text>
             </Pressable>
           </ScrollView>

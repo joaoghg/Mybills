@@ -93,9 +93,7 @@ export function WalletScreen() {
             formatCurrency={formatMoney}
             emptyLabel={t('wallet.emptyCards')}
             emptyActionLabel={t('wallet.addCard')}
-            onEmptyActionPress={() => {
-              /* placeholder: add card flow */
-            }}
+            onEmptyActionPress={() => navigateRoot('AddCreditCard')}
           />
           {dashboard.invoice ? (
             <InvoiceCard

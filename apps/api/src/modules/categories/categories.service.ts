@@ -49,7 +49,8 @@ export class CategoriesService {
 
     return await this.repository.create({
       userId: data.userId,
-      name: normalizedName
+      name: normalizedName,
+      icon: data.icon
     });
   }
 
@@ -76,7 +77,8 @@ export class CategoriesService {
     }
 
     return await this.repository.update(categoryId, {
-      name: normalizedName
+      name: normalizedName,
+      icon: data.icon
     });
   }
 
@@ -101,7 +103,7 @@ export class CategoriesService {
   }
 
   private validateUpdateData(data: UpdateCategoryData): void {
-    if (data.name === undefined) {
+    if (data.name === undefined && data.icon === undefined) {
       throw new InvalidArgumentError({
         code: 'categories.at_least_one_field_required',
         i18nKey: 'errors.validation.at_least_one_field_required'

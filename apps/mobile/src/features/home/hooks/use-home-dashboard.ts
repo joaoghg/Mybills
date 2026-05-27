@@ -4,7 +4,7 @@ import {
   listCreditCards,
   listTransactions
 } from '@mybills/api-client';
-import type { CreditCardOutput, TransactionOutput } from '@mybills/dtos';
+import type { CategoryIcon, CreditCardOutput, TransactionOutput } from '@mybills/dtos';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useMemo } from 'react';
 
@@ -117,6 +117,14 @@ export function useHomeDashboard(
     return map;
   }, [categoriesQuery.data]);
 
+  const categoryIconById = useMemo(() => {
+    const map = new Map<string, CategoryIcon>();
+    for (const c of categoriesQuery.data ?? []) {
+      map.set(c.id, c.icon);
+    }
+    return map;
+  }, [categoriesQuery.data]);
+
   const totalBalanceMajor = useMemo(() => {
     const list = accountsQuery.data ?? [];
     const totalCents = list.reduce((sum, account) => sum + account.balance, 0);
@@ -157,9 +165,10 @@ export function useHomeDashboard(
     const sorted = sortTransactionsByRecency(txs);
     return sorted.slice(0, RECENT_LIMIT).map((tx: TransactionOutput) => {
       const catName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
-      return mapTransactionToRecentRow(tx, catName, locale, timeLabels);
+      const catIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
+      return mapTransactionToRecentRow(tx, catName, catIcon, locale, timeLabels);
     });
-  }, [transactionsQuery.data, categoryNameById, locale, timeLabels]);
+  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels]);
 
   return {
     isLoading,
