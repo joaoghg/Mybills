@@ -1,4 +1,7 @@
 export const history = {
   title: 'History',
-  placeholder: 'Your transaction history will appear here.'
+  empty: 'No transactions yet.',
+  emptyAction: 'Add transaction',
+  error: 'Could not load your transactions.',
+  retry: 'Try again'
 } as const;

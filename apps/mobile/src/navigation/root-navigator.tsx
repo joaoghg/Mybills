@@ -9,7 +9,7 @@ import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/core/theme';
-import { AddFlowPlaceholderScreen } from '@/features/add/screens/add-flow-placeholder-screen';
+import { CreateTransactionScreen } from '@/features/transactions/screens/create-transaction-screen';
 import { CreateAccountScreen } from '@/features/accounts/screens/create-account-screen';
 import { CreateCategoryScreen } from '@/features/categories/screens/create-category-screen';
 import { CreateCreditCardScreen } from '@/features/credit-cards/screens/create-credit-card-screen';
@@ -64,7 +64,7 @@ export function AuthenticatedRoot() {
         />
         <Stack.Screen
           name="AddTransaction"
-          component={AddFlowPlaceholderScreen}
+          component={CreateTransactionScreen}
           options={{
             presentation: 'modal',
             title: t('quickAdd.transactionTitle')
