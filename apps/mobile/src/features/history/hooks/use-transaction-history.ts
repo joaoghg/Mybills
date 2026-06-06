@@ -74,7 +74,7 @@ function toHistoryRow(
 
   return {
     ...base,
-    dateYmd: tx.date,
+    dateYmd: tx.date.split('T')[0],
     txType: tx.type,
     amountCents: tx.amount,
     subtitle: buildSubtitle(categoryName, tx.createdAt, locale)
