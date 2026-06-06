@@ -1,6 +1,10 @@
 export const history = {
   title: 'History',
   monthlyHistory: 'Monthly history',
+  selectMonth: 'Select month',
+  selectMonthDone: 'Done',
+  previousMonth: 'Previous month',
+  nextMonth: 'Next month',
   searchPlaceholder: 'Search transactions...',
   filters: 'Filters',
   category: 'Category',

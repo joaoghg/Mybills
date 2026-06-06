@@ -122,7 +122,6 @@ export function useTransactionHistory(
   goToNextMonth: () => void;
   selectMonthYear: (month: number, year: number) => void;
   clearAdvancedFilters: () => void;
-  recentMonthPills: Array<{ month: number; year: number; label: string }>;
   monthTitle: string;
 } {
   const client = useHttpClient();
@@ -202,26 +201,6 @@ export function useTransactionHistory(
     }
   }, [filters.selectedMonth, filters.selectedYear, locale]);
 
-  const recentMonthPills = useMemo(() => {
-    const pills: Array<{ month: number; year: number; label: string }> = [];
-    const anchor = new Date(filters.selectedYear, filters.selectedMonth - 1, 1);
-
-    for (let offset = 4; offset >= 0; offset -= 1) {
-      const date = new Date(anchor.getFullYear(), anchor.getMonth() - offset, 1);
-      const month = date.getMonth() + 1;
-      const year = date.getFullYear();
-      let label = String(month);
-      try {
-        label = new Intl.DateTimeFormat(locale, { month: 'short' }).format(date);
-      } catch {
-        // keep numeric fallback
-      }
-      pills.push({ month, year, label });
-    }
-
-    return pills;
-  }, [filters.selectedMonth, filters.selectedYear, locale]);
-
   const setSearch = useCallback((value: string) => {
     setFilters((current) => ({ ...current, search: value }));
   }, []);
@@ -291,7 +270,6 @@ export function useTransactionHistory(
     goToNextMonth,
     selectMonthYear,
     clearAdvancedFilters,
-    recentMonthPills,
     monthTitle
   };
 }

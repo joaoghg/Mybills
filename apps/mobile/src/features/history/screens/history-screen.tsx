@@ -61,9 +61,9 @@ export function HistoryScreen() {
       <AppScreenHeader theme={theme} brandTitle={t('history.brandTitle')} />
       <HistoryMonthNavigator
         theme={theme}
+        locale={locale}
         monthTitle={history.monthTitle}
         monthlyHistoryLabel={t('history.monthlyHistory')}
-        pills={history.recentMonthPills}
         selectedMonth={history.filters.selectedMonth}
         selectedYear={history.filters.selectedYear}
         onPrevious={history.goToPreviousMonth}

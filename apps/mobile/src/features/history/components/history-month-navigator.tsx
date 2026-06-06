@@ -1,19 +1,16 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
-
-type MonthPill = {
-  month: number;
-  year: number;
-  label: string;
-};
+import { HistoryMonthYearPickerSheet } from '@/features/history/components/history-month-year-picker-sheet';
 
 type HistoryMonthNavigatorProps = {
   theme: AppTheme;
+  locale: string;
   monthTitle: string;
   monthlyHistoryLabel: string;
-  pills: MonthPill[];
   selectedMonth: number;
   selectedYear: number;
   onPrevious: () => void;
@@ -23,82 +20,67 @@ type HistoryMonthNavigatorProps = {
 
 export function HistoryMonthNavigator({
   theme,
+  locale,
   monthTitle,
   monthlyHistoryLabel,
-  pills,
   selectedMonth,
   selectedYear,
   onPrevious,
   onNext,
   onSelectMonth
 }: HistoryMonthNavigatorProps) {
+  const { t } = useTranslation();
+  const [showPicker, setShowPicker] = useState(false);
+
   return (
     <View style={styles.wrapper}>
       <View style={styles.titleRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Previous month"
+          accessibilityLabel={t('history.previousMonth')}
           onPress={onPrevious}
           style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
         >
           <Ionicons name="chevron-back" size={22} color={theme.colors.textPrimary} />
         </Pressable>
-        <View style={styles.titleCol}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t('history.selectMonth')}
+          onPress={() => setShowPicker(true)}
+          style={({ pressed }) => [styles.titleCol, pressed && styles.pressed]}
+        >
           <Text style={[styles.monthTitle, { color: theme.colors.textPrimary }]}>{monthTitle}</Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
             {monthlyHistoryLabel.toUpperCase()}
           </Text>
-        </View>
+        </Pressable>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Next month"
+          accessibilityLabel={t('history.nextMonth')}
           onPress={onNext}
           style={({ pressed }) => [styles.navBtn, pressed && styles.pressed]}
         >
           <Ionicons name="chevron-forward" size={22} color={theme.colors.textPrimary} />
         </Pressable>
       </View>
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.pillsRow}
-      >
-        {pills.map((pill) => {
-          const isSelected = pill.month === selectedMonth && pill.year === selectedYear;
-          return (
-            <Pressable
-              key={`${pill.year}-${pill.month}`}
-              accessibilityRole="button"
-              accessibilityState={{ selected: isSelected }}
-              onPress={() => onSelectMonth(pill.month, pill.year)}
-              style={({ pressed }) => [
-                styles.pill,
-                {
-                  backgroundColor: isSelected ? theme.colors.primary : theme.colors.surface,
-                  borderColor: isSelected ? theme.colors.primary : theme.colors.border
-                },
-                pressed && styles.pressed
-              ]}
-            >
-              <Text
-                style={[
-                  styles.pillLabel,
-                  { color: isSelected ? theme.colors.textOnPrimary : theme.colors.textPrimary }
-                ]}
-              >
-                {pill.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+
+      <HistoryMonthYearPickerSheet
+        theme={theme}
+        visible={showPicker}
+        title={t('history.selectMonth')}
+        doneLabel={t('history.selectMonthDone')}
+        locale={locale}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+        onClose={() => setShowPicker(false)}
+        onConfirm={onSelectMonth}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   wrapper: {
-    gap: 12,
     marginBottom: 16
   },
   titleRow: {
@@ -126,21 +108,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.8
-  },
-  pillsRow: {
-    gap: 8,
-    paddingVertical: 2
-  },
-  pill: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: 1.5
-  },
-  pillLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    textTransform: 'capitalize'
   },
   pressed: {
     opacity: 0.9

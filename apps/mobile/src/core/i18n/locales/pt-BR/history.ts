@@ -1,6 +1,10 @@
 export const history = {
   title: 'Histórico',
   monthlyHistory: 'Histórico mensal',
+  selectMonth: 'Selecionar mês',
+  selectMonthDone: 'Concluir',
+  previousMonth: 'Mês anterior',
+  nextMonth: 'Próximo mês',
   searchPlaceholder: 'Buscar transações...',
   filters: 'Filtros',
   category: 'Categoria',
