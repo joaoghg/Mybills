@@ -7,6 +7,7 @@ import { SkeletonBox } from '@/shared/components/skeleton-box';
 type AppScreenHeaderProps = {
   theme: AppTheme;
   greeting?: string;
+  brandTitle?: string;
   isLoadingGreeting?: boolean;
 };
 
@@ -27,9 +28,13 @@ function initialsFromGreeting(greeting: string | undefined): string {
 export function AppScreenHeader({
   theme,
   greeting,
+  brandTitle,
   isLoadingGreeting = false
 }: AppScreenHeaderProps) {
-  const initials = initialsFromGreeting(greeting);
+  const initials = brandTitle
+    ? brandTitle.slice(0, 2).toUpperCase()
+    : initialsFromGreeting(greeting);
+  const title = brandTitle ?? greeting;
 
   return (
     <View style={styles.row}>
@@ -39,9 +44,9 @@ export function AppScreenHeader({
       <View style={styles.textCol}>
         {isLoadingGreeting ? (
           <SkeletonBox theme={theme} height={22} width={160} borderRadius={8} />
-        ) : greeting ? (
+        ) : title ? (
           <Text style={[styles.greeting, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-            {greeting}
+            {title}
           </Text>
         ) : null}
       </View>

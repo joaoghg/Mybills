@@ -12,6 +12,8 @@ import { useTheme } from '@/core/theme';
 import { CreateTransactionScreen } from '@/features/transactions/screens/create-transaction-screen';
 import { CreateAccountScreen } from '@/features/accounts/screens/create-account-screen';
 import { CreateCategoryScreen } from '@/features/categories/screens/create-category-screen';
+import { EditCategoryScreen } from '@/features/categories/screens/edit-category-screen';
+import { ManageCategoriesScreen } from '@/features/categories/screens/manage-categories-screen';
 import { CreateCreditCardScreen } from '@/features/credit-cards/screens/create-credit-card-screen';
 import { LanguageSettingsScreen } from '@/features/more/screens/language-settings-screen';
 import { ThemeSettingsScreen } from '@/features/more/screens/theme-settings-screen';
@@ -84,6 +86,21 @@ export function AuthenticatedRoot() {
           options={{
             presentation: 'modal',
             title: t('quickAdd.categoryTitle')
+          }}
+        />
+        <Stack.Screen
+          name="CategoryManagement"
+          component={ManageCategoriesScreen}
+          options={{
+            title: t('categories.manageTitle')
+          }}
+        />
+        <Stack.Screen
+          name="EditCategory"
+          component={EditCategoryScreen}
+          options={{
+            presentation: 'modal',
+            title: t('categories.editTitle')
           }}
         />
         <Stack.Screen

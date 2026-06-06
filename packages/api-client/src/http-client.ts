@@ -35,6 +35,8 @@ export type HttpClient = {
   readonly baseUrl: string;
   postJson: <TResponse>(path: string, body: unknown) => Promise<TResponse>;
   getJson: <TResponse>(path: string) => Promise<TResponse>;
+  patchJson: <TResponse>(path: string, body: unknown) => Promise<TResponse>;
+  deleteJson: (path: string) => Promise<void>;
 };
 
 function normalizeErrorMessage(body: Record<string, unknown>): string {
@@ -142,6 +144,93 @@ async function fetchGetJson(
   try {
     response = await fetch(url, {
       method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        ...extraHeaders
+      }
+    });
+  } catch (cause) {
+    const message =
+      cause instanceof Error ? cause.message : 'Network request failed';
+    throw new ApiClientError({
+      statusCode: 0,
+      message,
+      code: 'client.network_error'
+    });
+  }
+
+  const rawText = await response.text();
+  let json: unknown;
+  try {
+    json = rawText ? JSON.parse(rawText) : undefined;
+  } catch {
+    json = undefined;
+  }
+
+  return {
+    status: response.status,
+    ok: response.ok,
+    json,
+    rawText
+  };
+}
+
+async function fetchPatchJson(
+  baseUrl: string,
+  normalizedPath: string,
+  body: unknown,
+  extraHeaders?: Record<string, string>
+): Promise<FetchJsonResult> {
+  const url = `${baseUrl}${normalizedPath}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        ...extraHeaders
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (cause) {
+    const message =
+      cause instanceof Error ? cause.message : 'Network request failed';
+    throw new ApiClientError({
+      statusCode: 0,
+      message,
+      code: 'client.network_error'
+    });
+  }
+
+  const rawText = await response.text();
+  let json: unknown;
+  try {
+    json = rawText ? JSON.parse(rawText) : undefined;
+  } catch {
+    json = undefined;
+  }
+
+  return {
+    status: response.status,
+    ok: response.ok,
+    json,
+    rawText
+  };
+}
+
+async function fetchDeleteJson(
+  baseUrl: string,
+  normalizedPath: string,
+  extraHeaders?: Record<string, string>
+): Promise<FetchJsonResult> {
+  const url = `${baseUrl}${normalizedPath}`;
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'DELETE',
       headers: {
         Accept: 'application/json',
         ...extraHeaders
@@ -286,6 +375,65 @@ export function createHttpClient(options: CreateHttpClientOptions): HttpClient {
       }
 
       return assertOk(result) as TResponse;
+    },
+
+    async patchJson<TResponse>(path: string, body: unknown): Promise<TResponse> {
+      const normalizedPath = normalizePath(path);
+
+      if (!auth || isPublicAuthPath(normalizedPath)) {
+        const result = await fetchPatchJson(baseUrl, normalizedPath, body);
+        return assertOk(result) as TResponse;
+      }
+
+      const token = await auth.getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      let result = await fetchPatchJson(baseUrl, normalizedPath, body, headers);
+
+      if (result.status === 401) {
+        await refreshWithMutex();
+        const newToken = await auth.getAccessToken();
+        const retryHeaders: Record<string, string> = {};
+        if (newToken) {
+          retryHeaders.Authorization = `Bearer ${newToken}`;
+        }
+        result = await fetchPatchJson(baseUrl, normalizedPath, body, retryHeaders);
+      }
+
+      return assertOk(result) as TResponse;
+    },
+
+    async deleteJson(path: string): Promise<void> {
+      const normalizedPath = normalizePath(path);
+
+      if (!auth) {
+        const result = await fetchDeleteJson(baseUrl, normalizedPath);
+        assertOk(result);
+        return;
+      }
+
+      const token = await auth.getAccessToken();
+      const headers: Record<string, string> = {};
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      let result = await fetchDeleteJson(baseUrl, normalizedPath, headers);
+
+      if (result.status === 401) {
+        await refreshWithMutex();
+        const newToken = await auth.getAccessToken();
+        const retryHeaders: Record<string, string> = {};
+        if (newToken) {
+          retryHeaders.Authorization = `Bearer ${newToken}`;
+        }
+        result = await fetchDeleteJson(baseUrl, normalizedPath, retryHeaders);
+      }
+
+      assertOk(result);
     }
   };
 }
