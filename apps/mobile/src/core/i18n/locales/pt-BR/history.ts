@@ -1,4 +1,7 @@
 export const history = {
   title: 'Histórico',
-  placeholder: 'Seu histórico de transações aparecerá aqui.'
+  empty: 'Nenhuma transação ainda.',
+  emptyAction: 'Adicionar transação',
+  error: 'Não foi possível carregar suas transações.',
+  retry: 'Tentar novamente'
 } as const;

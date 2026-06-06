@@ -59,6 +59,23 @@ export function MoreScreen() {
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
+          onPress={() => navigateRoot('CategoryManagement')}
+          style={({ pressed }) => [
+            styles.secondaryButton,
+            {
+              backgroundColor: theme.colors.surfaceAlt,
+              borderColor: theme.colors.border
+            },
+            pressed && styles.buttonPressed
+          ]}
+        >
+          <Text style={[styles.secondaryButtonLabel, { color: theme.colors.textPrimary }]}>
+            {t('more.categoriesRow')}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
           onPress={() => navigateRoot('LanguageSettings')}
           style={({ pressed }) => [
             styles.secondaryButton,

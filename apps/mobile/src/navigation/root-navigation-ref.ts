@@ -4,7 +4,11 @@ import type { RootStackParamList } from './types';
 
 export const rootNavigationRef = createNavigationContainerRef<RootStackParamList>();
 
-export function navigateRoot(name: keyof RootStackParamList): void {
+type RootRouteWithoutParams = {
+  [Route in keyof RootStackParamList]: RootStackParamList[Route] extends undefined ? Route : never;
+}[keyof RootStackParamList];
+
+export function navigateRoot(name: RootRouteWithoutParams): void {
   if (rootNavigationRef.isReady()) {
     rootNavigationRef.navigate(name);
   }
