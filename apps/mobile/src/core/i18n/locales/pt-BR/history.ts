@@ -1,7 +1,37 @@
 export const history = {
   title: 'Histórico',
+  monthlyHistory: 'Histórico mensal',
+  searchPlaceholder: 'Buscar transações...',
+  filters: 'Filtros',
+  category: 'Categoria',
+  type: 'Tipo',
+  typeAll: 'Todos',
+  typeIncome: 'Entrada',
+  typeExpense: 'Saída',
+  includeTransfers: 'Incluir transferências',
+  clearFilters: 'Limpar filtros',
+  activeFilters: 'Filtros ativos',
+  todayHeader: 'HOJE, {{day}} {{month}}',
+  yesterdayHeader: 'ONTEM, {{day}} {{month}}',
+  dateHeader: '{{day}} {{month}}',
   empty: 'Nenhuma transação ainda.',
+  emptyFiltered: 'Nenhuma transação encontrada para os filtros selecionados.',
   emptyAction: 'Adicionar transação',
   error: 'Não foi possível carregar suas transações.',
-  retry: 'Tentar novamente'
+  retry: 'Tentar novamente',
+  brandTitle: 'MyBills',
+  months: {
+    january: 'Jan',
+    february: 'Fev',
+    march: 'Mar',
+    april: 'Abr',
+    may: 'Mai',
+    june: 'Jun',
+    july: 'Jul',
+    august: 'Ago',
+    september: 'Set',
+    october: 'Out',
+    november: 'Nov',
+    december: 'Dez'
+  }
 } as const;

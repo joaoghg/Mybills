@@ -95,7 +95,50 @@ describe('TransactionsService', () => {
       const result = await service.findAll(baseTransaction.userId);
 
       expect(result).toEqual([baseTransaction]);
-      expect(repository.findAllByUserId).toHaveBeenCalledWith(baseTransaction.userId);
+      expect(repository.findAllByUserId).toHaveBeenCalledWith(baseTransaction.userId, undefined);
+    });
+
+    it('should pass filters to repository and validate category ownership', async () => {
+      const filters = {
+        year: 2026,
+        month: 4,
+        categoryId: baseTransaction.categoryId as string,
+        type: 'EXPENSE' as const,
+        includeTransfer: false
+      };
+
+      repository.findAllByUserId.mockResolvedValue([baseTransaction]);
+      categoriesService.findById.mockResolvedValue({
+        id: filters.categoryId,
+        userId: baseTransaction.userId,
+        name: 'Food',
+        createdAt: baseTransaction.createdAt,
+        updatedAt: baseTransaction.updatedAt
+      });
+
+      const result = await service.findAll(baseTransaction.userId, filters);
+
+      expect(result).toEqual([baseTransaction]);
+      expect(categoriesService.findById).toHaveBeenCalledWith(filters.categoryId, baseTransaction.userId);
+      expect(repository.findAllByUserId).toHaveBeenCalledWith(baseTransaction.userId, filters);
+    });
+
+    it('should throw NotFoundError when category filter does not belong to user', async () => {
+      categoriesService.findById.mockRejectedValue(
+        new NotFoundError({
+          code: 'categories.category_not_found',
+          i18nKey: 'errors.not_found.resource',
+          i18nArgs: { resource: 'category' }
+        })
+      );
+
+      await expect(
+        service.findAll(baseTransaction.userId, {
+          year: 2026,
+          month: 4,
+          categoryId: baseTransaction.categoryId as string
+        })
+      ).rejects.toThrow(NotFoundError);
     });
 
     it('should throw InvalidArgumentError if user id is invalid', async () => {

@@ -7,14 +7,17 @@ import {
   HttpStatus,
   Param,
   Patch,
-  Post
+  Post,
+  Query
 } from '@nestjs/common';
-import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
   CreateTransactionInput,
   createTransactionInputSchema,
   ListTransactionsOutput,
   listTransactionsOutputSchema,
+  ListTransactionsQueryInput,
+  listTransactionsQueryInputSchema,
   TransactionOutput,
   transactionOutputSchema,
   UpdateTransactionInput,
@@ -41,7 +44,24 @@ export class TransactionsController {
   @Get()
   @ApiOperation({
     summary: 'List transactions',
-    description: 'Lists all transactions of the authenticated user.'
+    description:
+      'Lists transactions of the authenticated user with optional filters for month, year, search, category, type, and transfers.'
+  })
+  @ApiQuery({ name: 'month', required: false, type: Number, description: 'Calendar month (1-12)' })
+  @ApiQuery({ name: 'year', required: false, type: Number, description: 'Calendar year' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Description search' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category id' })
+  @ApiQuery({
+    name: 'type',
+    required: false,
+    enum: ['INCOME', 'EXPENSE'],
+    description: 'Transaction type filter'
+  })
+  @ApiQuery({
+    name: 'includeTransfer',
+    required: false,
+    type: Boolean,
+    description: 'Include transfer transactions (default excludes when false)'
   })
   @ApiResponse({
     status: HttpStatus.OK,
@@ -49,8 +69,11 @@ export class TransactionsController {
     schema: toJSONSchema(listTransactionsOutputSchema) as SchemaObject
   })
   @Serialize(listTransactionsOutputSchema)
-  async findAll(@CurrentUser('sub') userId: string): Promise<ListTransactionsOutput> {
-    return await this.transactionsService.findAll(userId);
+  async findAll(
+    @CurrentUser('sub') userId: string,
+    @Query(new ZodValidationPipe(listTransactionsQueryInputSchema)) query: ListTransactionsQueryInput
+  ): Promise<ListTransactionsOutput> {
+    return await this.transactionsService.findAll(userId, query);
   }
 
   @Get(':id')
