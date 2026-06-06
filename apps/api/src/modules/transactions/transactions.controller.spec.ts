@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import {
   CreateTransactionInput,
   ListTransactionsOutput,
+  ListTransactionsQueryInput,
   TransactionOutput,
   UpdateTransactionInput,
   UpdateTransactionIsPaidInput
@@ -56,11 +57,28 @@ describe('TransactionsController', () => {
       const output: ListTransactionsOutput = [baseTransaction];
       service.findAll.mockResolvedValue(output);
 
-      const result = await controller.findAll(baseTransaction.userId);
+      const result = await controller.findAll(baseTransaction.userId, {});
 
       expect(result).toEqual(output);
       expect(service.findAll).toHaveBeenCalledTimes(1);
-      expect(service.findAll).toHaveBeenCalledWith(baseTransaction.userId);
+      expect(service.findAll).toHaveBeenCalledWith(baseTransaction.userId, {});
+    });
+
+    it('should forward query filters to transactionsService.findAll', async () => {
+      const query: ListTransactionsQueryInput = {
+        year: 2026,
+        month: 4,
+        search: 'market',
+        type: 'EXPENSE',
+        includeTransfer: false
+      };
+      const output: ListTransactionsOutput = [baseTransaction];
+      service.findAll.mockResolvedValue(output);
+
+      const result = await controller.findAll(baseTransaction.userId, query);
+
+      expect(result).toEqual(output);
+      expect(service.findAll).toHaveBeenCalledWith(baseTransaction.userId, query);
     });
   });
 

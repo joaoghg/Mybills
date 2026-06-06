@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Transaction as PrismaTransaction } from 'src/generated/prisma/client';
+import type { ListTransactionsQueryInput } from '@mybills/dtos';
+import {
+  Prisma,
+  Transaction as PrismaTransaction,
+  TransactionType
+} from 'src/generated/prisma/client';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
 import { CreateTransactionData } from '../../contracts/create-transaction-data.contract';
 import { UpdateTransactionData } from '../../contracts/update-transaction-data.contract';
@@ -27,9 +32,45 @@ export class PrismaTransactionRepository implements TransactionRepository {
     };
   }
 
-  async findAllByUserId(userId: string): Promise<Transaction[]> {
+  private buildWhereClause(
+    userId: string,
+    filters?: ListTransactionsQueryInput
+  ): Prisma.TransactionWhereInput {
+    const where: Prisma.TransactionWhereInput = { userId };
+
+    if (!filters) {
+      return where;
+    }
+
+    if (filters.month !== undefined && filters.year !== undefined) {
+      const gte = new Date(Date.UTC(filters.year, filters.month - 1, 1));
+      const lt = new Date(Date.UTC(filters.year, filters.month, 1));
+      where.date = { gte, lt };
+    }
+
+    if (filters.type !== undefined) {
+      where.type = filters.type;
+    } else if (filters.includeTransfer === false) {
+      where.type = { in: [TransactionType.INCOME, TransactionType.EXPENSE] };
+    }
+
+    if (filters.categoryId !== undefined) {
+      where.categoryId = filters.categoryId;
+    }
+
+    if (filters.search !== undefined) {
+      where.description = { contains: filters.search, mode: 'insensitive' };
+    }
+
+    return where;
+  }
+
+  async findAllByUserId(
+    userId: string,
+    filters?: ListTransactionsQueryInput
+  ): Promise<Transaction[]> {
     const transactions = await this.prisma.transaction.findMany({
-      where: { userId },
+      where: this.buildWhereClause(userId, filters),
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
     });
 

@@ -1,3 +1,4 @@
+import type { ListTransactionsQueryInput } from '@mybills/dtos';
 import { Inject, Injectable } from '@nestjs/common';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
@@ -19,10 +20,14 @@ export class TransactionsService {
     private readonly creditCardsService: CreditCardsService
   ) {}
 
-  async findAll(userId: string): Promise<Transaction[]> {
+  async findAll(userId: string, filters?: ListTransactionsQueryInput): Promise<Transaction[]> {
     this.validateUserId(userId);
 
-    return await this.repository.findAllByUserId(userId);
+    if (filters?.categoryId !== undefined) {
+      await this.categoriesService.findById(filters.categoryId, userId);
+    }
+
+    return await this.repository.findAllByUserId(userId, filters);
   }
 
   async findById(transactionId: string, userId: string): Promise<Transaction> {

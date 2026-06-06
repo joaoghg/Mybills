@@ -9,6 +9,7 @@ type TransactionListItemProps = {
   theme: AppTheme;
   transaction: RecentTransactionRow;
   formatCurrency: (amount: number) => string;
+  subtitle?: string;
 };
 
 function amountColor(theme: AppTheme, variant: RecentAmountVariant): string {
@@ -17,7 +18,12 @@ function amountColor(theme: AppTheme, variant: RecentAmountVariant): string {
   return theme.colors.textPrimary;
 }
 
-export function TransactionListItem({ theme, transaction, formatCurrency }: TransactionListItemProps) {
+export function TransactionListItem({
+  theme,
+  transaction,
+  formatCurrency,
+  subtitle
+}: TransactionListItemProps) {
   const tx = transaction;
   const iconName = tx.iconName as ComponentProps<typeof Ionicons>['name'];
   const iconBg =
@@ -49,7 +55,9 @@ export function TransactionListItem({ theme, transaction, formatCurrency }: Tran
       </View>
       <View style={styles.mid}>
         <Text style={[styles.merchant, { color: theme.colors.textPrimary }]}>{tx.merchant}</Text>
-        <Text style={[styles.time, { color: theme.colors.textSecondary }]}>{tx.timeLabel}</Text>
+        <Text style={[styles.time, { color: theme.colors.textSecondary }]}>
+          {subtitle ?? tx.timeLabel}
+        </Text>
       </View>
       <Text style={[styles.amount, { color: amountColor(theme, tx.amountVariant) }]}>
         {formatCurrency(tx.displayAmountMajor)}

@@ -1,10 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  FlatList,
   Pressable,
   RefreshControl,
+  SectionList,
   StyleSheet,
   Text,
   View
@@ -12,18 +12,24 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useTheme } from '@/core/theme';
-import { useTransactionRows } from '@/features/transactions/hooks/use-transaction-rows';
+import { HistoryCategoryPickerSheet } from '@/features/history/components/history-category-picker-sheet';
+import { HistoryDateSectionHeader } from '@/features/history/components/history-date-section-header';
+import { HistoryFilterBar } from '@/features/history/components/history-filter-bar';
+import { HistoryFiltersSheet } from '@/features/history/components/history-filters-sheet';
+import { HistoryMonthNavigator } from '@/features/history/components/history-month-navigator';
+import { HistorySearchBar } from '@/features/history/components/history-search-bar';
+import { HistoryTypePickerSheet } from '@/features/history/components/history-type-picker-sheet';
+import { useTransactionHistory } from '@/features/history/hooks/use-transaction-history';
+import type { TransactionDateSection } from '@/features/history/lib/group-transactions-by-date';
 import { navigateRoot } from '@/navigation/root-navigation-ref';
 import { AppScreenHeader } from '@/shared/components/app-screen-header';
 import { TransactionListItem } from '@/shared/components/transaction-list-item';
-import { firstNameFromUserName, useCurrentUser } from '@/shared/hooks/use-current-user';
 import { formatCurrencyValue } from '@/shared/utils/format-currency';
 
 export function HistoryScreen() {
   const { theme } = useTheme();
   const { t, i18n } = useTranslation();
   const insets = useSafeAreaInsets();
-  const userQuery = useCurrentUser();
   const locale = i18n.language;
 
   const timeLabels = useMemo(
@@ -34,30 +40,92 @@ export function HistoryScreen() {
     [t]
   );
 
-  const { rows, isLoading, isError, isRefetching, refetch } = useTransactionRows(locale, timeLabels);
+  const history = useTransactionHistory(locale, timeLabels, t);
   const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
 
-  const firstName = firstNameFromUserName(userQuery.data?.name);
-  const greeting =
-    firstName.length > 0 ? t('home.greeting', { name: firstName }) : undefined;
+  const [filtersSheetVisible, setFiltersSheetVisible] = useState(false);
+  const [categorySheetVisible, setCategorySheetVisible] = useState(false);
+  const [typeSheetVisible, setTypeSheetVisible] = useState(false);
 
-  const displayRows = rows.map((row) => ({
-    ...row,
-    merchant: row.merchant.trim() ? row.merchant : t('home.noDescription')
-  }));
+  const typeOptions = useMemo(
+    () => [
+      { value: null, label: t('history.typeAll') },
+      { value: 'INCOME' as const, label: t('history.typeIncome') },
+      { value: 'EXPENSE' as const, label: t('history.typeExpense') }
+    ],
+    [t]
+  );
 
   const listHeader = (
     <View style={styles.headerBlock}>
-      <AppScreenHeader
+      <AppScreenHeader theme={theme} brandTitle={t('history.brandTitle')} />
+      <HistoryMonthNavigator
         theme={theme}
-        greeting={greeting}
-        isLoadingGreeting={userQuery.isPending}
+        monthTitle={history.monthTitle}
+        monthlyHistoryLabel={t('history.monthlyHistory')}
+        pills={history.recentMonthPills}
+        selectedMonth={history.filters.selectedMonth}
+        selectedYear={history.filters.selectedYear}
+        onPrevious={history.goToPreviousMonth}
+        onNext={history.goToNextMonth}
+        onSelectMonth={history.selectMonthYear}
       />
-      <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{t('history.title')}</Text>
+      <HistorySearchBar
+        theme={theme}
+        value={history.filters.search}
+        placeholder={t('history.searchPlaceholder')}
+        onChangeText={history.setSearch}
+      />
+      <HistoryFilterBar
+        theme={theme}
+        buttons={[
+          {
+            key: 'filters',
+            label: t('history.filters'),
+            active: history.hasActiveAdvancedFilters || history.filters.includeTransfer,
+            onPress: () => setFiltersSheetVisible(true)
+          },
+          {
+            key: 'category',
+            label: t('history.category'),
+            active: history.filters.categoryId !== null,
+            onPress: () => setCategorySheetVisible(true)
+          },
+          {
+            key: 'type',
+            label: t('history.type'),
+            active: history.filters.type !== null,
+            onPress: () => setTypeSheetVisible(true)
+          }
+        ]}
+      />
     </View>
   );
 
-  if (isLoading) {
+  const renderSectionHeader = ({ section }: { section: TransactionDateSection }) => (
+    <HistoryDateSectionHeader
+      theme={theme}
+      label={section.headerLabel}
+      dailyNetMajor={section.dailyNetMajor}
+      dailyTotalLabel={formatMoney(section.dailyNetMajor)}
+    />
+  );
+
+  const renderItem = ({ item }: { item: TransactionDateSection['rows'][number] }) => (
+    <TransactionListItem
+      theme={theme}
+      transaction={{
+        ...item,
+        merchant: item.merchant.trim() ? item.merchant : t('home.noDescription')
+      }}
+      subtitle={item.subtitle}
+      formatCurrency={formatMoney}
+    />
+  );
+
+  const emptyMessage = history.hasActiveAdvancedFilters ? t('history.emptyFiltered') : t('history.empty');
+
+  if (history.isLoading) {
     return (
       <View
         style={[
@@ -71,7 +139,7 @@ export function HistoryScreen() {
     );
   }
 
-  if (isError) {
+  if (history.isError) {
     return (
       <View
         style={[
@@ -90,7 +158,7 @@ export function HistoryScreen() {
           </Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => void refetch()}
+            onPress={() => void history.refetch()}
             style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
           >
             <Text style={[styles.retryLabel, { color: theme.colors.textOnPrimary }]}>
@@ -103,43 +171,82 @@ export function HistoryScreen() {
   }
 
   return (
-    <FlatList
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={[
-        styles.listContent,
-        { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }
-      ]}
-      data={displayRows}
-      keyExtractor={(item) => item.id}
-      ListHeaderComponent={listHeader}
-      ItemSeparatorComponent={() => <View style={styles.separator} />}
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefetching}
-          onRefresh={() => void refetch()}
-          tintColor={theme.colors.primary}
-        />
-      }
-      renderItem={({ item }) => (
-        <TransactionListItem theme={theme} transaction={item} formatCurrency={formatMoney} />
-      )}
-      ListEmptyComponent={
-        <View style={styles.emptyBlock}>
-          <Text style={[styles.empty, { color: theme.colors.textSecondary }]}>
-            {t('history.empty')}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => navigateRoot('AddTransaction')}
-            style={[styles.emptyCta, { borderColor: theme.colors.primary }]}
-          >
-            <Text style={[styles.emptyCtaLabel, { color: theme.colors.primary }]}>
-              {t('history.emptyAction')}
-            </Text>
-          </Pressable>
-        </View>
-      }
-    />
+    <>
+      <SectionList
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={[
+          styles.listContent,
+          { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }
+        ]}
+        sections={history.sections.map((section) => ({
+          ...section,
+          data: section.rows
+        }))}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={listHeader}
+        renderSectionHeader={renderSectionHeader}
+        renderItem={renderItem}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        SectionSeparatorComponent={() => <View style={styles.sectionGap} />}
+        stickySectionHeadersEnabled={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={history.isRefetching}
+            onRefresh={() => void history.refetch()}
+            tintColor={theme.colors.primary}
+          />
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyBlock}>
+            <Text style={[styles.empty, { color: theme.colors.textSecondary }]}>{emptyMessage}</Text>
+            {!history.hasActiveAdvancedFilters ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => navigateRoot('AddTransaction')}
+                style={[styles.emptyCta, { borderColor: theme.colors.primary }]}
+              >
+                <Text style={[styles.emptyCtaLabel, { color: theme.colors.primary }]}>
+                  {t('history.emptyAction')}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        }
+      />
+
+      <HistoryFiltersSheet
+        theme={theme}
+        visible={filtersSheetVisible}
+        includeTransfersLabel={t('history.includeTransfers')}
+        activeFiltersLabel={t('history.activeFilters')}
+        clearFiltersLabel={t('history.clearFilters')}
+        includeTransfer={history.filters.includeTransfer}
+        hasActiveFilters={history.hasActiveAdvancedFilters}
+        onClose={() => setFiltersSheetVisible(false)}
+        onToggleIncludeTransfer={history.setIncludeTransfer}
+        onClearFilters={history.clearAdvancedFilters}
+      />
+
+      <HistoryCategoryPickerSheet
+        theme={theme}
+        visible={categorySheetVisible}
+        title={t('history.category')}
+        categories={history.categories}
+        selectedCategoryId={history.filters.categoryId}
+        onClose={() => setCategorySheetVisible(false)}
+        onSelect={history.setCategoryId}
+      />
+
+      <HistoryTypePickerSheet
+        theme={theme}
+        visible={typeSheetVisible}
+        title={t('history.type')}
+        options={typeOptions}
+        selectedType={history.filters.type}
+        onClose={() => setTypeSheetVisible(false)}
+        onSelect={history.setType}
+      />
+    </>
   );
 }
 
@@ -152,15 +259,13 @@ const styles = StyleSheet.create({
     flexGrow: 1
   },
   headerBlock: {
-    gap: 8,
-    marginBottom: 8
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '800'
+    gap: 0
   },
   separator: {
     height: 10
+  },
+  sectionGap: {
+    height: 4
   },
   loader: {
     marginTop: 24

@@ -300,4 +300,147 @@ describe('Transactions (e2e)', () => {
       error: 'not_found'
     });
   });
+
+  describe('list filters', () => {
+    async function createCategory(accessToken: string, name: string): Promise<string> {
+      const response = await request(app.getHttpServer())
+        .post('/categories')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ name, icon: 'cart-outline' })
+        .expect(201);
+
+      return response.body.id as string;
+    }
+
+    async function seedTransactions(accessToken: string, accountId: string, categoryId: string) {
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId,
+          categoryId,
+          description: 'Supermarket groceries',
+          type: 'EXPENSE',
+          amount: 1500,
+          date: '2026-03-15',
+          isPaid: false
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId,
+          categoryId,
+          description: 'Salary payment',
+          type: 'INCOME',
+          amount: 500000,
+          date: '2026-04-01',
+          isPaid: false
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId,
+          description: 'Account transfer',
+          type: 'TRANSFER',
+          amount: 2000,
+          date: '2026-04-02',
+          isPaid: false
+        })
+        .expect(201);
+    }
+
+    it('should filter transactions by month and year', async () => {
+      const accessToken = await authenticateUser('transactions-filter-month@mybills.dev');
+      const accountId = await createAccount(accessToken, 'Filter Month Account', 10000);
+      const categoryId = await createCategory(accessToken, 'Food');
+      await seedTransactions(accessToken, accountId, categoryId);
+
+      const march = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ year: 2026, month: 3, includeTransfer: true })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(march.body).toHaveLength(1);
+      expect(march.body[0]).toMatchObject({ description: 'Supermarket groceries' });
+
+      const april = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ year: 2026, month: 4, includeTransfer: true })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(april.body).toHaveLength(2);
+    });
+
+    it('should filter transactions by type and exclude transfers by default when includeTransfer is false', async () => {
+      const accessToken = await authenticateUser('transactions-filter-type@mybills.dev');
+      const accountId = await createAccount(accessToken, 'Filter Type Account', 10000);
+      const categoryId = await createCategory(accessToken, 'Salary Cat');
+      await seedTransactions(accessToken, accountId, categoryId);
+
+      const incomeOnly = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ year: 2026, month: 4, type: 'INCOME', includeTransfer: true })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(incomeOnly.body).toHaveLength(1);
+      expect(incomeOnly.body[0]).toMatchObject({ type: 'INCOME' });
+
+      const withoutTransfers = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ year: 2026, month: 4, includeTransfer: false })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const types = (withoutTransfers.body as Array<{ type: string }>).map((tx) => tx.type);
+      expect(types).not.toContain('TRANSFER');
+      expect(types).toContain('INCOME');
+    });
+
+    it('should filter transactions by category and search', async () => {
+      const accessToken = await authenticateUser('transactions-filter-search@mybills.dev');
+      const accountId = await createAccount(accessToken, 'Filter Search Account', 10000);
+      const categoryId = await createCategory(accessToken, 'Groceries');
+      await seedTransactions(accessToken, accountId, categoryId);
+
+      const byCategory = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ year: 2026, month: 3, categoryId, includeTransfer: true })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(byCategory.body).toHaveLength(1);
+      expect(byCategory.body[0]).toMatchObject({ categoryId });
+
+      const bySearch = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ search: 'super', includeTransfer: true })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(bySearch.body).toHaveLength(1);
+      expect(bySearch.body[0]).toMatchObject({ description: 'Supermarket groceries' });
+    });
+
+    it('should reject month without year query params', async () => {
+      const accessToken = await authenticateUser('transactions-filter-validation@mybills.dev');
+
+      const response = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ month: 4 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(400);
+
+      expect(response.body.message).toEqual(expect.any(String));
+      expect(response.body.errors).toBeDefined();
+    });
+  });
 });

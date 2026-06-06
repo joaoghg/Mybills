@@ -1,7 +1,37 @@
 export const history = {
   title: 'History',
+  monthlyHistory: 'Monthly history',
+  searchPlaceholder: 'Search transactions...',
+  filters: 'Filters',
+  category: 'Category',
+  type: 'Type',
+  typeAll: 'All',
+  typeIncome: 'Income',
+  typeExpense: 'Expense',
+  includeTransfers: 'Include transfers',
+  clearFilters: 'Clear filters',
+  activeFilters: 'Active filters',
+  todayHeader: 'TODAY, {{day}} {{month}}',
+  yesterdayHeader: 'YESTERDAY, {{day}} {{month}}',
+  dateHeader: '{{day}} {{month}}',
   empty: 'No transactions yet.',
+  emptyFiltered: 'No transactions match the selected filters.',
   emptyAction: 'Add transaction',
   error: 'Could not load your transactions.',
-  retry: 'Try again'
+  retry: 'Try again',
+  brandTitle: 'MyBills',
+  months: {
+    january: 'Jan',
+    february: 'Feb',
+    march: 'Mar',
+    april: 'Apr',
+    may: 'May',
+    june: 'Jun',
+    july: 'Jul',
+    august: 'Aug',
+    september: 'Sep',
+    october: 'Oct',
+    november: 'Nov',
+    december: 'Dec'
+  }
 } as const;
