@@ -3,6 +3,10 @@ export const categories = {
   namePlaceholder: 'e.g. Food, Transport',
   iconSectionTitle: 'Icon',
   iconAccessibility: 'Select {{icon}} icon',
+  typesLabel: 'Transaction types',
+  typeExpense: 'Expense',
+  typeIncome: 'Income',
+  typeBoth: 'Expense and income',
   submit: 'Create category',
   submitLoading: 'Creating…',
   updateSubmit: 'Save changes',
@@ -32,6 +36,7 @@ export const categories = {
   },
   validation: {
     nameRequired: 'Enter a category name.',
-    iconRequired: 'Select an icon for the category.'
+    iconRequired: 'Select an icon for the category.',
+    typesRequired: 'Select at least one type: expense or income.'
   }
 } as const;

@@ -15,6 +15,7 @@ describe('CategoriesService', () => {
     userId: 'ba5f8ccd-5a24-4e41-9dbd-6ddb49a93fdd',
     name: 'Food',
     icon: 'restaurant-outline',
+    types: ['EXPENSE', 'INCOME'],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   };
@@ -83,7 +84,8 @@ describe('CategoriesService', () => {
       const result = await service.create({
         userId: category.userId,
         name: ` ${category.name} `,
-        icon: category.icon
+        icon: category.icon,
+        types: category.types
       });
 
       expect(result).toEqual(category);
@@ -91,7 +93,8 @@ describe('CategoriesService', () => {
       expect(repository.create).toHaveBeenCalledWith({
         userId: category.userId,
         name: category.name,
-        icon: category.icon
+        icon: category.icon,
+        types: category.types
       });
     });
 
@@ -102,7 +105,8 @@ describe('CategoriesService', () => {
         service.create({
           userId: category.userId,
           name: category.name,
-          icon: category.icon
+          icon: category.icon,
+          types: category.types
         })
       ).rejects.toThrow(AlreadyExistsError);
     });
@@ -123,7 +127,8 @@ describe('CategoriesService', () => {
       expect(result).toEqual(updatedCategory);
       expect(repository.update).toHaveBeenCalledWith(category.id, {
         name: 'Transport',
-        icon: undefined
+        icon: undefined,
+        types: undefined
       });
     });
 

@@ -1,4 +1,4 @@
-import { createCategoryInputSchema, type CategoryIcon } from '@mybills/dtos';
+import { createCategoryInputSchema, type CategoryIcon, type CategoryTransactionType } from '@mybills/dtos';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +6,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useTheme } from '@/core/theme';
 import { CategoryIconPicker } from '@/features/categories/components/category-icon-picker';
+import { CategoryTypePicker } from '@/features/categories/components/category-type-picker';
 import { useCreateCategory } from '@/features/categories/hooks/use-create-category';
 import { translateCreateCategoryError } from '@/features/categories/utils/create-category-error';
 import { translateCreateCategoryZodError } from '@/features/categories/utils/create-category-validation';
@@ -23,7 +24,20 @@ export function CreateCategoryScreen({ navigation }: Props) {
 
   const [name, setName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState<CategoryIcon>(DEFAULT_ICON);
+  const [selectedTypes, setSelectedTypes] = useState<CategoryTransactionType[]>(['EXPENSE']);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  function handleToggleType(type: CategoryTransactionType) {
+    setSelectedTypes((current) => {
+      if (current.includes(type)) {
+        if (current.length === 1) {
+          return current;
+        }
+        return current.filter((item) => item !== type);
+      }
+      return [...current, type];
+    });
+  }
 
   const remoteMessage =
     isError && error ? translateCreateCategoryError(error, t) : null;
@@ -34,7 +48,8 @@ export function CreateCategoryScreen({ navigation }: Props) {
 
     const parsed = createCategoryInputSchema.safeParse({
       name,
-      icon: selectedIcon
+      icon: selectedIcon,
+      types: selectedTypes
     });
     if (!parsed.success) {
       setLocalError(translateCreateCategoryZodError(t, parsed.error));
@@ -68,6 +83,12 @@ export function CreateCategoryScreen({ navigation }: Props) {
           theme={theme}
           selectedIcon={selectedIcon}
           onSelect={setSelectedIcon}
+        />
+
+        <CategoryTypePicker
+          theme={theme}
+          selectedTypes={selectedTypes}
+          onToggle={handleToggleType}
         />
 
         {displayError ? (

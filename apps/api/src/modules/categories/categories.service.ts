@@ -50,7 +50,8 @@ export class CategoriesService {
     return await this.repository.create({
       userId: data.userId,
       name: normalizedName,
-      icon: data.icon
+      icon: data.icon,
+      types: data.types
     });
   }
 
@@ -78,7 +79,8 @@ export class CategoriesService {
 
     return await this.repository.update(categoryId, {
       name: normalizedName,
-      icon: data.icon
+      icon: data.icon,
+      types: data.types
     });
   }
 
@@ -100,10 +102,12 @@ export class CategoriesService {
         i18nArgs: { field: 'category_name' }
       });
     }
+
+    this.validateTypes(data.types);
   }
 
   private validateUpdateData(data: UpdateCategoryData): void {
-    if (data.name === undefined && data.icon === undefined) {
+    if (data.name === undefined && data.icon === undefined && data.types === undefined) {
       throw new InvalidArgumentError({
         code: 'categories.at_least_one_field_required',
         i18nKey: 'errors.validation.at_least_one_field_required'
@@ -118,6 +122,20 @@ export class CategoriesService {
         code: 'categories.invalid_category_name',
         i18nKey: 'errors.validation.invalid_field',
         i18nArgs: { field: 'category_name' }
+      });
+    }
+
+    if (data.types !== undefined) {
+      this.validateTypes(data.types);
+    }
+  }
+
+  private validateTypes(types: CreateCategoryData['types']): void {
+    if (!Array.isArray(types) || types.length === 0) {
+      throw new InvalidArgumentError({
+        code: 'categories.invalid_category_types',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'category_types' }
       });
     }
   }

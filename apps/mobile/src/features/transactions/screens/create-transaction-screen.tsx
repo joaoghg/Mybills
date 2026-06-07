@@ -1,7 +1,7 @@
 import { createTransactionInputSchema, type CreateTransactionInput } from '@mybills/dtos';
 import { listAccounts, listCategories, listCreditCards } from '@mybills/api-client';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
@@ -63,6 +63,46 @@ export function CreateTransactionScreen({ navigation }: Props) {
     isError && error ? translateCreateTransactionError(error, t) : null;
   const displayError = localError ?? remoteMessage;
 
+  const filteredCategories = useMemo(() => {
+    if (type === 'TRANSFER') {
+      return [];
+    }
+
+    return categories.filter((category) => category.types.includes(type));
+  }, [categories, type]);
+
+  useEffect(() => {
+    if (type === 'TRANSFER') {
+      setSelectedCategoryId(null);
+      return;
+    }
+
+    if (!selectedCategoryId) {
+      return;
+    }
+
+    const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+    if (!selectedCategory || !selectedCategory.types.includes(type)) {
+      setSelectedCategoryId(null);
+    }
+  }, [categories, selectedCategoryId, type]);
+
+  function handleSelectType(nextType: CreateTransactionInput['type']) {
+    setType(nextType);
+
+    if (nextType === 'TRANSFER') {
+      setSelectedCategoryId(null);
+      return;
+    }
+
+    if (selectedCategoryId) {
+      const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+      if (!selectedCategory || !selectedCategory.types.includes(nextType)) {
+        setSelectedCategoryId(null);
+      }
+    }
+  }
+
   function handleSelectAccount(accountId: string | null) {
     setSelectedAccountId(accountId);
     if (accountId && type === 'INCOME') {
@@ -106,7 +146,7 @@ export function CreateTransactionScreen({ navigation }: Props) {
       date: dateYmd,
       isPaid,
       ...(description.trim() ? { description: description.trim() } : {}),
-      ...(selectedCategoryId ? { categoryId: selectedCategoryId } : {}),
+      ...(type !== 'TRANSFER' && selectedCategoryId ? { categoryId: selectedCategoryId } : {}),
       ...(selectedAccountId ? { accountId: selectedAccountId } : {}),
       ...(selectedCardId ? { cardId: selectedCardId } : {})
     };
@@ -131,7 +171,7 @@ export function CreateTransactionScreen({ navigation }: Props) {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.form}>
-        <TransactionTypeSegment theme={theme} selectedType={type} onSelect={setType} />
+        <TransactionTypeSegment theme={theme} selectedType={type} onSelect={handleSelectType} />
 
         <MoneyInputField
           theme={theme}
@@ -157,12 +197,14 @@ export function CreateTransactionScreen({ navigation }: Props) {
           onChangeYmd={setDateYmd}
         />
 
-        <CategorySelectPicker
-          theme={theme}
-          categories={categories}
-          selectedCategoryId={selectedCategoryId}
-          onSelect={setSelectedCategoryId}
-        />
+        {type !== 'TRANSFER' ? (
+          <CategorySelectPicker
+            theme={theme}
+            categories={filteredCategories}
+            selectedCategoryId={selectedCategoryId}
+            onSelect={setSelectedCategoryId}
+          />
+        ) : null}
 
         {type === 'TRANSFER' ? (
           <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>

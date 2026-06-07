@@ -3,6 +3,10 @@ export const categories = {
   namePlaceholder: 'ex.: Alimentação, Transporte',
   iconSectionTitle: 'Ícone',
   iconAccessibility: 'Selecionar ícone {{icon}}',
+  typesLabel: 'Tipos de transação',
+  typeExpense: 'Despesa',
+  typeIncome: 'Receita',
+  typeBoth: 'Despesa e receita',
   submit: 'Criar categoria',
   submitLoading: 'Criando…',
   updateSubmit: 'Salvar alterações',
@@ -32,6 +36,7 @@ export const categories = {
   },
   validation: {
     nameRequired: 'Informe o nome da categoria.',
-    iconRequired: 'Selecione um ícone para a categoria.'
+    iconRequired: 'Selecione um ícone para a categoria.',
+    typesRequired: 'Selecione ao menos um tipo: despesa ou receita.'
   }
 } as const;
