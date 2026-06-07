@@ -20,6 +20,10 @@
     "categories": {
       "category_already_exists": "Categoria já existe"
     },
+    "transactions": {
+      "category_not_allowed_for_transfer": "Categorias não são permitidas em transferências",
+      "category_type_mismatch": "A categoria selecionada não é compatível com o tipo da transação"
+    },
     "auth": {
       "invalid_credentials": "E-mail ou senha inválidos",
       "invalid_refresh_token": "Refresh token inválido"

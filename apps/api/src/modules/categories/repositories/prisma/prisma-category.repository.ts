@@ -17,6 +17,7 @@ export class PrismaCategoryRepository implements CategoryRepository {
       userId: category.userId,
       name: category.name,
       icon: category.icon as CategoryIcon,
+      types: category.types,
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString()
     };
@@ -66,7 +67,8 @@ export class PrismaCategoryRepository implements CategoryRepository {
       data: {
         userId: data.userId,
         name: data.name,
-        icon: data.icon
+        icon: data.icon,
+        types: data.types
       }
     });
 
@@ -78,7 +80,8 @@ export class PrismaCategoryRepository implements CategoryRepository {
       where: { id: categoryId },
       data: {
         name: data.name,
-        icon: data.icon
+        icon: data.icon,
+        types: data.types
       }
     });
 

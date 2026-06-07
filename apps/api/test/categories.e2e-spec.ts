@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 import { SignInInput, SignUpInput, signInOutputSchema } from '@mybills/dtos';
 
 const defaultCategoryIcon = 'restaurant-outline' as const;
+const defaultCategoryTypes = ['EXPENSE'] as const;
 
 describe('Categories (e2e)', () => {
   let app: INestApplication<App>;
@@ -55,7 +56,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'Food',
-        icon: defaultCategoryIcon
+        icon: defaultCategoryIcon,
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -64,6 +66,7 @@ describe('Categories (e2e)', () => {
       userId: expect.any(String),
       name: 'Food',
       icon: defaultCategoryIcon,
+      types: defaultCategoryTypes,
       createdAt: expect.any(String),
       updatedAt: expect.any(String)
     });
@@ -78,7 +81,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${firstUserToken}`)
       .send({
         name: 'A Category',
-        icon: defaultCategoryIcon
+        icon: defaultCategoryIcon,
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -87,7 +91,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${secondUserToken}`)
       .send({
         name: 'B Category',
-        icon: 'cart-outline'
+        icon: 'cart-outline',
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -112,7 +117,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'Find Category',
-        icon: defaultCategoryIcon
+        icon: defaultCategoryIcon,
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -137,7 +143,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${firstUserToken}`)
       .send({
         name: 'Private Category',
-        icon: defaultCategoryIcon
+        icon: defaultCategoryIcon,
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -161,7 +168,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'Before Update',
-        icon: defaultCategoryIcon
+        icon: defaultCategoryIcon,
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -187,7 +195,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'Delete Category',
-        icon: defaultCategoryIcon
+        icon: defaultCategoryIcon,
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -231,7 +240,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'Bills',
-        icon: defaultCategoryIcon
+        icon: defaultCategoryIcon,
+        types: defaultCategoryTypes
       })
       .expect(201);
 
@@ -240,7 +250,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'Bills',
-        icon: 'cart-outline'
+        icon: 'cart-outline',
+        types: defaultCategoryTypes
       })
       .expect(409);
 
@@ -251,6 +262,22 @@ describe('Categories (e2e)', () => {
     });
   });
 
+  it('should reject category creation when types are missing', async () => {
+    const accessToken = await authenticateUser('categories-missing-types@mybills.dev');
+
+    const response = await request(app.getHttpServer())
+      .post('/categories')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        name: 'No Types Category',
+        icon: defaultCategoryIcon
+      })
+      .expect(400);
+
+    expect(response.body.message).toEqual(expect.any(String));
+    expect(response.body.errors).toBeDefined();
+  });
+
   it('should reject category creation when icon is not allowed', async () => {
     const accessToken = await authenticateUser('categories-invalid-icon@mybills.dev');
 
@@ -259,7 +286,8 @@ describe('Categories (e2e)', () => {
       .set('Authorization', `Bearer ${accessToken}`)
       .send({
         name: 'Invalid Icon Category',
-        icon: 'not-a-real-icon'
+        icon: 'not-a-real-icon',
+        types: defaultCategoryTypes
       })
       .expect(400);
 

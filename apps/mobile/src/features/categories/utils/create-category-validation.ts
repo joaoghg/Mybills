@@ -12,6 +12,9 @@ function messageForIssue(
   if (field === 'icon') {
     return t('categories.validation.iconRequired');
   }
+  if (field === 'types' && issue.code === 'too_small') {
+    return t('categories.validation.typesRequired');
+  }
   return null;
 }
 

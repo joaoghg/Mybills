@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { CategoryOutput } from '@mybills/dtos';
 import type { ComponentProps } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
@@ -15,6 +16,19 @@ type CategoryListItemProps = {
   isDeleting?: boolean;
 };
 
+function resolveTypeBadgeKey(category: CategoryOutput): 'typeBoth' | 'typeExpense' | 'typeIncome' {
+  const hasExpense = category.types.includes('EXPENSE');
+  const hasIncome = category.types.includes('INCOME');
+
+  if (hasExpense && hasIncome) {
+    return 'typeBoth';
+  }
+  if (hasIncome) {
+    return 'typeIncome';
+  }
+  return 'typeExpense';
+}
+
 export function CategoryListItem({
   theme,
   category,
@@ -24,7 +38,9 @@ export function CategoryListItem({
   onDelete,
   isDeleting = false
 }: CategoryListItemProps) {
+  const { t } = useTranslation();
   const iconName = category.icon as ComponentProps<typeof Ionicons>['name'];
+  const typeBadgeKey = resolveTypeBadgeKey(category);
 
   return (
     <View
@@ -41,13 +57,18 @@ export function CategoryListItem({
       <View style={[styles.iconCircle, { backgroundColor: `${theme.colors.primary}18` }]}>
         <Ionicons name={iconName} size={22} color={theme.colors.primary} />
       </View>
-      <Text
-        style={[styles.name, { color: theme.colors.textPrimary }]}
-        numberOfLines={1}
-        accessibilityRole="text"
-      >
-        {category.name}
-      </Text>
+      <View style={styles.content}>
+        <Text
+          style={[styles.name, { color: theme.colors.textPrimary }]}
+          numberOfLines={1}
+          accessibilityRole="text"
+        >
+          {category.name}
+        </Text>
+        <Text style={[styles.typeBadge, { color: theme.colors.textSecondary }]}>
+          {t(`categories.${typeBadgeKey}`)}
+        </Text>
+      </View>
       <View style={styles.actions}>
         <Pressable
           accessibilityRole="button"
@@ -110,11 +131,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center'
   },
-  name: {
+  content: {
     flex: 1,
+    gap: 2
+  },
+  name: {
     fontSize: 16,
     fontWeight: '700',
     letterSpacing: -0.2
+  },
+  typeBadge: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '600'
   },
   actions: {
     flexDirection: 'row',
