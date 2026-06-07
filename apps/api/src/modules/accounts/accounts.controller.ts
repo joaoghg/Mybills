@@ -30,12 +30,16 @@ import { Serialize } from 'src/common/decorators/serialize.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 import { AccountsService } from './accounts.service';
+import { TransactionsService } from '../transactions/transactions.service';
 import { AccountIdParams, accountIdParamsSchema } from './contracts/account-id-params.contract';
 
 @ApiTags('Accounts')
 @Controller('accounts')
 export class AccountsController {
-  constructor(private readonly accountsService: AccountsService) {}
+  constructor(
+    private readonly accountsService: AccountsService,
+    private readonly transactionsService: TransactionsService
+  ) {}
 
   @Get()
   @ApiOperation({
@@ -117,12 +121,20 @@ export class AccountsController {
     @CurrentUser('sub') userId: string,
     @Body(new ZodValidationPipe(transferBalanceInputSchema)) data: TransferBalanceInput
   ): Promise<TransferBalanceOutput> {
-    return await this.accountsService.transferBalance({
+    await this.transactionsService.createTransfer({
       userId,
       sourceAccountId: data.sourceAccountId,
       destinationAccountId: data.destinationAccountId,
-      amount: data.amount
+      amount: data.amount,
+      date: new Date().toISOString().slice(0, 10)
     });
+
+    const [sourceAccount, destinationAccount] = await Promise.all([
+      this.accountsService.findById(data.sourceAccountId, userId),
+      this.accountsService.findById(data.destinationAccountId, userId)
+    ]);
+
+    return { sourceAccount, destinationAccount };
   }
 
   @Patch(':id')

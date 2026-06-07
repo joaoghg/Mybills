@@ -18,7 +18,9 @@
       "transfer_failed": "A transferência não pôde ser concluída"
     },
     "categories": {
-      "category_already_exists": "Categoria já existe"
+      "category_already_exists": "Categoria já existe",
+      "system_category_cannot_be_updated": "Categorias do sistema não podem ser editadas",
+      "system_category_cannot_be_deleted": "Categorias do sistema não podem ser excluídas"
     },
     "auth": {
       "invalid_credentials": "E-mail ou senha inválidos",
@@ -31,6 +33,9 @@
     },
     "conflict": {
       "already_exists_field": "Já existe um registro para o campo: {field}"
+    },
+    "transactions": {
+      "transfer_failed": "A transferência não pôde ser concluída"
     }
   }
 }

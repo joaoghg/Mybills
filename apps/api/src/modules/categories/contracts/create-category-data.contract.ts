@@ -4,4 +4,5 @@ export interface CreateCategoryData {
   userId: string;
   name: string;
   icon: CategoryIcon;
+  isSystem?: boolean;
 }

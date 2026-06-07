@@ -7,6 +7,7 @@ export const categoryOutputSchema = z.object({
   userId: z.uuid(),
   name: z.string(),
   icon: categoryIconSchema,
+  isSystem: z.boolean(),
   createdAt: z.string(),
   updatedAt: z.string()
 });

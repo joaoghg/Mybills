@@ -15,8 +15,17 @@ describe('CategoriesService', () => {
     userId: 'ba5f8ccd-5a24-4e41-9dbd-6ddb49a93fdd',
     name: 'Food',
     icon: 'restaurant-outline',
+    isSystem: false,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
+  };
+
+  const systemCategory: Category = {
+    ...category,
+    id: '1ef9f98d-a8d2-470e-a8c4-3a46ad278f0f',
+    name: 'Transferência',
+    icon: 'swap-horizontal-outline',
+    isSystem: true
   };
 
   beforeEach(async () => {
@@ -29,6 +38,7 @@ describe('CategoriesService', () => {
             findAllByUserId: jest.fn(),
             findByIdAndUserId: jest.fn(),
             findByNameAndUserId: jest.fn(),
+            findSystemTransferByUserId: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
             delete: jest.fn()
@@ -108,6 +118,32 @@ describe('CategoriesService', () => {
     });
   });
 
+  describe('ensureDefaultTransferCategory', () => {
+    it('should return existing system transfer category', async () => {
+      repository.findSystemTransferByUserId.mockResolvedValue(systemCategory);
+
+      const result = await service.ensureDefaultTransferCategory(category.userId);
+
+      expect(result).toEqual(systemCategory);
+      expect(repository.create).not.toHaveBeenCalled();
+    });
+
+    it('should create system transfer category when missing', async () => {
+      repository.findSystemTransferByUserId.mockResolvedValue(null);
+      repository.create.mockResolvedValue(systemCategory);
+
+      const result = await service.ensureDefaultTransferCategory(category.userId);
+
+      expect(result).toEqual(systemCategory);
+      expect(repository.create).toHaveBeenCalledWith({
+        userId: category.userId,
+        name: 'Transferência',
+        icon: 'swap-horizontal-outline',
+        isSystem: true
+      });
+    });
+  });
+
   describe('update', () => {
     it('should update category when category exists and data is valid', async () => {
       const updatedCategory: Category = { ...category, name: 'Transport' };
@@ -146,6 +182,15 @@ describe('CategoriesService', () => {
         })
       ).rejects.toThrow(AlreadyExistsError);
     });
+    it('should throw InvalidArgumentError when updating a system category', async () => {
+      repository.findByIdAndUserId.mockResolvedValue(systemCategory);
+
+      await expect(
+        service.update(systemCategory.id, systemCategory.userId, {
+          name: 'Custom'
+        })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
   });
 
   describe('remove', () => {
@@ -162,6 +207,14 @@ describe('CategoriesService', () => {
       repository.findByIdAndUserId.mockResolvedValue(null);
 
       await expect(service.remove(category.id, category.userId)).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw InvalidArgumentError when deleting a system category', async () => {
+      repository.findByIdAndUserId.mockResolvedValue(systemCategory);
+
+      await expect(service.remove(systemCategory.id, systemCategory.userId)).rejects.toThrow(
+        InvalidArgumentError
+      );
     });
   });
 });

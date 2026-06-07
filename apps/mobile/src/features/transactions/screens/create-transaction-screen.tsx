@@ -1,4 +1,8 @@
-import { createTransactionInputSchema, type CreateTransactionInput } from '@mybills/dtos';
+import {
+  createTransactionInputSchema,
+  createTransferInputSchema,
+  type CreateTransactionInput
+} from '@mybills/dtos';
 import { listAccounts, listCategories, listCreditCards } from '@mybills/api-client';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
@@ -12,10 +16,12 @@ import { CategorySelectPicker } from '@/features/transactions/components/categor
 import { TransactionDateField } from '@/features/transactions/components/transaction-date-field';
 import { TransactionTypeSegment } from '@/features/transactions/components/transaction-type-segment';
 import { useCreateTransaction } from '@/features/transactions/hooks/use-create-transaction';
+import { useCreateTransfer } from '@/features/transactions/hooks/use-create-transfer';
 import { translateCreateTransactionError } from '@/features/transactions/utils/create-transaction-error';
 import {
   translateCreateTransactionZodError,
-  validateCreateTransactionClient
+  validateCreateTransactionClient,
+  validateCreateTransferClient
 } from '@/features/transactions/utils/create-transaction-validation';
 import type { RootStackParamList } from '@/navigation/types';
 import { InputField } from '@/shared/components/input-field';
@@ -24,11 +30,58 @@ import { ymdFromLocalDate } from '@/shared/lib/billing-cycle';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddTransaction'>;
 
+function AccountPicker({
+  accounts,
+  label,
+  selectedAccountId,
+  onSelect,
+  theme
+}: {
+  accounts: Array<{ id: string; name: string }>;
+  label: string;
+  selectedAccountId: string | null;
+  onSelect: (accountId: string) => void;
+  theme: ReturnType<typeof useTheme>['theme'];
+}) {
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>{label}</Text>
+      <View style={styles.options}>
+        {accounts.map((account) => (
+          <Pressable
+            key={account.id}
+            accessibilityRole="button"
+            accessibilityState={{ selected: selectedAccountId === account.id }}
+            onPress={() => onSelect(account.id)}
+            style={({ pressed }) => [
+              styles.optionCard,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor:
+                  selectedAccountId === account.id ? theme.colors.primary : theme.colors.border
+              },
+              pressed && styles.optionPressed
+            ]}
+          >
+            <Text style={[styles.optionLabel, { color: theme.colors.textPrimary }]}>
+              {account.name}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export function CreateTransactionScreen({ navigation }: Props) {
   const { theme } = useTheme();
   const { t, i18n } = useTranslation();
   const client = useHttpClient();
-  const { mutate, isPending, isError, error } = useCreateTransaction();
+  const createTransactionMutation = useCreateTransaction();
+  const createTransferMutation = useCreateTransfer();
+  const isPending = createTransactionMutation.isPending || createTransferMutation.isPending;
+  const mutationError = createTransactionMutation.error ?? createTransferMutation.error;
+  const isError = createTransactionMutation.isError || createTransferMutation.isError;
 
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
@@ -55,13 +108,26 @@ export function CreateTransactionScreen({ navigation }: Props) {
   const [dateYmd, setDateYmd] = useState(() => ymdFromLocalDate(new Date()));
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+  const [sourceAccountId, setSourceAccountId] = useState<string | null>(null);
+  const [destinationAccountId, setDestinationAccountId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
   const [isPaid, setIsPaid] = useState(false);
   const [localError, setLocalError] = useState<string | null>(null);
 
   const remoteMessage =
-    isError && error ? translateCreateTransactionError(error, t) : null;
+    isError && mutationError ? translateCreateTransactionError(mutationError, t) : null;
   const displayError = localError ?? remoteMessage;
+
+  function handleSelectType(nextType: CreateTransactionInput['type']) {
+    setType(nextType);
+
+    if (nextType === 'TRANSFER') {
+      setSelectedCategoryId(null);
+      setSelectedCardId(null);
+      setSelectedAccountId(null);
+      setIsPaid(false);
+    }
+  }
 
   function handleSelectAccount(accountId: string | null) {
     setSelectedAccountId(accountId);
@@ -94,6 +160,40 @@ export function CreateTransactionScreen({ navigation }: Props) {
   function handleSubmit() {
     setLocalError(null);
 
+    if (type === 'TRANSFER') {
+      const clientError = validateCreateTransferClient(
+        t,
+        amountCents,
+        sourceAccountId,
+        destinationAccountId
+      );
+      if (clientError) {
+        setLocalError(clientError);
+        return;
+      }
+
+      const payload = {
+        sourceAccountId: sourceAccountId!,
+        destinationAccountId: destinationAccountId!,
+        amount: amountCents,
+        date: dateYmd,
+        ...(description.trim() ? { description: description.trim() } : {})
+      };
+
+      const parsed = createTransferInputSchema.safeParse(payload);
+      if (!parsed.success) {
+        setLocalError(translateCreateTransactionZodError(t, parsed.error));
+        return;
+      }
+
+      createTransferMutation.mutate(parsed.data, {
+        onSuccess: () => {
+          navigation.goBack();
+        }
+      });
+      return;
+    }
+
     const clientError = validateCreateTransactionClient(t, amountCents, isPaid, selectedAccountId);
     if (clientError) {
       setLocalError(clientError);
@@ -117,7 +217,7 @@ export function CreateTransactionScreen({ navigation }: Props) {
       return;
     }
 
-    mutate(parsed.data, {
+    createTransactionMutation.mutate(parsed.data, {
       onSuccess: () => {
         navigation.goBack();
       }
@@ -131,7 +231,11 @@ export function CreateTransactionScreen({ navigation }: Props) {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.form}>
-        <TransactionTypeSegment theme={theme} selectedType={type} onSelect={setType} />
+        <TransactionTypeSegment
+          theme={theme}
+          selectedType={type}
+          onSelect={handleSelectType}
+        />
 
         <MoneyInputField
           theme={theme}
@@ -157,20 +261,43 @@ export function CreateTransactionScreen({ navigation }: Props) {
           onChangeYmd={setDateYmd}
         />
 
-        <CategorySelectPicker
-          theme={theme}
-          categories={categories}
-          selectedCategoryId={selectedCategoryId}
-          onSelect={setSelectedCategoryId}
-        />
-
-        {type === 'TRANSFER' ? (
+        {type !== 'TRANSFER' ? (
+          <CategorySelectPicker
+            theme={theme}
+            categories={categories}
+            selectedCategoryId={selectedCategoryId}
+            onSelect={setSelectedCategoryId}
+          />
+        ) : (
           <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
             {t('transactions.transferHint')}
           </Text>
-        ) : null}
+        )}
 
-        {accounts.length > 0 ? (
+        {type === 'TRANSFER' ? (
+          accounts.length >= 2 ? (
+            <>
+              <AccountPicker
+                accounts={accounts}
+                label={t('transactions.sourceAccountLabel')}
+                selectedAccountId={sourceAccountId}
+                onSelect={setSourceAccountId}
+                theme={theme}
+              />
+              <AccountPicker
+                accounts={accounts}
+                label={t('transactions.destinationAccountLabel')}
+                selectedAccountId={destinationAccountId}
+                onSelect={setDestinationAccountId}
+                theme={theme}
+              />
+            </>
+          ) : (
+            <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+              {t('transactions.noAccountsHint')}
+            </Text>
+          )
+        ) : accounts.length > 0 ? (
           <View style={styles.section}>
             <Text style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
               {t('transactions.accountLabel')}
@@ -208,7 +335,7 @@ export function CreateTransactionScreen({ navigation }: Props) {
                         selectedAccountId === account.id
                           ? theme.colors.primary
                           : theme.colors.border
-                    },
+                      },
                     pressed && styles.optionPressed
                   ]}
                 >
@@ -281,23 +408,25 @@ export function CreateTransactionScreen({ navigation }: Props) {
           </Text>
         ) : null}
 
-        <View style={styles.paidRow}>
-          <View style={styles.paidCopy}>
-            <Text style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
-              {t('transactions.paidLabel')}
-            </Text>
-            <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
-              {t('transactions.paidHint')}
-            </Text>
+        {type !== 'TRANSFER' ? (
+          <View style={styles.paidRow}>
+            <View style={styles.paidCopy}>
+              <Text style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
+                {t('transactions.paidLabel')}
+              </Text>
+              <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                {t('transactions.paidHint')}
+              </Text>
+            </View>
+            <Switch
+              accessibilityLabel={t('transactions.paidLabel')}
+              value={isPaid}
+              onValueChange={setIsPaid}
+              trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+              thumbColor={theme.colors.surface}
+            />
           </View>
-          <Switch
-            accessibilityLabel={t('transactions.paidLabel')}
-            value={isPaid}
-            onValueChange={setIsPaid}
-            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-            thumbColor={theme.colors.surface}
-          />
-        </View>
+        ) : null}
 
         {displayError ? (
           <Text accessibilityLiveRegion="polite" style={[styles.errorText, styles.errorColor]}>

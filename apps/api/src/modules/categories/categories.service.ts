@@ -2,6 +2,7 @@ import { Inject, Injectable } from '@nestjs/common';
 import { AlreadyExistsError } from 'src/common/errors/already-exists.error';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
+import { DEFAULT_TRANSFER_CATEGORY } from './constants/default-transfer-category';
 import { CategoryRepository } from './repositories/category.repository';
 import { Category } from './entities/category.entity';
 import { CreateCategoryData } from './contracts/create-category-data.contract';
@@ -34,6 +35,23 @@ export class CategoriesService {
     return category;
   }
 
+  async ensureDefaultTransferCategory(userId: string): Promise<Category> {
+    this.validateUserId(userId);
+
+    const existingCategory = await this.repository.findSystemTransferByUserId(userId);
+
+    if (existingCategory) {
+      return existingCategory;
+    }
+
+    return await this.repository.create({
+      userId,
+      name: DEFAULT_TRANSFER_CATEGORY.name,
+      icon: DEFAULT_TRANSFER_CATEGORY.icon,
+      isSystem: true
+    });
+  }
+
   async create(data: CreateCategoryData): Promise<Category> {
     this.validateCreateData(data);
 
@@ -59,7 +77,14 @@ export class CategoriesService {
     this.validateUserId(userId);
     this.validateUpdateData(data);
 
-    await this.findById(categoryId, userId);
+    const category = await this.findById(categoryId, userId);
+
+    if (category.isSystem) {
+      throw new InvalidArgumentError({
+        code: 'categories.system_category_cannot_be_updated',
+        i18nKey: 'errors.categories.system_category_cannot_be_updated'
+      });
+    }
 
     let normalizedName: string | undefined;
 
@@ -86,7 +111,15 @@ export class CategoriesService {
     this.validateCategoryId(categoryId);
     this.validateUserId(userId);
 
-    await this.findById(categoryId, userId);
+    const category = await this.findById(categoryId, userId);
+
+    if (category.isSystem) {
+      throw new InvalidArgumentError({
+        code: 'categories.system_category_cannot_be_deleted',
+        i18nKey: 'errors.categories.system_category_cannot_be_deleted'
+      });
+    }
+
     await this.repository.delete(categoryId);
   }
 

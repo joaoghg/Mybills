@@ -11,6 +11,7 @@ import { SignInData } from './contracts/sign-in-data.contract';
 import { NotFoundError } from 'src/common/errors/not-found.error';
 import { JwtPayload } from './contracts/jwt-payload.contract';
 import { UsersService } from '../user/users.service';
+import { CategoriesService } from '../categories/categories.service';
 import { RefreshTokenData } from './contracts/refresh-token-data.contract';
 import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
 import type { UserOutput } from '@mybills/dtos';
@@ -19,6 +20,7 @@ import type { UserOutput } from '@mybills/dtos';
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly categoriesService: CategoriesService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<Env>
   ) {}
@@ -85,6 +87,8 @@ export class AuthService {
       email: data.email,
       hashedPassword
     });
+
+    await this.categoriesService.ensureDefaultTransferCategory(createdUser.id);
 
     const tokens = await this.getTokens(createdUser.id, createdUser.email);
 

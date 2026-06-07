@@ -9,10 +9,12 @@ import {
 } from '@mybills/dtos';
 import { AccountsController } from './accounts.controller';
 import { AccountsService } from './accounts.service';
+import { TransactionsService } from '../transactions/transactions.service';
 
 describe('AccountsController', () => {
   let controller: AccountsController;
   let service: jest.Mocked<AccountsService>;
+  let transactionsService: jest.Mocked<TransactionsService>;
 
   const baseAccount: AccountOutput = {
     id: '5ea4f605-31d5-4dcf-93bc-45fafad6f319',
@@ -37,12 +39,19 @@ describe('AccountsController', () => {
             update: jest.fn(),
             remove: jest.fn()
           }
+        },
+        {
+          provide: TransactionsService,
+          useValue: {
+            createTransfer: jest.fn()
+          }
         }
       ]
     }).compile();
 
     controller = module.get<AccountsController>(AccountsController);
     service = module.get(AccountsService) as jest.Mocked<AccountsService>;
+    transactionsService = module.get(TransactionsService) as jest.Mocked<TransactionsService>;
   });
 
   describe('findAll', () => {
@@ -112,7 +121,7 @@ describe('AccountsController', () => {
   });
 
   describe('transferBalance', () => {
-    it('should call accountsService.transferBalance with transfer data and user id', async () => {
+    it('should create transfer transactions and return updated accounts', async () => {
       const input: TransferBalanceInput = {
         sourceAccountId: '5ea4f605-31d5-4dcf-93bc-45fafad6f319',
         destinationAccountId: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
@@ -132,18 +141,26 @@ describe('AccountsController', () => {
         }
       };
 
-      service.transferBalance.mockResolvedValue(output);
+      transactionsService.createTransfer.mockResolvedValue({
+        transferGroupId: 'group-1',
+        sourceTransaction: {} as never,
+        destinationTransaction: {} as never
+      });
+      service.findById
+        .mockResolvedValueOnce(output.sourceAccount)
+        .mockResolvedValueOnce(output.destinationAccount);
 
       const result = await controller.transferBalance(baseAccount.userId, input);
 
       expect(result).toEqual(output);
-      expect(service.transferBalance).toHaveBeenCalledTimes(1);
-      expect(service.transferBalance).toHaveBeenCalledWith({
-        userId: baseAccount.userId,
-        sourceAccountId: input.sourceAccountId,
-        destinationAccountId: input.destinationAccountId,
-        amount: input.amount
-      });
+      expect(transactionsService.createTransfer).toHaveBeenCalledWith(
+        expect.objectContaining({
+          userId: baseAccount.userId,
+          sourceAccountId: input.sourceAccountId,
+          destinationAccountId: input.destinationAccountId,
+          amount: input.amount
+        })
+      );
     });
   });
 

@@ -39,6 +39,27 @@ export function validateCreateTransactionClient(
   return null;
 }
 
+export function validateCreateTransferClient(
+  t: TFunction,
+  amountCents: number,
+  sourceAccountId: string | null,
+  destinationAccountId: string | null
+): string | null {
+  if (amountCents <= 0) {
+    return t('transactions.validation.amountRequired');
+  }
+  if (!sourceAccountId) {
+    return t('transactions.validation.sourceAccountRequired');
+  }
+  if (!destinationAccountId) {
+    return t('transactions.validation.destinationAccountRequired');
+  }
+  if (sourceAccountId === destinationAccountId) {
+    return t('transactions.validation.accountsMustDiffer');
+  }
+  return null;
+}
+
 export function translateCreateTransactionZodError(t: TFunction, error: ZodError): string {
   const messages: string[] = [];
   for (const issue of error.issues) {

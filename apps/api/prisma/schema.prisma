@@ -69,6 +69,7 @@ model Category {
   userId    String   @map("user_id")
   name      String
   icon      String   @default("receipt-outline")
+  isSystem  Boolean  @default(false) @map("is_system")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -79,23 +80,25 @@ model Category {
 }
 
 model Transaction {
-  id          String          @id @default(uuid())
-  userId      String          @map("user_id")
-  accountId   String?         @map("account_id")
-  categoryId  String?         @map("category_id")
-  cardId      String?         @map("card_id")
-  description String?
-  type        TransactionType
-  amount      Int // Valor em centavos
-  date        DateTime        @db.Date
-  isPaid      Boolean         @default(false) @map("is_paid")
-  createdAt   DateTime        @default(now()) @map("created_at")
-  updatedAt   DateTime        @updatedAt @map("updated_at")
+  id              String          @id @default(uuid())
+  userId          String          @map("user_id")
+  accountId       String?         @map("account_id")
+  categoryId      String?         @map("category_id")
+  cardId          String?         @map("card_id")
+  transferGroupId String?         @map("transfer_group_id")
+  description     String?
+  type            TransactionType
+  amount          Int // Valor em centavos
+  date            DateTime        @db.Date
+  isPaid          Boolean         @default(false) @map("is_paid")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  updatedAt       DateTime        @updatedAt @map("updated_at")
 
   user     User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   account  Account?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
   category Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
   card     CreditCard? @relation(fields: [cardId], references: [id], onDelete: SetNull)
 
+  @@index([transferGroupId])
   @@map("transactions")
 }

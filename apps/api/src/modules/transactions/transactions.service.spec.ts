@@ -23,6 +23,7 @@ describe('TransactionsService', () => {
     accountId: '4f2f72e9-517c-4f6e-83f6-c9a9df15ddef',
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
+    transferGroupId: null,
     description: 'Market purchase',
     type: TransactionType.EXPENSE,
     amount: 2590,
@@ -51,6 +52,7 @@ describe('TransactionsService', () => {
             findAllByUserId: jest.fn(),
             findByIdAndUserId: jest.fn(),
             create: jest.fn(),
+            createTransferPair: jest.fn(),
             update: jest.fn(),
             updateIsPaid: jest.fn(),
             delete: jest.fn()
@@ -67,7 +69,8 @@ describe('TransactionsService', () => {
         {
           provide: CategoriesService,
           useValue: {
-            findById: jest.fn()
+            findById: jest.fn(),
+            ensureDefaultTransferCategory: jest.fn()
           }
         },
         {
@@ -312,6 +315,83 @@ describe('TransactionsService', () => {
       expect(accountsService.update).toHaveBeenCalledWith(account.id, account.userId, {
         balance: account.balance - baseTransaction.amount
       });
+    });
+  });
+
+  describe('createTransfer', () => {
+    const destinationAccount: Account = {
+      id: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
+      userId: account.userId,
+      name: 'Savings',
+      balance: 5000,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt
+    };
+
+    const transferInput = {
+      userId: account.userId,
+      sourceAccountId: account.id,
+      destinationAccountId: destinationAccount.id,
+      amount: 1500,
+      date: '2026-04-04'
+    };
+
+    it('should create linked expense and income transactions', async () => {
+      accountsService.findById
+        .mockResolvedValueOnce(account)
+        .mockResolvedValueOnce(destinationAccount);
+      categoriesService.ensureDefaultTransferCategory.mockResolvedValue({
+        id: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
+        userId: account.userId,
+        name: 'Transferência',
+        icon: 'swap-horizontal-outline',
+        isSystem: true,
+        createdAt: baseTransaction.createdAt,
+        updatedAt: baseTransaction.updatedAt
+      });
+
+      const sourceTransaction: Transaction = {
+        ...baseTransaction,
+        type: TransactionType.EXPENSE,
+        amount: 1500,
+        isPaid: true,
+        transferGroupId: 'group-1'
+      };
+      const destinationTransaction: Transaction = {
+        ...sourceTransaction,
+        id: 'dest-tx-id',
+        accountId: destinationAccount.id,
+        type: TransactionType.INCOME
+      };
+
+      repository.createTransferPair.mockResolvedValue({
+        transferGroupId: 'group-1',
+        sourceTransaction,
+        destinationTransaction
+      });
+
+      const result = await service.createTransfer(transferInput);
+
+      expect(result.transferGroupId).toBe('group-1');
+      expect(repository.createTransferPair).toHaveBeenCalled();
+      expect(categoriesService.ensureDefaultTransferCategory).toHaveBeenCalledWith(account.userId);
+    });
+
+    it('should throw when source and destination accounts are the same', async () => {
+      await expect(
+        service.createTransfer({
+          ...transferInput,
+          destinationAccountId: transferInput.sourceAccountId
+        })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
+
+    it('should throw when source account has insufficient balance', async () => {
+      accountsService.findById
+        .mockResolvedValueOnce({ ...account, balance: 100 })
+        .mockResolvedValueOnce(destinationAccount);
+
+      await expect(service.createTransfer(transferInput)).rejects.toThrow(InvalidArgumentError);
     });
   });
 

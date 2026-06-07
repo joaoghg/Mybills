@@ -20,7 +20,8 @@ export const CATEGORY_ICONS = [
   'receipt-outline',
   'cafe-outline',
   'beer-outline',
-  'paw-outline'
+  'paw-outline',
+  'swap-horizontal-outline'
 ] as const;
 
 export const categoryIconSchema = z.enum(CATEGORY_ICONS);

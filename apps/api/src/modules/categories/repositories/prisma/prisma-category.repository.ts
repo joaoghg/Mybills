@@ -17,6 +17,7 @@ export class PrismaCategoryRepository implements CategoryRepository {
       userId: category.userId,
       name: category.name,
       icon: category.icon as CategoryIcon,
+      isSystem: category.isSystem,
       createdAt: category.createdAt.toISOString(),
       updatedAt: category.updatedAt.toISOString()
     };
@@ -61,12 +62,28 @@ export class PrismaCategoryRepository implements CategoryRepository {
     return this.mapToEntity(category);
   }
 
+  async findSystemTransferByUserId(userId: string): Promise<Category | null> {
+    const category = await this.prisma.category.findFirst({
+      where: {
+        userId,
+        isSystem: true
+      }
+    });
+
+    if (!category) {
+      return null;
+    }
+
+    return this.mapToEntity(category);
+  }
+
   async create(data: CreateCategoryData): Promise<Category> {
     const category = await this.prisma.category.create({
       data: {
         userId: data.userId,
         name: data.name,
-        icon: data.icon
+        icon: data.icon,
+        isSystem: data.isSystem ?? false
       }
     });
 

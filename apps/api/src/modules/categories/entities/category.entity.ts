@@ -5,6 +5,7 @@ export class Category {
   userId: string;
   name: string;
   icon: CategoryIcon;
+  isSystem: boolean;
   createdAt: string;
   updatedAt: string;
 }

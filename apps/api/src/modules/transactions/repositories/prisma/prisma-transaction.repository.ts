@@ -6,6 +6,7 @@ import {
   TransactionType
 } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
+import { CreateTransferData } from '../../contracts/create-transfer-data.contract';
 import { CreateTransactionData } from '../../contracts/create-transaction-data.contract';
 import { UpdateTransactionData } from '../../contracts/update-transaction-data.contract';
 import { Transaction } from '../../entities/transaction.entity';
@@ -22,6 +23,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
       accountId: transaction.accountId,
       categoryId: transaction.categoryId,
       cardId: transaction.cardId,
+      transferGroupId: transaction.transferGroupId,
       description: transaction.description,
       type: transaction.type,
       amount: transaction.amount,
@@ -108,6 +110,71 @@ export class PrismaTransactionRepository implements TransactionRepository {
     });
 
     return this.mapToEntity(transaction);
+  }
+
+  async createTransferPair(data: CreateTransferData) {
+    return await this.prisma.$transaction(async (tx) => {
+      const sourceAccount = await tx.account.update({
+        where: {
+          id: data.sourceAccountId,
+          userId: data.userId,
+          balance: {
+            gte: data.amount
+          }
+        },
+        data: {
+          balance: {
+            decrement: data.amount
+          }
+        }
+      });
+
+      await tx.account.update({
+        where: {
+          id: data.destinationAccountId,
+          userId: data.userId
+        },
+        data: {
+          balance: {
+            increment: data.amount
+          }
+        }
+      });
+
+      const sourceTransaction = await tx.transaction.create({
+        data: {
+          userId: data.userId,
+          accountId: data.sourceAccountId,
+          categoryId: data.categoryId,
+          transferGroupId: data.transferGroupId,
+          description: data.description,
+          type: TransactionType.EXPENSE,
+          amount: data.amount,
+          date: new Date(data.date),
+          isPaid: true
+        }
+      });
+
+      const destinationTransaction = await tx.transaction.create({
+        data: {
+          userId: data.userId,
+          accountId: data.destinationAccountId,
+          categoryId: data.categoryId,
+          transferGroupId: data.transferGroupId,
+          description: data.description,
+          type: TransactionType.INCOME,
+          amount: data.amount,
+          date: new Date(data.date),
+          isPaid: true
+        }
+      });
+
+      return {
+        transferGroupId: data.transferGroupId,
+        sourceTransaction: this.mapToEntity(sourceTransaction),
+        destinationTransaction: this.mapToEntity(destinationTransaction)
+      };
+    }).catch(() => null);
   }
 
   async update(transactionId: string, data: UpdateTransactionData): Promise<Transaction> {
