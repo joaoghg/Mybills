@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
 
-const TYPES: CreateTransactionInput['type'][] = ['EXPENSE', 'INCOME', 'TRANSFER'];
+const TYPES: CreateTransactionInput['type'][] = ['EXPENSE', 'INCOME'];
 
 type Props = {
   theme: AppTheme;
@@ -12,11 +12,8 @@ type Props = {
   onSelect: (type: CreateTransactionInput['type']) => void;
 };
 
-function typeLabelKey(
-  type: CreateTransactionInput['type']
-): 'types.expense' | 'types.income' | 'types.transfer' {
+function typeLabelKey(type: CreateTransactionInput['type']): 'types.expense' | 'types.income' {
   if (type === 'INCOME') return 'types.income';
-  if (type === 'TRANSFER') return 'types.transfer';
   return 'types.expense';
 }
 

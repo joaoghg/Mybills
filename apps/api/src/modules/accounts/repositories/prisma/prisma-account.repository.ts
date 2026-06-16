@@ -4,8 +4,6 @@ import { PrismaService } from 'src/modules/database/prisma/prisma.service';
 import { Account } from '../../entities/account.entity';
 import { Account as PrismaAccount } from 'src/generated/prisma/client';
 import { CreateAccountData } from '../../contracts/create-account-data.contract';
-import { TransferBalanceData } from '../../contracts/transfer-balance-data.contract';
-import { TransferBalanceResult } from '../../contracts/transfer-balance-result.contract';
 import { UpdateAccountData } from '../../contracts/update-account-data.contract';
 
 @Injectable()
@@ -57,54 +55,6 @@ export class PrismaAccountRepository implements AccountRepository {
     });
 
     return this.mapToEntity(account);
-  }
-
-  async transferBalance(data: TransferBalanceData): Promise<TransferBalanceResult | null> {
-    return await this.prisma.$transaction(async (tx) => {
-      const sourceAccount = await tx.account.update({
-        where: {
-          id: data.sourceAccountId,
-          userId: data.userId,
-          balance: {
-            gte: data.amount
-          }
-        },
-        data: {
-          balance: {
-            decrement: data.amount
-          }
-        }
-      });
-
-      if (!sourceAccount) {
-        throw new Error(
-          'Unable to debit source account. Please check if the account exists, belongs to the user and has sufficient balance.'
-        );
-      }
-
-      const destinationAccount = await tx.account.update({
-        where: {
-          id: data.destinationAccountId,
-          userId: data.userId
-        },
-        data: {
-          balance: {
-            increment: data.amount
-          }
-        }
-      });
-
-      if (!destinationAccount) {
-        throw new Error(
-          'Unable to credit destination account. Please check if the account exists and belongs to the user.'
-        );
-      }
-
-      return {
-        sourceAccount: this.mapToEntity(sourceAccount),
-        destinationAccount: this.mapToEntity(destinationAccount)
-      };
-    });
   }
 
   async update(accountId: string, data: UpdateAccountData): Promise<Account> {

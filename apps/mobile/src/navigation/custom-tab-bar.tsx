@@ -9,7 +9,7 @@ import { useTheme } from '@/core/theme';
 import { useQuickAddMenu } from '@/navigation/quick-add-menu-context';
 import type { RootStackParamList } from '@/navigation/types';
 
-type QuickAddStackRoute = 'AddAccount' | 'AddTransaction' | 'AddCreditCard' | 'AddCategory';
+type QuickAddStackRoute = 'AddAccount' | 'AddTransaction' | 'AddTransfer' | 'AddCreditCard' | 'AddCategory';
 
 export function CustomTabBar(props: BottomTabBarProps) {
   const { isOpen, close } = useQuickAddMenu();
@@ -75,6 +75,24 @@ export function CustomTabBar(props: BottomTabBarProps) {
               <Ionicons name="swap-vertical-outline" size={20} color={theme.colors.primary} />
               <Text style={[styles.chipLabel, { color: theme.colors.textPrimary }]}>
                 {t('quickAdd.transaction')}
+              </Text>
+            </Pressable>
+            <Pressable
+              accessibilityRole="menuitem"
+              accessibilityLabel={t('quickAdd.transfer')}
+              onPress={() => handleSelect('AddTransfer')}
+              style={({ pressed }) => [
+                styles.chip,
+                {
+                  backgroundColor: theme.colors.surfaceAlt,
+                  borderColor: theme.colors.border
+                },
+                pressed && styles.chipPressed
+              ]}
+            >
+              <Ionicons name="swap-horizontal-outline" size={20} color={theme.colors.primary} />
+              <Text style={[styles.chipLabel, { color: theme.colors.textPrimary }]}>
+                {t('quickAdd.transfer')}
               </Text>
             </Pressable>
             <Pressable

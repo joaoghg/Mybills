@@ -146,4 +146,71 @@ describe('Transfers (e2e)', () => {
       error: 'invalid_argument'
     });
   });
+
+  it('should return bad request when transfer amount is greater than source account balance', async () => {
+    const accessToken = await authenticateUser('transfers-insufficient@mybills.dev');
+
+    const sourceAccountResponse = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Source Limited Account', balance: 1000 })
+      .expect(201);
+
+    const destinationAccountResponse = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({ name: 'Destination Account', balance: 500 })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post('/transactions/transfer')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        sourceAccountId: sourceAccountResponse.body.id,
+        destinationAccountId: destinationAccountResponse.body.id,
+        amount: 1001,
+        date: '2026-06-07'
+      })
+      .expect(400);
+
+    expect(response.body).toMatchObject({
+      statusCode: 400,
+      code: 'accounts.insufficient_balance',
+      error: 'invalid_argument'
+    });
+  });
+
+  it('should return not found when destination account does not belong to authenticated user', async () => {
+    const firstUserToken = await authenticateUser('transfers-owner-a@mybills.dev');
+    const secondUserToken = await authenticateUser('transfers-owner-b@mybills.dev');
+
+    const sourceAccountResponse = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${firstUserToken}`)
+      .send({ name: 'Source Account', balance: 6000 })
+      .expect(201);
+
+    const destinationAccountResponse = await request(app.getHttpServer())
+      .post('/accounts')
+      .set('Authorization', `Bearer ${secondUserToken}`)
+      .send({ name: 'Private Destination Account', balance: 1000 })
+      .expect(201);
+
+    const response = await request(app.getHttpServer())
+      .post('/transactions/transfer')
+      .set('Authorization', `Bearer ${firstUserToken}`)
+      .send({
+        sourceAccountId: sourceAccountResponse.body.id,
+        destinationAccountId: destinationAccountResponse.body.id,
+        amount: 500,
+        date: '2026-06-07'
+      })
+      .expect(404);
+
+    expect(response.body).toMatchObject({
+      statusCode: 404,
+      code: 'accounts.destination_account_not_found',
+      error: 'not_found'
+    });
+  });
 });

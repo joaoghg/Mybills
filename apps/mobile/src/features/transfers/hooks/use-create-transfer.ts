@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { CreateTransferInput } from '@mybills/dtos';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
-import { createUserTransfer } from '@/features/transactions/services/transfers.service';
+import { createUserTransfer } from '@/features/transfers/services/transfers.service';
 
 export function useCreateTransfer() {
   const client = useHttpClient();

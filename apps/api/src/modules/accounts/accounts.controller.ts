@@ -19,10 +19,6 @@ import {
   createAccountInputSchema,
   ListAccountsOutput,
   listAccountsOutputSchema,
-  TransferBalanceInput,
-  transferBalanceInputSchema,
-  TransferBalanceOutput,
-  transferBalanceOutputSchema,
   UpdateAccountInput,
   updateAccountInputSchema
 } from '@mybills/dtos';
@@ -30,16 +26,12 @@ import { Serialize } from 'src/common/decorators/serialize.decorator';
 import { CurrentUser } from 'src/common/decorators/current-user.decorator';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
 import { AccountsService } from './accounts.service';
-import { TransactionsService } from '../transactions/transactions.service';
 import { AccountIdParams, accountIdParamsSchema } from './contracts/account-id-params.contract';
 
 @ApiTags('Accounts')
 @Controller('accounts')
 export class AccountsController {
-  constructor(
-    private readonly accountsService: AccountsService,
-    private readonly transactionsService: TransactionsService
-  ) {}
+  constructor(private readonly accountsService: AccountsService) {}
 
   @Get()
   @ApiOperation({
@@ -99,42 +91,6 @@ export class AccountsController {
       name: data.name,
       balance: data.balance
     });
-  }
-
-  @Post('transfer')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Transfer account balance',
-    description: 'Transfers balance between two accounts from the authenticated user.'
-  })
-  @ApiBody({
-    schema: toJSONSchema(transferBalanceInputSchema) as SchemaObject,
-    description: 'Balance transfer payload'
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Balance transferred successfully.',
-    schema: toJSONSchema(transferBalanceOutputSchema) as SchemaObject
-  })
-  @Serialize(transferBalanceOutputSchema)
-  async transferBalance(
-    @CurrentUser('sub') userId: string,
-    @Body(new ZodValidationPipe(transferBalanceInputSchema)) data: TransferBalanceInput
-  ): Promise<TransferBalanceOutput> {
-    await this.transactionsService.createTransfer({
-      userId,
-      sourceAccountId: data.sourceAccountId,
-      destinationAccountId: data.destinationAccountId,
-      amount: data.amount,
-      date: new Date().toISOString().slice(0, 10)
-    });
-
-    const [sourceAccount, destinationAccount] = await Promise.all([
-      this.accountsService.findById(data.sourceAccountId, userId),
-      this.accountsService.findById(data.destinationAccountId, userId)
-    ]);
-
-    return { sourceAccount, destinationAccount };
   }
 
   @Patch(':id')

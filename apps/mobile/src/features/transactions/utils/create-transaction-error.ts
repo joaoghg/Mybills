@@ -24,15 +24,6 @@ export function translateCreateTransactionError(error: unknown, t: TFunction): s
     if (error.code === 'transactions.invalid_is_paid') {
       return t('transactions.errors.invalidIsPaid');
     }
-    if (error.code === 'accounts.insufficient_balance') {
-      return t('transactions.errors.insufficientBalance');
-    }
-    if (error.code === 'accounts.source_and_destination_must_differ') {
-      return t('transactions.validation.accountsMustDiffer');
-    }
-    if (error.code === 'transactions.transfer_failed') {
-      return t('transactions.errors.transferFailed');
-    }
     if (error.statusCode === 400) {
       return error.message ? error.message : t('transactions.errors.validation');
     }

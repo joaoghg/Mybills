@@ -53,6 +53,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
     if (filters.type !== undefined) {
       where.type = filters.type;
     } else if (filters.includeTransfer === false) {
+      where.transferGroupId = null;
       where.type = { in: [TransactionType.INCOME, TransactionType.EXPENSE] };
     }
 
