@@ -45,7 +45,7 @@ export function useWalletDashboard(): {
   isLoading: boolean;
   isError: boolean;
   refetchAll: () => Promise<void>;
-  account: WalletAccountRow | null;
+  accounts: WalletAccountRow[];
   physicalCards: WalletPhysicalCard[];
   selectedCardId: string | null;
   setSelectedCardId: (id: string) => void;
@@ -85,20 +85,16 @@ export function useWalletDashboard(): {
     ]);
   }, [accountsQuery, creditCardsQuery, transactionsQuery]);
 
-  const account = useMemo((): WalletAccountRow | null => {
+  const accounts = useMemo((): WalletAccountRow[] => {
     const list = accountsQuery.data ?? [];
-    if (list.length === 0) return null;
-    const sorted = [...list].sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-    const a = sorted[0];
-    if (!a) return null;
-    return {
-      id: a.id,
-      title: a.name,
-      subtitle: '',
-      balanceMajor: centsToMajor(a.balance)
-    };
+    return [...list]
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .map((a) => ({
+        id: a.id,
+        title: a.name,
+        subtitle: '',
+        balanceMajor: centsToMajor(a.balance)
+      }));
   }, [accountsQuery.data]);
 
   const physicalCards = useMemo((): WalletPhysicalCard[] => {
@@ -150,7 +146,7 @@ export function useWalletDashboard(): {
     isLoading,
     isError,
     refetchAll,
-    account,
+    accounts,
     physicalCards,
     selectedCardId,
     setSelectedCardId,

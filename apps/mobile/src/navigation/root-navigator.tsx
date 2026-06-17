@@ -12,10 +12,12 @@ import { useTheme } from '@/core/theme';
 import { CreateTransactionScreen } from '@/features/transactions/screens/create-transaction-screen';
 import { CreateTransferScreen } from '@/features/transfers/screens/create-transfer-screen';
 import { CreateAccountScreen } from '@/features/accounts/screens/create-account-screen';
+import { EditAccountScreen } from '@/features/accounts/screens/edit-account-screen';
 import { CreateCategoryScreen } from '@/features/categories/screens/create-category-screen';
 import { EditCategoryScreen } from '@/features/categories/screens/edit-category-screen';
 import { ManageCategoriesScreen } from '@/features/categories/screens/manage-categories-screen';
 import { CreateCreditCardScreen } from '@/features/credit-cards/screens/create-credit-card-screen';
+import { EditCreditCardScreen } from '@/features/credit-cards/screens/edit-credit-card-screen';
 import { LanguageSettingsScreen } from '@/features/more/screens/language-settings-screen';
 import { ThemeSettingsScreen } from '@/features/more/screens/theme-settings-screen';
 import { AppTabNavigator } from '@/navigation/app-tab-navigator';
@@ -87,6 +89,22 @@ export function AuthenticatedRoot() {
           options={{
             presentation: 'modal',
             title: t('quickAdd.creditCardTitle')
+          }}
+        />
+        <Stack.Screen
+          name="EditAccount"
+          component={EditAccountScreen}
+          options={{
+            presentation: 'modal',
+            title: t('accounts.editTitle')
+          }}
+        />
+        <Stack.Screen
+          name="EditCreditCard"
+          component={EditCreditCardScreen}
+          options={{
+            presentation: 'modal',
+            title: t('creditCards.editTitle')
           }}
         />
         <Stack.Screen

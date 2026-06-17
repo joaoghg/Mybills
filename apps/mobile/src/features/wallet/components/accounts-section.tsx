@@ -15,6 +15,7 @@ type AccountsSectionProps = {
   emptyLabel?: string;
   emptyActionLabel?: string;
   onEmptyActionPress?: () => void;
+  onAccountPress?: (accountId: string) => void;
 };
 
 function accountIcon(): ComponentProps<typeof Ionicons>['name'] {
@@ -30,7 +31,8 @@ export function AccountsSection({
   formatCurrency,
   emptyLabel,
   emptyActionLabel,
-  onEmptyActionPress
+  onEmptyActionPress,
+  onAccountPress
 }: AccountsSectionProps) {
   return (
     <View style={styles.section}>
@@ -65,38 +67,67 @@ export function AccountsSection({
         </View>
       ) : (
         <View style={styles.cards}>
-          {accounts.map((account) => (
-            <View
-              key={account.id}
-              style={[
-                styles.card,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border,
-                  shadowColor: theme.colors.textPrimary
-                }
-              ]}
-            >
-              <View style={[styles.iconCircle, { backgroundColor: theme.colors.surfaceAlt }]}>
-                <Ionicons name={accountIcon()} size={22} color={theme.colors.textSecondary} />
-              </View>
-              <View style={styles.cardMid}>
-                <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-                  {account.title}
-                </Text>
-                {account.subtitle ? (
-                  <Text style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}>
-                    {account.subtitle}
+          {accounts.map((account) => {
+            const cardContent = (
+              <>
+                <View style={[styles.iconCircle, { backgroundColor: theme.colors.surfaceAlt }]}>
+                  <Ionicons name={accountIcon()} size={22} color={theme.colors.textSecondary} />
+                </View>
+                <View style={styles.cardMid}>
+                  <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+                    {account.title}
                   </Text>
-                ) : null}
+                  {account.subtitle ? (
+                    <Text style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}>
+                      {account.subtitle}
+                    </Text>
+                  ) : null}
+                </View>
+                <View style={styles.cardRight}>
+                  <Text style={[styles.balance, { color: theme.colors.textPrimary }]}>
+                    {formatCurrency(account.balanceMajor)}
+                  </Text>
+                </View>
+              </>
+            );
+
+            if (onAccountPress) {
+              return (
+                <Pressable
+                  key={account.id}
+                  accessibilityRole="button"
+                  onPress={() => onAccountPress(account.id)}
+                  style={({ pressed }) => [
+                    styles.card,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      borderColor: theme.colors.border,
+                      shadowColor: theme.colors.textPrimary
+                    },
+                    pressed && styles.cardPressed
+                  ]}
+                >
+                  {cardContent}
+                </Pressable>
+              );
+            }
+
+            return (
+              <View
+                key={account.id}
+                style={[
+                  styles.card,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    shadowColor: theme.colors.textPrimary
+                  }
+                ]}
+              >
+                {cardContent}
               </View>
-              <View style={styles.cardRight}>
-                <Text style={[styles.balance, { color: theme.colors.textPrimary }]}>
-                  {formatCurrency(account.balanceMajor)}
-                </Text>
-              </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
       )}
     </View>
@@ -154,6 +185,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2
+  },
+  cardPressed: {
+    opacity: 0.92
   },
   iconCircle: {
     width: 48,

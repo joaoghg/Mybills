@@ -4,6 +4,8 @@ export type RootStackParamList = {
   AddTransaction: undefined;
   AddTransfer: undefined;
   AddCreditCard: undefined;
+  EditAccount: { accountId: string };
+  EditCreditCard: { cardId: string };
   AddCategory: undefined;
   CategoryManagement: undefined;
   EditCategory: { categoryId: string };
