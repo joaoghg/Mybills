@@ -52,7 +52,13 @@ export class TransactionsService {
 
   async create(data: CreateTransactionData): Promise<Transaction> {
     this.validateCreateData(data);
-    await this.validateRelations(data.userId, data.accountId, data.categoryId, data.cardId);
+    await this.validateRelations(
+      data.userId,
+      data.type,
+      data.accountId,
+      data.categoryId,
+      data.cardId
+    );
 
     const transaction = await this.repository.create(data);
 
@@ -151,7 +157,15 @@ export class TransactionsService {
       data.categoryId === undefined ? currentTransaction.categoryId : data.categoryId;
     const nextCardId = data.cardId === undefined ? currentTransaction.cardId : data.cardId;
 
-    await this.validateRelations(userId, nextAccountId, nextCategoryId, nextCardId);
+    const nextType = data.type === undefined ? currentTransaction.type : data.type;
+
+    await this.validateRelations(
+      userId,
+      nextType,
+      nextAccountId,
+      nextCategoryId,
+      nextCardId
+    );
 
     const updatedTransaction = await this.repository.update(transactionId, data);
 
@@ -230,6 +244,7 @@ export class TransactionsService {
 
   private async validateRelations(
     userId: string,
+    transactionType: TransactionType,
     accountId?: string | null,
     categoryId?: string | null,
     cardId?: string | null
@@ -247,7 +262,24 @@ export class TransactionsService {
     }
 
     if (categoryId !== undefined && categoryId !== null) {
-      await this.categoriesService.findById(categoryId, userId);
+      if (transactionType === TransactionType.TRANSFER) {
+        throw new InvalidArgumentError({
+          code: 'transactions.category_not_allowed_for_transfer',
+          i18nKey: 'errors.transactions.category_not_allowed_for_transfer'
+        });
+      }
+
+      const category = await this.categoriesService.findById(categoryId, userId);
+
+      if (
+        (transactionType === TransactionType.INCOME || transactionType === TransactionType.EXPENSE) &&
+        !category.types.includes(transactionType)
+      ) {
+        throw new InvalidArgumentError({
+          code: 'transactions.category_type_mismatch',
+          i18nKey: 'errors.transactions.category_type_mismatch'
+        });
+      }
     }
 
     if (cardId !== undefined && cardId !== null) {
@@ -319,6 +351,13 @@ export class TransactionsService {
 
     if (data.categoryId !== undefined && data.categoryId !== null) {
       this.validateCategoryId(data.categoryId);
+
+      if (data.type === TransactionType.TRANSFER) {
+        throw new InvalidArgumentError({
+          code: 'transactions.category_not_allowed_for_transfer',
+          i18nKey: 'errors.transactions.category_not_allowed_for_transfer'
+        });
+      }
     }
 
     if (data.cardId !== undefined && data.cardId !== null) {

@@ -89,7 +89,8 @@ export class CategoriesController {
     return await this.categoriesService.create({
       userId,
       name: data.name,
-      icon: data.icon
+      icon: data.icon,
+      types: data.types
     });
   }
 

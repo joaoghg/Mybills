@@ -1,4 +1,4 @@
-import type { CategoryIcon } from '@mybills/dtos';
+import type { CategoryIcon, CategoryTransactionType } from '@mybills/dtos';
 
 export class Category {
   id: string;
@@ -6,6 +6,7 @@ export class Category {
   name: string;
   icon: CategoryIcon;
   isSystem: boolean;
+  types: CategoryTransactionType[];
   createdAt: string;
   updatedAt: string;
 }

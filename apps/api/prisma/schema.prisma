@@ -14,6 +14,11 @@ enum TransactionType {
   TRANSFER
 }
 
+enum CategoryTransactionType {
+  INCOME
+  EXPENSE
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -65,13 +70,14 @@ model CreditCard {
 }
 
 model Category {
-  id        String   @id @default(uuid())
-  userId    String   @map("user_id")
+  id        String                    @id @default(uuid())
+  userId    String                    @map("user_id")
   name      String
   icon      String   @default("receipt-outline")
   isSystem  Boolean  @default(false) @map("is_system")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  types     CategoryTransactionType[]
+  createdAt DateTime                  @default(now()) @map("created_at")
+  updatedAt DateTime                  @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   transactions Transaction[]

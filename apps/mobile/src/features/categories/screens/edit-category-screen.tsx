@@ -1,4 +1,8 @@
-import { createCategoryInputSchema, type CategoryIcon } from '@mybills/dtos';
+import {
+  updateCategoryInputSchema,
+  type CategoryIcon,
+  type CategoryTransactionType
+} from '@mybills/dtos';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useLayoutEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,6 +10,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from
 
 import { useTheme } from '@/core/theme';
 import { CategoryIconPicker } from '@/features/categories/components/category-icon-picker';
+import { CategoryTypePicker } from '@/features/categories/components/category-type-picker';
 import { useCategories } from '@/features/categories/hooks/use-categories';
 import { useUpdateCategory } from '@/features/categories/hooks/use-update-category';
 import { translateCreateCategoryError } from '@/features/categories/utils/create-category-error';
@@ -25,7 +30,20 @@ export function EditCategoryScreen({ navigation, route }: Props) {
 
   const [name, setName] = useState('');
   const [selectedIcon, setSelectedIcon] = useState<CategoryIcon>('receipt-outline');
+  const [selectedTypes, setSelectedTypes] = useState<CategoryTransactionType[]>(['EXPENSE']);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  function handleToggleType(type: CategoryTransactionType) {
+    setSelectedTypes((current) => {
+      if (current.includes(type)) {
+        if (current.length === 1) {
+          return current;
+        }
+        return current.filter((item) => item !== type);
+      }
+      return [...current, type];
+    });
+  }
 
   useEffect(() => {
     if (!category) {
@@ -33,6 +51,7 @@ export function EditCategoryScreen({ navigation, route }: Props) {
     }
     setName(category.name);
     setSelectedIcon(category.icon);
+    setSelectedTypes(category.types);
   }, [category]);
 
   useLayoutEffect(() => {
@@ -46,9 +65,10 @@ export function EditCategoryScreen({ navigation, route }: Props) {
   function handleSubmit() {
     setLocalError(null);
 
-    const parsed = createCategoryInputSchema.safeParse({
+    const parsed = updateCategoryInputSchema.safeParse({
       name,
-      icon: selectedIcon
+      icon: selectedIcon,
+      types: selectedTypes
     });
     if (!parsed.success) {
       setLocalError(translateCreateCategoryZodError(t, parsed.error));
@@ -103,6 +123,12 @@ export function EditCategoryScreen({ navigation, route }: Props) {
           theme={theme}
           selectedIcon={selectedIcon}
           onSelect={setSelectedIcon}
+        />
+
+        <CategoryTypePicker
+          theme={theme}
+          selectedTypes={selectedTypes}
+          onToggle={handleToggleType}
         />
 
         {displayError ? (

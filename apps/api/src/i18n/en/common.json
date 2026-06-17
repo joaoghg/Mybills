@@ -22,6 +22,10 @@
       "system_category_cannot_be_updated": "System categories cannot be updated",
       "system_category_cannot_be_deleted": "System categories cannot be deleted"
     },
+    "transactions": {
+      "category_not_allowed_for_transfer": "Categories are not allowed on transfers",
+      "category_type_mismatch": "The selected category is not compatible with the transaction type"
+    },
     "auth": {
       "invalid_credentials": "Invalid email or password",
       "invalid_refresh_token": "Invalid refresh token"

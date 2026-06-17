@@ -64,10 +64,19 @@ export function CreateTransactionScreen({ navigation }: Props) {
   const displayError = localError ?? remoteMessage;
 
   const filteredCategories = useMemo(() => {
-    return categories.filter((category) => !category.isSystem);
-  }, [categories]);
+    if (type === 'TRANSFER') {
+      return [];
+    }
+
+    return categories.filter((category) => category.types.includes(type));
+  }, [categories, type]);
 
   useEffect(() => {
+    if (type === 'TRANSFER') {
+      setSelectedCategoryId(null);
+      return;
+    }
+
     if (!selectedCategoryId) {
       return;
     }
@@ -81,8 +90,16 @@ export function CreateTransactionScreen({ navigation }: Props) {
   function handleSelectType(nextType: CreateTransactionInput['type']) {
     setType(nextType);
 
-    if (nextType === 'INCOME') {
-      setSelectedCardId(null);
+    if (nextType === 'TRANSFER') {
+      setSelectedCategoryId(null);
+      return;
+    }
+
+    if (selectedCategoryId) {
+      const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+      if (!selectedCategory || !selectedCategory.types.includes(nextType)) {
+        setSelectedCategoryId(null);
+      }
     }
   }
 
@@ -129,7 +146,7 @@ export function CreateTransactionScreen({ navigation }: Props) {
       date: dateYmd,
       isPaid,
       ...(description.trim() ? { description: description.trim() } : {}),
-      ...(selectedCategoryId ? { categoryId: selectedCategoryId } : {}),
+      ...(type !== 'TRANSFER' && selectedCategoryId ? { categoryId: selectedCategoryId } : {}),
       ...(selectedAccountId ? { accountId: selectedAccountId } : {}),
       ...(selectedCardId ? { cardId: selectedCardId } : {})
     };
@@ -184,12 +201,14 @@ export function CreateTransactionScreen({ navigation }: Props) {
           onChangeYmd={setDateYmd}
         />
 
-        <CategorySelectPicker
-          theme={theme}
-          categories={filteredCategories}
-          selectedCategoryId={selectedCategoryId}
-          onSelect={setSelectedCategoryId}
-        />
+        {type !== 'TRANSFER' ? (
+          <CategorySelectPicker
+            theme={theme}
+            categories={filteredCategories}
+            selectedCategoryId={selectedCategoryId}
+            onSelect={setSelectedCategoryId}
+          />
+        ) : null}
 
         {accounts.length > 0 ? (
           <View style={styles.section}>

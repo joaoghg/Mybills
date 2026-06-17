@@ -42,6 +42,16 @@ describe('TransactionsService', () => {
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
 
+  const expenseCategory = {
+    id: baseTransaction.categoryId as string,
+    userId: baseTransaction.userId,
+    name: 'Food',
+    icon: 'restaurant-outline' as const,
+    types: ['EXPENSE'] as const,
+    createdAt: baseTransaction.createdAt,
+    updatedAt: baseTransaction.updatedAt
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -111,13 +121,7 @@ describe('TransactionsService', () => {
       };
 
       repository.findAllByUserId.mockResolvedValue([baseTransaction]);
-      categoriesService.findById.mockResolvedValue({
-        id: filters.categoryId,
-        userId: baseTransaction.userId,
-        name: 'Food',
-        createdAt: baseTransaction.createdAt,
-        updatedAt: baseTransaction.updatedAt
-      });
+      categoriesService.findById.mockResolvedValue(expenseCategory);
 
       const result = await service.findAll(baseTransaction.userId, filters);
 
@@ -179,13 +183,7 @@ describe('TransactionsService', () => {
       };
 
       accountsService.accountExistsForUser.mockResolvedValue(true);
-      categoriesService.findById.mockResolvedValue({
-        id: baseTransaction.categoryId as string,
-        userId: baseTransaction.userId,
-        name: 'Food',
-        createdAt: baseTransaction.createdAt,
-        updatedAt: baseTransaction.updatedAt
-      });
+      categoriesService.findById.mockResolvedValue(expenseCategory);
       repository.create.mockResolvedValue(paidTransaction);
       accountsService.findById.mockResolvedValue(account);
       accountsService.update.mockResolvedValue({
@@ -213,13 +211,7 @@ describe('TransactionsService', () => {
 
     it('should create unpaid transaction without changing account balance', async () => {
       accountsService.accountExistsForUser.mockResolvedValue(true);
-      categoriesService.findById.mockResolvedValue({
-        id: baseTransaction.categoryId as string,
-        userId: baseTransaction.userId,
-        name: 'Food',
-        createdAt: baseTransaction.createdAt,
-        updatedAt: baseTransaction.updatedAt
-      });
+      categoriesService.findById.mockResolvedValue(expenseCategory);
       repository.create.mockResolvedValue(baseTransaction);
 
       const result = await service.create({
@@ -237,6 +229,37 @@ describe('TransactionsService', () => {
       expect(result).toEqual(baseTransaction);
       expect(accountsService.update).not.toHaveBeenCalled();
     });
+
+    it('should throw InvalidArgumentError when category type does not match transaction type', async () => {
+      categoriesService.findById.mockResolvedValue({
+        ...expenseCategory,
+        types: ['INCOME']
+      });
+
+      await expect(
+        service.create({
+          userId: baseTransaction.userId,
+          categoryId: baseTransaction.categoryId,
+          type: TransactionType.EXPENSE,
+          amount: baseTransaction.amount,
+          date: '2026-04-04',
+          isPaid: false
+        })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
+
+    it('should throw InvalidArgumentError when category is provided for transfer', async () => {
+      await expect(
+        service.create({
+          userId: baseTransaction.userId,
+          categoryId: baseTransaction.categoryId,
+          type: TransactionType.TRANSFER,
+          amount: baseTransaction.amount,
+          date: '2026-04-04',
+          isPaid: false
+        })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
   });
 
   describe('update', () => {
@@ -253,13 +276,7 @@ describe('TransactionsService', () => {
 
       repository.findByIdAndUserId.mockResolvedValue(paidCurrentTransaction);
       accountsService.accountExistsForUser.mockResolvedValue(true);
-      categoriesService.findById.mockResolvedValue({
-        id: paidCurrentTransaction.categoryId as string,
-        userId: paidCurrentTransaction.userId,
-        name: 'Food',
-        createdAt: paidCurrentTransaction.createdAt,
-        updatedAt: paidCurrentTransaction.updatedAt
-      });
+      categoriesService.findById.mockResolvedValue(expenseCategory);
       repository.update.mockResolvedValue(updatedTransaction);
       accountsService.findById.mockResolvedValueOnce(account).mockResolvedValueOnce({
         ...account,
