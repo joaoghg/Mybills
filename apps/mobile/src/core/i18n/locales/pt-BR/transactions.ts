@@ -14,13 +14,15 @@ export const transactions = {
   categoryNone: 'Nenhuma',
   accountLabel: 'Conta',
   accountNone: 'Nenhuma',
+  sourceAccountLabel: 'Conta de saída',
+  destinationAccountLabel: 'Conta de entrada',
   cardLabel: 'Cartão de crédito',
   cardNone: 'Nenhum',
   noAccountsHint: 'Crie uma conta primeiro para vincular esta transação.',
   noCardsHint: 'Nenhum cartão de crédito ainda.',
   paidLabel: 'Pago',
   paidHint: 'Só afeta o saldo da conta quando uma conta estiver selecionada.',
-  transferHint: 'Transferências debitam uma conta. Conta de destino ainda não é suportada.',
+  transferHint: 'Mova dinheiro entre suas contas. Duas transações são criadas automaticamente.',
   cardVsAccountHint: 'Escolha conta ou cartão, não os dois.',
   submit: 'Salvar transação',
   submitLoading: 'Salvando…',
@@ -30,6 +32,9 @@ export const transactions = {
     typeRequired: 'Selecione um tipo de transação.',
     dateRequired: 'Selecione uma data válida.',
     accountInvalid: 'Selecione uma conta válida.',
+    sourceAccountRequired: 'Selecione a conta de saída.',
+    destinationAccountRequired: 'Selecione a conta de entrada.',
+    accountsMustDiffer: 'As contas de saída e entrada devem ser diferentes.',
     categoryInvalid: 'Selecione uma categoria válida.',
     cardInvalid: 'Selecione um cartão de crédito válido.'
   },
@@ -40,6 +45,8 @@ export const transactions = {
     accountNotFound: 'A conta selecionada não foi encontrada.',
     categoryNotFound: 'A categoria selecionada não foi encontrada.',
     cardNotFound: 'O cartão selecionado não foi encontrado.',
-    invalidIsPaid: 'Status de pago inválido para esta transação.'
+    invalidIsPaid: 'Status de pago inválido para esta transação.',
+    insufficientBalance: 'Saldo insuficiente na conta de saída.',
+    transferFailed: 'A transferência não pôde ser concluída.'
   }
 } as const;

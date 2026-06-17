@@ -81,11 +81,11 @@ export function CreateTransactionScreen({ navigation }: Props) {
       return;
     }
 
-    const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
-    if (!selectedCategory || !selectedCategory.types.includes(type)) {
+    const stillValid = filteredCategories.some((category) => category.id === selectedCategoryId);
+    if (!stillValid) {
       setSelectedCategoryId(null);
     }
-  }, [categories, selectedCategoryId, type]);
+  }, [filteredCategories, selectedCategoryId]);
 
   function handleSelectType(nextType: CreateTransactionInput['type']) {
     setType(nextType);
@@ -171,7 +171,11 @@ export function CreateTransactionScreen({ navigation }: Props) {
       showsVerticalScrollIndicator={false}
     >
       <View style={styles.form}>
-        <TransactionTypeSegment theme={theme} selectedType={type} onSelect={handleSelectType} />
+        <TransactionTypeSegment
+          theme={theme}
+          selectedType={type}
+          onSelect={handleSelectType}
+        />
 
         <MoneyInputField
           theme={theme}
@@ -204,12 +208,6 @@ export function CreateTransactionScreen({ navigation }: Props) {
             selectedCategoryId={selectedCategoryId}
             onSelect={setSelectedCategoryId}
           />
-        ) : null}
-
-        {type === 'TRANSFER' ? (
-          <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
-            {t('transactions.transferHint')}
-          </Text>
         ) : null}
 
         {accounts.length > 0 ? (

@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
 import { AccountsService } from './accounts.service';
-import { TransferBalanceResult } from './contracts/transfer-balance-result.contract';
 import { Account } from './entities/account.entity';
 import { AccountRepository } from './repositories/account.repository';
 
@@ -29,7 +28,6 @@ describe('AccountsService', () => {
             findAllByUserId: jest.fn(),
             findByIdAndUserId: jest.fn(),
             create: jest.fn(),
-            transferBalance: jest.fn(),
             update: jest.fn(),
             delete: jest.fn()
           }
@@ -147,117 +145,6 @@ describe('AccountsService', () => {
       await expect(service.update(account.id, account.userId, {})).rejects.toThrow(
         InvalidArgumentError
       );
-    });
-  });
-
-  describe('transferBalance', () => {
-    it('should transfer balance between two accounts when data is valid', async () => {
-      const destinationAccount: Account = {
-        ...account,
-        id: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
-        name: 'Savings Account',
-        balance: 200
-      };
-
-      const transferResult: TransferBalanceResult = {
-        sourceAccount: {
-          ...account,
-          balance: 700
-        },
-        destinationAccount: {
-          ...destinationAccount,
-          balance: 500
-        }
-      };
-
-      repository.findByIdAndUserId
-        .mockResolvedValueOnce(account)
-        .mockResolvedValueOnce(destinationAccount);
-      repository.transferBalance.mockResolvedValue(transferResult);
-
-      const result = await service.transferBalance({
-        userId: account.userId,
-        sourceAccountId: account.id,
-        destinationAccountId: destinationAccount.id,
-        amount: 300
-      });
-
-      expect(result).toEqual(transferResult);
-      expect(repository.transferBalance).toHaveBeenCalledWith({
-        userId: account.userId,
-        sourceAccountId: account.id,
-        destinationAccountId: destinationAccount.id,
-        amount: 300
-      });
-    });
-
-    it('should throw InvalidArgumentError if source and destination accounts are equal', async () => {
-      await expect(
-        service.transferBalance({
-          userId: account.userId,
-          sourceAccountId: account.id,
-          destinationAccountId: account.id,
-          amount: 100
-        })
-      ).rejects.toThrow(InvalidArgumentError);
-    });
-
-    it('should throw InvalidArgumentError if transfer amount is invalid', async () => {
-      await expect(
-        service.transferBalance({
-          userId: account.userId,
-          sourceAccountId: account.id,
-          destinationAccountId: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
-          amount: 0
-        })
-      ).rejects.toThrow(InvalidArgumentError);
-    });
-
-    it('should throw NotFoundError if source account does not exist', async () => {
-      repository.findByIdAndUserId.mockResolvedValueOnce(null);
-
-      await expect(
-        service.transferBalance({
-          userId: account.userId,
-          sourceAccountId: account.id,
-          destinationAccountId: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
-          amount: 100
-        })
-      ).rejects.toThrow(NotFoundError);
-    });
-
-    it('should throw NotFoundError if destination account does not exist', async () => {
-      repository.findByIdAndUserId.mockResolvedValueOnce(account).mockResolvedValueOnce(null);
-
-      await expect(
-        service.transferBalance({
-          userId: account.userId,
-          sourceAccountId: account.id,
-          destinationAccountId: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
-          amount: 100
-        })
-      ).rejects.toThrow(NotFoundError);
-    });
-
-    it('should throw InvalidArgumentError if source account balance is insufficient', async () => {
-      const destinationAccount: Account = {
-        ...account,
-        id: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
-        balance: 0
-      };
-
-      repository.findByIdAndUserId
-        .mockResolvedValueOnce(account)
-        .mockResolvedValueOnce(destinationAccount);
-
-      await expect(
-        service.transferBalance({
-          userId: account.userId,
-          sourceAccountId: account.id,
-          destinationAccountId: destinationAccount.id,
-          amount: account.balance + 1
-        })
-      ).rejects.toThrow(InvalidArgumentError);
     });
   });
 

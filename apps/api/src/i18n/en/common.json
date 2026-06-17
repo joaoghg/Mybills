@@ -18,7 +18,9 @@
       "transfer_failed": "Transfer could not be completed"
     },
     "categories": {
-      "category_already_exists": "Category already exists"
+      "category_already_exists": "Category already exists",
+      "system_category_cannot_be_updated": "System categories cannot be updated",
+      "system_category_cannot_be_deleted": "System categories cannot be deleted"
     },
     "transactions": {
       "category_not_allowed_for_transfer": "Categories are not allowed on transfers",
@@ -35,6 +37,9 @@
     },
     "conflict": {
       "already_exists_field": "A record already exists for field: {field}"
+    },
+    "transactions": {
+      "transfer_failed": "Transfer could not be completed"
     }
   }
 }

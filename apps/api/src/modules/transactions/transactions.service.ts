@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import type { ListTransactionsQueryInput } from '@mybills/dtos';
 import { Inject, Injectable } from '@nestjs/common';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
@@ -7,6 +8,8 @@ import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { CreditCardsService } from '../credit-cards/credit-cards.service';
 import { CreateTransactionData } from './contracts/create-transaction-data.contract';
+import { CreateTransferInputData } from './contracts/create-transfer-input-data.contract';
+import { CreateTransferData } from './contracts/create-transfer-data.contract';
 import { UpdateTransactionData } from './contracts/update-transaction-data.contract';
 import { Transaction } from './entities/transaction.entity';
 import { TransactionRepository } from './repositories/transaction.repository';
@@ -69,6 +72,72 @@ export class TransactionsService {
     }
 
     return transaction;
+  }
+
+  async createTransfer(
+    data: CreateTransferInputData
+  ): Promise<import('./contracts/create-transfer-data.contract').CreateTransferResult> {
+    this.validateTransferData(data);
+
+    const sourceAccount = await this.findSourceAccountForTransfer(data);
+    await this.findDestinationAccountForTransfer(data);
+
+    if (sourceAccount.balance < data.amount) {
+      throw new InvalidArgumentError({
+        code: 'accounts.insufficient_balance',
+        i18nKey: 'errors.accounts.insufficient_balance'
+      });
+    }
+
+    const transferCategory = await this.categoriesService.ensureDefaultTransferCategory(data.userId);
+    const transferGroupId = randomUUID();
+
+    const transferResult = await this.repository.createTransferPair({
+      ...data,
+      categoryId: transferCategory.id,
+      transferGroupId
+    });
+
+    if (!transferResult) {
+      throw new InvalidArgumentError({
+        code: 'transactions.transfer_failed',
+        i18nKey: 'errors.transactions.transfer_failed'
+      });
+    }
+
+    return transferResult;
+  }
+
+  private async findSourceAccountForTransfer(data: CreateTransferInputData) {
+    try {
+      return await this.accountsService.findById(data.sourceAccountId, data.userId);
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw new NotFoundError({
+          code: 'accounts.source_account_not_found',
+          i18nKey: 'errors.not_found.resource',
+          i18nArgs: { resource: 'source_account' }
+        });
+      }
+
+      throw error;
+    }
+  }
+
+  private async findDestinationAccountForTransfer(data: CreateTransferInputData): Promise<void> {
+    try {
+      await this.accountsService.findById(data.destinationAccountId, data.userId);
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        throw new NotFoundError({
+          code: 'accounts.destination_account_not_found',
+          i18nKey: 'errors.not_found.resource',
+          i18nArgs: { resource: 'destination_account' }
+        });
+      }
+
+      throw error;
+    }
   }
 
   async update(
@@ -230,6 +299,47 @@ export class TransactionsService {
     await this.accountsService.update(accountId, userId, {
       balance: account.balance + signedAmount
     });
+  }
+
+  private validateTransferData(data: CreateTransferInputData): void {
+    this.validateUserId(data.userId);
+    this.validateAccountId(data.sourceAccountId);
+    this.validateAccountId(data.destinationAccountId);
+
+    if (data.sourceAccountId === data.destinationAccountId) {
+      throw new InvalidArgumentError({
+        code: 'accounts.source_and_destination_must_differ',
+        i18nKey: 'errors.validation.source_and_destination_must_differ'
+      });
+    }
+
+    if (!Number.isInteger(data.amount) || data.amount <= 0) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_amount',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_amount' }
+      });
+    }
+
+    if (!data.date || Number.isNaN(new Date(data.date).getTime())) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_date',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_date' }
+      });
+    }
+
+    if (
+      data.description !== undefined &&
+      data.description !== null &&
+      typeof data.description !== 'string'
+    ) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transaction_description',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transaction_description' }
+      });
+    }
   }
 
   private validateCreateData(data: CreateTransactionData): void {

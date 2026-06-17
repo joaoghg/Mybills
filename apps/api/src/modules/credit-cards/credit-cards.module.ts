@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { AccountsModule } from 'src/modules/accounts/accounts.module';
 import { DatabaseModule } from 'src/modules/database/database.module';
 import { CreditCardsController } from './credit-cards.controller';
@@ -6,7 +6,7 @@ import { CreditCardsService } from './credit-cards.service';
 import { PrismaCreditCardRepository } from './repositories/prisma/prisma-credit-card.repository';
 
 @Module({
-  imports: [DatabaseModule, AccountsModule],
+  imports: [DatabaseModule, forwardRef(() => AccountsModule)],
   controllers: [CreditCardsController],
   providers: [
     {

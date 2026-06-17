@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 
 import { useTheme } from '@/core/theme';
 import { CreateTransactionScreen } from '@/features/transactions/screens/create-transaction-screen';
+import { CreateTransferScreen } from '@/features/transfers/screens/create-transfer-screen';
 import { CreateAccountScreen } from '@/features/accounts/screens/create-account-screen';
 import { CreateCategoryScreen } from '@/features/categories/screens/create-category-screen';
 import { EditCategoryScreen } from '@/features/categories/screens/edit-category-screen';
@@ -70,6 +71,14 @@ export function AuthenticatedRoot() {
           options={{
             presentation: 'modal',
             title: t('quickAdd.transactionTitle')
+          }}
+        />
+        <Stack.Screen
+          name="AddTransfer"
+          component={CreateTransferScreen}
+          options={{
+            presentation: 'modal',
+            title: t('quickAdd.transferTitle')
           }}
         />
         <Stack.Screen

@@ -3,8 +3,6 @@ import {
   AccountOutput,
   CreateAccountInput,
   ListAccountsOutput,
-  TransferBalanceInput,
-  TransferBalanceOutput,
   UpdateAccountInput
 } from '@mybills/dtos';
 import { AccountsController } from './accounts.controller';
@@ -33,7 +31,6 @@ describe('AccountsController', () => {
             findAll: jest.fn(),
             findById: jest.fn(),
             create: jest.fn(),
-            transferBalance: jest.fn(),
             update: jest.fn(),
             remove: jest.fn()
           }
@@ -108,42 +105,6 @@ describe('AccountsController', () => {
       expect(result).toEqual(output);
       expect(service.update).toHaveBeenCalledTimes(1);
       expect(service.update).toHaveBeenCalledWith(baseAccount.id, baseAccount.userId, input);
-    });
-  });
-
-  describe('transferBalance', () => {
-    it('should call accountsService.transferBalance with transfer data and user id', async () => {
-      const input: TransferBalanceInput = {
-        sourceAccountId: '5ea4f605-31d5-4dcf-93bc-45fafad6f319',
-        destinationAccountId: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
-        amount: 450
-      };
-
-      const output: TransferBalanceOutput = {
-        sourceAccount: {
-          ...baseAccount,
-          balance: 550
-        },
-        destinationAccount: {
-          ...baseAccount,
-          id: input.destinationAccountId,
-          name: 'Savings Account',
-          balance: 1450
-        }
-      };
-
-      service.transferBalance.mockResolvedValue(output);
-
-      const result = await controller.transferBalance(baseAccount.userId, input);
-
-      expect(result).toEqual(output);
-      expect(service.transferBalance).toHaveBeenCalledTimes(1);
-      expect(service.transferBalance).toHaveBeenCalledWith({
-        userId: baseAccount.userId,
-        sourceAccountId: input.sourceAccountId,
-        destinationAccountId: input.destinationAccountId,
-        amount: input.amount
-      });
     });
   });
 

@@ -5,6 +5,7 @@ export class Category {
   userId: string;
   name: string;
   icon: CategoryIcon;
+  isSystem: boolean;
   types: CategoryTransactionType[];
   createdAt: string;
   updatedAt: string;

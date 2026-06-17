@@ -14,13 +14,15 @@ export const transactions = {
   categoryNone: 'None',
   accountLabel: 'Account',
   accountNone: 'None',
+  sourceAccountLabel: 'From account',
+  destinationAccountLabel: 'To account',
   cardLabel: 'Credit card',
   cardNone: 'None',
   noAccountsHint: 'Create an account first to link this transaction.',
   noCardsHint: 'No credit cards yet.',
   paidLabel: 'Paid',
   paidHint: 'Only affects account balance when an account is selected.',
-  transferHint: 'Transfers debit one account. A destination account is not supported yet.',
+  transferHint: 'Move money between your accounts. Two transactions are created automatically.',
   cardVsAccountHint: 'Choose either an account or a card, not both.',
   submit: 'Save transaction',
   submitLoading: 'Saving…',
@@ -30,6 +32,9 @@ export const transactions = {
     typeRequired: 'Select a transaction type.',
     dateRequired: 'Select a valid date.',
     accountInvalid: 'Select a valid account.',
+    sourceAccountRequired: 'Select the account to transfer from.',
+    destinationAccountRequired: 'Select the account to transfer to.',
+    accountsMustDiffer: 'Source and destination accounts must be different.',
     categoryInvalid: 'Select a valid category.',
     cardInvalid: 'Select a valid credit card.'
   },
@@ -40,6 +45,8 @@ export const transactions = {
     accountNotFound: 'The selected account was not found.',
     categoryNotFound: 'The selected category was not found.',
     cardNotFound: 'The selected credit card was not found.',
-    invalidIsPaid: 'Paid status is invalid for this transaction.'
+    invalidIsPaid: 'Paid status is invalid for this transaction.',
+    insufficientBalance: 'Insufficient balance in the source account.',
+    transferFailed: 'The transfer could not be completed.'
   }
 } as const;

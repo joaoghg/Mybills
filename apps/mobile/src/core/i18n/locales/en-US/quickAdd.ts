@@ -9,5 +9,7 @@ export const quickAdd = {
   creditCardTitle: 'New card',
   creditCardSubtitle: 'Card registration will be available soon.',
   category: 'Category',
-  categoryTitle: 'New category'
+  categoryTitle: 'New category',
+  transfer: 'Transfer',
+  transferTitle: 'New transfer'
 } as const;

@@ -7,6 +7,7 @@ export const transactionOutputSchema = z.object({
   accountId: z.uuid().nullable(),
   categoryId: z.uuid().nullable(),
   cardId: z.uuid().nullable(),
+  transferGroupId: z.uuid().nullable(),
   description: z.string().nullable(),
   type: transactionTypeSchema,
   amount: z.int(),

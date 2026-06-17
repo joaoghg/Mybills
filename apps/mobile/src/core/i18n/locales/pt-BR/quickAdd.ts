@@ -9,5 +9,7 @@ export const quickAdd = {
   creditCardTitle: 'Novo cartão',
   creditCardSubtitle: 'O cadastro de cartões estará disponível em breve.',
   category: 'Categoria',
-  categoryTitle: 'Nova categoria'
+  categoryTitle: 'Nova categoria',
+  transfer: 'Transferência',
+  transferTitle: 'Nova transferência'
 } as const;

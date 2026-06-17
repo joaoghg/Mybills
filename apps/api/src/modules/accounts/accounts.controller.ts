@@ -19,10 +19,6 @@ import {
   createAccountInputSchema,
   ListAccountsOutput,
   listAccountsOutputSchema,
-  TransferBalanceInput,
-  transferBalanceInputSchema,
-  TransferBalanceOutput,
-  transferBalanceOutputSchema,
   UpdateAccountInput,
   updateAccountInputSchema
 } from '@mybills/dtos';
@@ -94,34 +90,6 @@ export class AccountsController {
       userId,
       name: data.name,
       balance: data.balance
-    });
-  }
-
-  @Post('transfer')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Transfer account balance',
-    description: 'Transfers balance between two accounts from the authenticated user.'
-  })
-  @ApiBody({
-    schema: toJSONSchema(transferBalanceInputSchema) as SchemaObject,
-    description: 'Balance transfer payload'
-  })
-  @ApiResponse({
-    status: HttpStatus.OK,
-    description: 'Balance transferred successfully.',
-    schema: toJSONSchema(transferBalanceOutputSchema) as SchemaObject
-  })
-  @Serialize(transferBalanceOutputSchema)
-  async transferBalance(
-    @CurrentUser('sub') userId: string,
-    @Body(new ZodValidationPipe(transferBalanceInputSchema)) data: TransferBalanceInput
-  ): Promise<TransferBalanceOutput> {
-    return await this.accountsService.transferBalance({
-      userId,
-      sourceAccountId: data.sourceAccountId,
-      destinationAccountId: data.destinationAccountId,
-      amount: data.amount
     });
   }
 

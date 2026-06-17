@@ -14,6 +14,10 @@ import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiResponse, ApiTags } from 
 import {
   CreateTransactionInput,
   createTransactionInputSchema,
+  CreateTransferInput,
+  createTransferInputSchema,
+  CreateTransferOutput,
+  createTransferOutputSchema,
   ListTransactionsOutput,
   listTransactionsOutputSchema,
   ListTransactionsQueryInput,
@@ -74,6 +78,37 @@ export class TransactionsController {
     @Query(new ZodValidationPipe(listTransactionsQueryInputSchema)) query: ListTransactionsQueryInput
   ): Promise<ListTransactionsOutput> {
     return await this.transactionsService.findAll(userId, query);
+  }
+
+  @Post('transfer')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create transfer',
+    description:
+      'Transfers balance between two accounts and creates linked expense and income transactions.'
+  })
+  @ApiBody({
+    schema: toJSONSchema(createTransferInputSchema) as SchemaObject,
+    description: 'Transfer creation payload'
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Transfer created successfully.',
+    schema: toJSONSchema(createTransferOutputSchema) as SchemaObject
+  })
+  @Serialize(createTransferOutputSchema)
+  async createTransfer(
+    @CurrentUser('sub') userId: string,
+    @Body(new ZodValidationPipe(createTransferInputSchema)) data: CreateTransferInput
+  ): Promise<CreateTransferOutput> {
+    return await this.transactionsService.createTransfer({
+      userId,
+      sourceAccountId: data.sourceAccountId,
+      destinationAccountId: data.destinationAccountId,
+      amount: data.amount,
+      date: data.date,
+      description: data.description
+    });
   }
 
   @Get(':id')

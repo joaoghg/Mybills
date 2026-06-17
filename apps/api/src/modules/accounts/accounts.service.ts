@@ -2,8 +2,6 @@ import { Inject, Injectable } from '@nestjs/common';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
 import { CreateAccountData } from './contracts/create-account-data.contract';
-import { TransferBalanceData } from './contracts/transfer-balance-data.contract';
-import { TransferBalanceResult } from './contracts/transfer-balance-result.contract';
 import { UpdateAccountData } from './contracts/update-account-data.contract';
 import { Account } from './entities/account.entity';
 import { AccountRepository } from './repositories/account.repository';
@@ -48,51 +46,6 @@ export class AccountsService {
     this.validateCreateData(data);
 
     return await this.repository.create(data);
-  }
-
-  async transferBalance(data: TransferBalanceData): Promise<TransferBalanceResult> {
-    this.validateTransferData(data);
-
-    const sourceAccount = await this.repository.findByIdAndUserId(data.sourceAccountId, data.userId);
-
-    if (!sourceAccount) {
-      throw new NotFoundError({
-        code: 'accounts.source_account_not_found',
-        i18nKey: 'errors.not_found.resource',
-        i18nArgs: { resource: 'source_account' }
-      });
-    }
-
-    const destinationAccount = await this.repository.findByIdAndUserId(
-      data.destinationAccountId,
-      data.userId
-    );
-
-    if (!destinationAccount) {
-      throw new NotFoundError({
-        code: 'accounts.destination_account_not_found',
-        i18nKey: 'errors.not_found.resource',
-        i18nArgs: { resource: 'destination_account' }
-      });
-    }
-
-    if (sourceAccount.balance < data.amount) {
-      throw new InvalidArgumentError({
-        code: 'accounts.insufficient_balance',
-        i18nKey: 'errors.accounts.insufficient_balance'
-      });
-    }
-
-    const transferResult = await this.repository.transferBalance(data);
-
-    if (!transferResult) {
-      throw new InvalidArgumentError({
-        code: 'accounts.transfer_failed',
-        i18nKey: 'errors.accounts.transfer_failed'
-      });
-    }
-
-    return transferResult;
   }
 
   async update(accountId: string, userId: string, data: UpdateAccountData): Promise<Account> {
@@ -154,27 +107,6 @@ export class AccountsService {
         code: 'accounts.invalid_account_balance',
         i18nKey: 'errors.validation.invalid_field',
         i18nArgs: { field: 'account_balance' }
-      });
-    }
-  }
-
-  private validateTransferData(data: TransferBalanceData): void {
-    this.validateUserId(data.userId);
-    this.validateAccountId(data.sourceAccountId);
-    this.validateAccountId(data.destinationAccountId);
-
-    if (data.sourceAccountId === data.destinationAccountId) {
-      throw new InvalidArgumentError({
-        code: 'accounts.source_and_destination_must_differ',
-        i18nKey: 'errors.validation.source_and_destination_must_differ'
-      });
-    }
-
-    if (!Number.isInteger(data.amount) || data.amount <= 0) {
-      throw new InvalidArgumentError({
-        code: 'accounts.invalid_transfer_amount',
-        i18nKey: 'errors.validation.invalid_field',
-        i18nArgs: { field: 'transfer_amount' }
       });
     }
   }

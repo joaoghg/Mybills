@@ -9,6 +9,7 @@ import { onboarding } from './onboarding';
 import { quickAdd } from './quickAdd';
 import { tabs } from './tabs';
 import { transactions } from './transactions';
+import { transfers } from './transfers';
 import { wallet } from './wallet';
 
 export const enUS = {
@@ -23,5 +24,6 @@ export const enUS = {
   quickAdd,
   tabs,
   transactions,
+  transfers,
   wallet
 } as const;

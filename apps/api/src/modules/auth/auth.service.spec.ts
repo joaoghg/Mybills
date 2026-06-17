@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { UsersService } from '../user/users.service';
+import { CategoriesService } from '../categories/categories.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
@@ -22,6 +23,7 @@ function hashRefreshToken(token: string): string {
 describe('AuthService', () => {
   let authService: AuthService;
   let usersService: jest.Mocked<UsersService>;
+  let categoriesService: jest.Mocked<CategoriesService>;
   let jwtService: jest.Mocked<JwtService>;
 
   const mockUser: User = {
@@ -48,6 +50,12 @@ describe('AuthService', () => {
           }
         },
         {
+          provide: CategoriesService,
+          useValue: {
+            ensureDefaultTransferCategory: jest.fn()
+          }
+        },
+        {
           provide: JwtService,
           useValue: {
             signAsync: jest.fn(),
@@ -65,6 +73,7 @@ describe('AuthService', () => {
 
     authService = module.get<AuthService>(AuthService);
     usersService = module.get(UsersService) as jest.Mocked<UsersService>;
+    categoriesService = module.get(CategoriesService) as jest.Mocked<CategoriesService>;
     jwtService = module.get(JwtService) as jest.Mocked<JwtService>;
 
     jest.clearAllMocks();
@@ -74,6 +83,15 @@ describe('AuthService', () => {
     it('should successfully sign up a new user and return tokens', async () => {
       usersService.findByEmail.mockResolvedValue(null);
       usersService.create.mockResolvedValue(mockUser);
+      categoriesService.ensureDefaultTransferCategory.mockResolvedValue({
+        id: 'category-1',
+        userId: mockUser.id,
+        name: 'Transferência',
+        icon: 'swap-horizontal-outline',
+        isSystem: true,
+        createdAt: mockUser.createdAt,
+        updatedAt: mockUser.updatedAt
+      });
       jwtService.signAsync
         .mockResolvedValueOnce('access-token')
         .mockResolvedValueOnce('refresh-token');

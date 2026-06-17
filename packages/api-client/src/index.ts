@@ -16,6 +16,7 @@ export { createCreditCard } from './credit-cards/create-credit-card.js';
 export { listCreditCards } from './credit-cards/list-credit-cards.js';
 export { listTransactions } from './transactions/list-transactions.js';
 export { createTransaction } from './transactions/create-transaction.js';
+export { createTransfer } from './transactions/create-transfer.js';
 export { createCategory } from './categories/create-category.js';
 export { deleteCategory } from './categories/delete-category.js';
 export { listCategories } from './categories/list-categories.js';
