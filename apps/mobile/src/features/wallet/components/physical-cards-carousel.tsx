@@ -20,6 +20,8 @@ type PhysicalCardsCarouselProps = {
   emptyLabel?: string;
   emptyActionLabel?: string;
   onEmptyActionPress?: () => void;
+  onEditCard?: (cardId: string) => void;
+  editCardLabel?: string;
 };
 
 export function PhysicalCardsCarousel({
@@ -35,7 +37,9 @@ export function PhysicalCardsCarousel({
   formatCurrency,
   emptyLabel,
   emptyActionLabel,
-  onEmptyActionPress
+  onEmptyActionPress,
+  onEditCard,
+  editCardLabel
 }: PhysicalCardsCarouselProps) {
   return (
     <View style={styles.wrap}>
@@ -97,6 +101,20 @@ export function PhysicalCardsCarousel({
                       color="rgba(255,255,255,0.9)"
                       accessibilityLabel={contactlessLabel}
                     />
+                    {selected && onEditCard ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel={editCardLabel}
+                        hitSlop={8}
+                        onPress={() => onEditCard(item.id)}
+                        style={({ pressed }) => [
+                          styles.editButton,
+                          pressed && styles.editButtonPressed
+                        ]}
+                      >
+                        <Ionicons name="pencil-outline" size={18} color="rgba(255,255,255,0.95)" />
+                      </Pressable>
+                    ) : null}
                   </View>
                   <Text style={styles.cardName} numberOfLines={2} ellipsizeMode="tail">
                     {item.name}
@@ -179,8 +197,19 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
     flexDirection: 'row',
-    justifyContent: 'flex-start',
+    justifyContent: 'space-between',
     alignItems: 'center'
+  },
+  editButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.2)'
+  },
+  editButtonPressed: {
+    opacity: 0.85
   },
   cardName: {
     color: 'rgba(255,255,255,0.95)',

@@ -13,5 +13,6 @@ export const wallet = {
   emptyAccounts: 'No accounts yet.',
   emptyCards: 'No cards yet.',
   addAccount: 'New account',
-  addCard: 'New card'
+  addCard: 'New card',
+  editCard: 'Edit card'
 } as const;

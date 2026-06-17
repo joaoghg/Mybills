@@ -23,7 +23,7 @@ export function WalletScreen() {
 
   const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
 
-  const accountRows = dashboard.account ? [dashboard.account] : [];
+  const accountRows = dashboard.accounts;
 
   const isLoading = dashboard.isLoading || userQuery.isPending;
   const isError = dashboard.isError || userQuery.isError;
@@ -81,6 +81,7 @@ export function WalletScreen() {
             emptyLabel={t('wallet.emptyAccounts')}
             emptyActionLabel={t('wallet.addAccount')}
             onEmptyActionPress={() => navigateRoot('AddAccount')}
+            onAccountPress={(accountId) => navigateRoot('EditAccount', { accountId })}
           />
           <PhysicalCardsCarousel
             theme={theme}
@@ -94,6 +95,8 @@ export function WalletScreen() {
             emptyLabel={t('wallet.emptyCards')}
             emptyActionLabel={t('wallet.addCard')}
             onEmptyActionPress={() => navigateRoot('AddCreditCard')}
+            onEditCard={(cardId) => navigateRoot('EditCreditCard', { cardId })}
+            editCardLabel={t('wallet.editCard')}
           />
           {dashboard.invoice ? (
             <InvoiceCard
