@@ -26,6 +26,16 @@ export const transactions = {
   cardVsAccountHint: 'Escolha conta ou cartão, não os dois.',
   submit: 'Salvar transação',
   submitLoading: 'Salvando…',
+  editTitle: 'Editar transação',
+  updateSubmit: 'Salvar alterações',
+  updateLoading: 'Salvando…',
+  deleteAction: 'Excluir transação',
+  deleteLoading: 'Excluindo…',
+  deleteConfirmTitle: 'Excluir transação?',
+  deleteConfirmMessage: 'Esta ação não pode ser desfeita.',
+  deleteConfirm: 'Excluir',
+  deleteCancel: 'Cancelar',
+  notFound: 'Transação não encontrada.',
   validation: {
     amountRequired: 'Informe um valor maior que zero.',
     paidRequiresAccount: 'Selecione uma conta ao marcar como pago.',
@@ -47,6 +57,7 @@ export const transactions = {
     cardNotFound: 'O cartão selecionado não foi encontrado.',
     invalidIsPaid: 'Status de pago inválido para esta transação.',
     insufficientBalance: 'Saldo insuficiente na conta de saída.',
-    transferFailed: 'A transferência não pôde ser concluída.'
+    transferFailed: 'A transferência não pôde ser concluída.',
+    transferEditNotAllowed: 'Use a tela de transferência para editar este registro.'
   }
 } as const;

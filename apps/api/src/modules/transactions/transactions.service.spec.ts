@@ -65,7 +65,10 @@ describe('TransactionsService', () => {
             createTransferPair: jest.fn(),
             update: jest.fn(),
             updateIsPaid: jest.fn(),
-            delete: jest.fn()
+            delete: jest.fn(),
+            findByTransferGroupIdAndUserId: jest.fn(),
+            updateTransferPair: jest.fn(),
+            deleteTransferPair: jest.fn()
           }
         },
         {
@@ -311,6 +314,17 @@ describe('TransactionsService', () => {
         InvalidArgumentError
       );
     });
+
+    it('should reject update when transaction belongs to a transfer pair', async () => {
+      repository.findByIdAndUserId.mockResolvedValue({
+        ...baseTransaction,
+        transferGroupId: 'group-1'
+      });
+
+      await expect(
+        service.update(baseTransaction.id, baseTransaction.userId, { amount: 1000 })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
   });
 
   describe('updateIsPaid', () => {
@@ -332,6 +346,18 @@ describe('TransactionsService', () => {
       expect(accountsService.update).toHaveBeenCalledWith(account.id, account.userId, {
         balance: account.balance - baseTransaction.amount
       });
+    });
+
+    it('should reject paid status update for transfer legs', async () => {
+      repository.findByIdAndUserId.mockResolvedValue({
+        ...baseTransaction,
+        transferGroupId: 'group-1',
+        isPaid: true
+      });
+
+      await expect(
+        service.updateIsPaid(baseTransaction.id, baseTransaction.userId, false)
+      ).rejects.toThrow(InvalidArgumentError);
     });
   });
 
@@ -433,6 +459,113 @@ describe('TransactionsService', () => {
         balance: account.balance + paidTransaction.amount
       });
       expect(repository.delete).toHaveBeenCalledWith(paidTransaction.id);
+    });
+
+    it('should delete transfer pair without applying single-leg balance impact', async () => {
+      const transferLeg: Transaction = {
+        ...baseTransaction,
+        transferGroupId: 'group-1',
+        isPaid: true
+      };
+
+      repository.findByIdAndUserId.mockResolvedValue(transferLeg);
+      repository.deleteTransferPair.mockResolvedValue(true);
+
+      await service.remove(transferLeg.id, transferLeg.userId);
+
+      expect(repository.deleteTransferPair).toHaveBeenCalledWith('group-1', transferLeg.userId);
+      expect(accountsService.update).not.toHaveBeenCalled();
+      expect(repository.delete).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('findTransferByGroupId', () => {
+    it('should return transfer pair when found', async () => {
+      const sourceTransaction: Transaction = {
+        ...baseTransaction,
+        type: TransactionType.EXPENSE,
+        transferGroupId: 'group-1',
+        isPaid: true
+      };
+      const destinationTransaction: Transaction = {
+        ...sourceTransaction,
+        id: 'dest-tx-id',
+        type: TransactionType.INCOME
+      };
+
+      repository.findByTransferGroupIdAndUserId.mockResolvedValue({
+        sourceTransaction,
+        destinationTransaction
+      });
+
+      const result = await service.findTransferByGroupId('group-1', baseTransaction.userId);
+
+      expect(result.transferGroupId).toBe('group-1');
+      expect(result.sourceTransaction.id).toBe(sourceTransaction.id);
+    });
+
+    it('should throw NotFoundError when transfer pair is missing', async () => {
+      repository.findByTransferGroupIdAndUserId.mockResolvedValue(null);
+
+      await expect(
+        service.findTransferByGroupId('group-1', baseTransaction.userId)
+      ).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('updateTransfer', () => {
+    const destinationAccount: Account = {
+      id: '8f2a9366-df4d-4ff4-ac12-e1b5e49f30f4',
+      userId: account.userId,
+      name: 'Savings',
+      balance: 5000,
+      createdAt: account.createdAt,
+      updatedAt: account.updatedAt
+    };
+
+    const sourceTransaction: Transaction = {
+      ...baseTransaction,
+      type: TransactionType.EXPENSE,
+      amount: 1500,
+      isPaid: true,
+      transferGroupId: 'group-1'
+    };
+    const destinationTransaction: Transaction = {
+      ...sourceTransaction,
+      id: 'dest-tx-id',
+      accountId: destinationAccount.id,
+      type: TransactionType.INCOME
+    };
+
+    const updateInput = {
+      sourceAccountId: account.id,
+      destinationAccountId: destinationAccount.id,
+      amount: 2000,
+      date: '2026-04-05'
+    };
+
+    it('should update transfer pair through repository', async () => {
+      repository.findByTransferGroupIdAndUserId.mockResolvedValue({
+        sourceTransaction,
+        destinationTransaction
+      });
+      accountsService.findById
+        .mockResolvedValueOnce(account)
+        .mockResolvedValueOnce(destinationAccount)
+        .mockResolvedValueOnce(account);
+      repository.updateTransferPair.mockResolvedValue({
+        transferGroupId: 'group-1',
+        sourceTransaction: { ...sourceTransaction, amount: 2000 },
+        destinationTransaction: { ...destinationTransaction, amount: 2000 }
+      });
+
+      const result = await service.updateTransfer('group-1', account.userId, updateInput);
+
+      expect(result.sourceTransaction.amount).toBe(2000);
+      expect(repository.updateTransferPair).toHaveBeenCalledWith('group-1', {
+        ...updateInput,
+        userId: account.userId
+      });
     });
   });
 });

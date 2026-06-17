@@ -4,6 +4,8 @@ import type { AppTheme } from '@/core/theme';
 import { TransactionListItem } from '@/shared/components/transaction-list-item';
 import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
 
+import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
+
 type RecentTransactionsSectionProps = {
   theme: AppTheme;
   sectionTitle: string;
@@ -13,6 +15,7 @@ type RecentTransactionsSectionProps = {
   emptyActionLabel?: string;
   onEmptyActionPress?: () => void;
   onSeeAllPress?: () => void;
+  onTransactionPress?: (transaction: RecentTransactionRow) => void;
   formatCurrency: (amount: number) => string;
 };
 
@@ -25,6 +28,7 @@ export function RecentTransactionsSection({
   emptyActionLabel,
   onEmptyActionPress,
   onSeeAllPress,
+  onTransactionPress,
   formatCurrency
 }: RecentTransactionsSectionProps) {
   return (
@@ -64,6 +68,7 @@ export function RecentTransactionsSection({
               theme={theme}
               transaction={tx}
               formatCurrency={formatCurrency}
+              onPress={onTransactionPress ? () => onTransactionPress(tx) : undefined}
             />
           ))
         )}

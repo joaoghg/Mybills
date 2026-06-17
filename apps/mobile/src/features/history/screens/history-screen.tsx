@@ -24,6 +24,7 @@ import type { TransactionDateSection } from '@/features/history/lib/group-transa
 import { navigateRoot } from '@/navigation/root-navigation-ref';
 import { AppScreenHeader } from '@/shared/components/app-screen-header';
 import { TransactionListItem } from '@/shared/components/transaction-list-item';
+import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
 import { formatCurrencyValue } from '@/shared/utils/format-currency';
 
 export function HistoryScreen() {
@@ -42,6 +43,15 @@ export function HistoryScreen() {
 
   const history = useTransactionHistory(locale, timeLabels, t);
   const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
+
+  function handleTransactionPress(row: RecentTransactionRow) {
+    if (row.transferGroupId) {
+      navigateRoot('EditTransfer', { transferGroupId: row.transferGroupId });
+      return;
+    }
+
+    navigateRoot('EditTransaction', { transactionId: row.id });
+  }
 
   const [filtersSheetVisible, setFiltersSheetVisible] = useState(false);
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
@@ -120,6 +130,7 @@ export function HistoryScreen() {
       }}
       subtitle={item.subtitle}
       formatCurrency={formatMoney}
+      onPress={() => handleTransactionPress(item)}
     />
   );
 

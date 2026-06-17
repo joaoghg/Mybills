@@ -3,6 +3,8 @@ export type RootStackParamList = {
   AddAccount: undefined;
   AddTransaction: undefined;
   AddTransfer: undefined;
+  EditTransaction: { transactionId: string };
+  EditTransfer: { transferGroupId: string };
   AddCreditCard: undefined;
   EditAccount: { accountId: string };
   EditCreditCard: { cardId: string };

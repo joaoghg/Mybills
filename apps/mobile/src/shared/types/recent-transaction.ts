@@ -9,4 +9,5 @@ export type RecentTransactionRow = {
   displayAmountMajor: number;
   amountVariant: RecentAmountVariant;
   iconName: CategoryIcon;
+  transferGroupId?: string | null;
 };
