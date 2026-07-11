@@ -7,6 +7,8 @@ import {
 } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
 import { CreateTransferData } from '../../contracts/create-transfer-data.contract';
+import { TransferPair } from '../../contracts/transfer-pair.contract';
+import { UpdateTransferData } from '../../contracts/update-transfer-data.contract';
 import { CreateTransactionData } from '../../contracts/create-transaction-data.contract';
 import { UpdateTransactionData } from '../../contracts/update-transaction-data.contract';
 import { Transaction } from '../../entities/transaction.entity';
@@ -95,6 +97,34 @@ export class PrismaTransactionRepository implements TransactionRepository {
     return this.mapToEntity(transaction);
   }
 
+  async findByTransferGroupIdAndUserId(
+    transferGroupId: string,
+    userId: string
+  ): Promise<TransferPair | null> {
+    const transactions = await this.prisma.transaction.findMany({
+      where: {
+        transferGroupId,
+        userId
+      }
+    });
+
+    if (transactions.length !== 2) {
+      return null;
+    }
+
+    const source = transactions.find((tx) => tx.type === TransactionType.EXPENSE);
+    const destination = transactions.find((tx) => tx.type === TransactionType.INCOME);
+
+    if (!source || !destination) {
+      return null;
+    }
+
+    return {
+      sourceTransaction: this.mapToEntity(source),
+      destinationTransaction: this.mapToEntity(destination)
+    };
+  }
+
   async create(data: CreateTransactionData): Promise<Transaction> {
     const transaction = await this.prisma.transaction.create({
       data: {
@@ -178,6 +208,81 @@ export class PrismaTransactionRepository implements TransactionRepository {
     }).catch(() => null);
   }
 
+  async updateTransferPair(
+    transferGroupId: string,
+    data: UpdateTransferData
+  ): Promise<import('../../contracts/create-transfer-data.contract').CreateTransferResult | null> {
+    return await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.transaction.findMany({
+        where: {
+          transferGroupId,
+          userId: data.userId
+        }
+      });
+
+      if (existing.length !== 2) {
+        return null;
+      }
+
+      const oldSource = existing.find((item) => item.type === TransactionType.EXPENSE);
+      const oldDestination = existing.find((item) => item.type === TransactionType.INCOME);
+
+      if (!oldSource || !oldDestination || !oldSource.accountId || !oldDestination.accountId) {
+        return null;
+      }
+
+      await tx.account.update({
+        where: { id: oldSource.accountId, userId: data.userId },
+        data: { balance: { increment: oldSource.amount } }
+      });
+
+      await tx.account.update({
+        where: { id: oldDestination.accountId, userId: data.userId },
+        data: { balance: { decrement: oldDestination.amount } }
+      });
+
+      await tx.account.update({
+        where: {
+          id: data.sourceAccountId,
+          userId: data.userId,
+          balance: { gte: data.amount }
+        },
+        data: { balance: { decrement: data.amount } }
+      });
+
+      await tx.account.update({
+        where: { id: data.destinationAccountId, userId: data.userId },
+        data: { balance: { increment: data.amount } }
+      });
+
+      const sourceTransaction = await tx.transaction.update({
+        where: { id: oldSource.id },
+        data: {
+          accountId: data.sourceAccountId,
+          description: data.description,
+          amount: data.amount,
+          date: new Date(data.date)
+        }
+      });
+
+      const destinationTransaction = await tx.transaction.update({
+        where: { id: oldDestination.id },
+        data: {
+          accountId: data.destinationAccountId,
+          description: data.description,
+          amount: data.amount,
+          date: new Date(data.date)
+        }
+      });
+
+      return {
+        transferGroupId,
+        sourceTransaction: this.mapToEntity(sourceTransaction),
+        destinationTransaction: this.mapToEntity(destinationTransaction)
+      };
+    }).catch(() => null);
+  }
+
   async update(transactionId: string, data: UpdateTransactionData): Promise<Transaction> {
     const transaction = await this.prisma.transaction.update({
       where: { id: transactionId },
@@ -207,6 +312,47 @@ export class PrismaTransactionRepository implements TransactionRepository {
   async delete(transactionId: string): Promise<void> {
     await this.prisma.transaction.delete({
       where: { id: transactionId }
+    });
+  }
+
+  async deleteTransferPair(transferGroupId: string, userId: string): Promise<boolean> {
+    return await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.transaction.findMany({
+        where: {
+          transferGroupId,
+          userId
+        }
+      });
+
+      if (existing.length !== 2) {
+        return false;
+      }
+
+      const source = existing.find((item) => item.type === TransactionType.EXPENSE);
+      const destination = existing.find((item) => item.type === TransactionType.INCOME);
+
+      if (!source || !destination || !source.accountId || !destination.accountId) {
+        return false;
+      }
+
+      await tx.account.update({
+        where: { id: source.accountId, userId },
+        data: { balance: { increment: source.amount } }
+      });
+
+      await tx.account.update({
+        where: { id: destination.accountId, userId },
+        data: { balance: { decrement: destination.amount } }
+      });
+
+      await tx.transaction.deleteMany({
+        where: {
+          transferGroupId,
+          userId
+        }
+      });
+
+      return true;
     });
   }
 }

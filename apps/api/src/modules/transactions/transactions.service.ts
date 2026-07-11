@@ -9,7 +9,8 @@ import { CategoriesService } from '../categories/categories.service';
 import { CreditCardsService } from '../credit-cards/credit-cards.service';
 import { CreateTransactionData } from './contracts/create-transaction-data.contract';
 import { CreateTransferInputData } from './contracts/create-transfer-input-data.contract';
-import { CreateTransferData } from './contracts/create-transfer-data.contract';
+import { CreateTransferData, CreateTransferResult } from './contracts/create-transfer-data.contract';
+import { UpdateTransferData } from './contracts/update-transfer-data.contract';
 import { UpdateTransactionData } from './contracts/update-transaction-data.contract';
 import { Transaction } from './entities/transaction.entity';
 import { TransactionRepository } from './repositories/transaction.repository';
@@ -108,6 +109,82 @@ export class TransactionsService {
     return transferResult;
   }
 
+  async findTransferByGroupId(
+    transferGroupId: string,
+    userId: string
+  ): Promise<CreateTransferResult> {
+    this.validateTransferGroupId(transferGroupId);
+    this.validateUserId(userId);
+
+    const pair = await this.repository.findByTransferGroupIdAndUserId(transferGroupId, userId);
+
+    if (!pair) {
+      throw new NotFoundError({
+        code: 'transactions.transfer_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'transfer' }
+      });
+    }
+
+    return {
+      transferGroupId,
+      sourceTransaction: pair.sourceTransaction,
+      destinationTransaction: pair.destinationTransaction
+    };
+  }
+
+  async updateTransfer(
+    transferGroupId: string,
+    userId: string,
+    data: Omit<UpdateTransferData, 'userId'>
+  ): Promise<CreateTransferResult> {
+    this.validateTransferGroupId(transferGroupId);
+    this.validateTransferData({ ...data, userId });
+
+    const existing = await this.repository.findByTransferGroupIdAndUserId(transferGroupId, userId);
+
+    if (!existing) {
+      throw new NotFoundError({
+        code: 'transactions.transfer_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'transfer' }
+      });
+    }
+
+    await this.findSourceAccountForTransfer({ ...data, userId });
+    await this.findDestinationAccountForTransfer({ ...data, userId });
+
+    const sourceAccount = await this.accountsService.findById(data.sourceAccountId, userId);
+    const oldSourceAccountId = existing.sourceTransaction.accountId;
+    const oldAmount = existing.sourceTransaction.amount;
+
+    const effectiveBalance =
+      oldSourceAccountId === data.sourceAccountId
+        ? sourceAccount.balance + oldAmount
+        : sourceAccount.balance;
+
+    if (effectiveBalance < data.amount) {
+      throw new InvalidArgumentError({
+        code: 'accounts.insufficient_balance',
+        i18nKey: 'errors.accounts.insufficient_balance'
+      });
+    }
+
+    const transferResult = await this.repository.updateTransferPair(transferGroupId, {
+      ...data,
+      userId
+    });
+
+    if (!transferResult) {
+      throw new InvalidArgumentError({
+        code: 'transactions.transfer_failed',
+        i18nKey: 'errors.transactions.transfer_failed'
+      });
+    }
+
+    return transferResult;
+  }
+
   private async findSourceAccountForTransfer(data: CreateTransferInputData) {
     try {
       return await this.accountsService.findById(data.sourceAccountId, data.userId);
@@ -150,6 +227,13 @@ export class TransactionsService {
     this.validateUpdateData(data);
 
     const currentTransaction = await this.findById(transactionId, userId);
+
+    if (currentTransaction.transferGroupId) {
+      throw new InvalidArgumentError({
+        code: 'transactions.transfer_edit_not_allowed',
+        i18nKey: 'errors.transactions.transfer_edit_not_allowed'
+      });
+    }
 
     const nextAccountId =
       data.accountId === undefined ? currentTransaction.accountId : data.accountId;
@@ -204,6 +288,13 @@ export class TransactionsService {
 
     const currentTransaction = await this.findById(transactionId, userId);
 
+    if (currentTransaction.transferGroupId) {
+      throw new InvalidArgumentError({
+        code: 'transactions.transfer_paid_status_not_allowed',
+        i18nKey: 'errors.transactions.transfer_paid_status_not_allowed'
+      });
+    }
+
     if (currentTransaction.isPaid === isPaid) {
       return currentTransaction;
     }
@@ -229,6 +320,22 @@ export class TransactionsService {
     this.validateUserId(userId);
 
     const transaction = await this.findById(transactionId, userId);
+
+    if (transaction.transferGroupId) {
+      const deleted = await this.repository.deleteTransferPair(
+        transaction.transferGroupId,
+        userId
+      );
+
+      if (!deleted) {
+        throw new InvalidArgumentError({
+          code: 'transactions.transfer_failed',
+          i18nKey: 'errors.transactions.transfer_failed'
+        });
+      }
+
+      return;
+    }
 
     if (transaction.isPaid && transaction.accountId) {
       await this.applyBalanceImpact(
@@ -470,6 +577,16 @@ export class TransactionsService {
         code: 'transactions.invalid_transaction_date',
         i18nKey: 'errors.validation.invalid_field',
         i18nArgs: { field: 'transaction_date' }
+      });
+    }
+  }
+
+  private validateTransferGroupId(transferGroupId: string): void {
+    if (!transferGroupId || typeof transferGroupId !== 'string') {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_transfer_group_id',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'transfer_group_id' }
       });
     }
   }

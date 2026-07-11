@@ -24,7 +24,10 @@
     },
     "transactions": {
       "category_not_allowed_for_transfer": "Categories are not allowed on transfers",
-      "category_type_mismatch": "The selected category is not compatible with the transaction type"
+      "category_type_mismatch": "The selected category is not compatible with the transaction type",
+      "transfer_failed": "Transfer could not be completed",
+      "transfer_edit_not_allowed": "Transfers must be updated through the transfer endpoint",
+      "transfer_paid_status_not_allowed": "Transfer paid status cannot be changed"
     },
     "auth": {
       "invalid_credentials": "Invalid email or password",
@@ -37,9 +40,6 @@
     },
     "conflict": {
       "already_exists_field": "A record already exists for field: {field}"
-    },
-    "transactions": {
-      "transfer_failed": "Transfer could not be completed"
     }
   }
 }

@@ -143,7 +143,8 @@ describe('CategoriesService', () => {
         userId: category.userId,
         name: 'Transferência',
         icon: 'swap-horizontal-outline',
-        isSystem: true
+        isSystem: true,
+        types: ['INCOME', 'EXPENSE']
       });
     });
   });

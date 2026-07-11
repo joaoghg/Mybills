@@ -306,7 +306,7 @@ describe('Transactions (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post('/categories')
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ name, icon: 'cart-outline' })
+        .send({ name, icon: 'cart-outline', types: ['INCOME', 'EXPENSE'] })
         .expect(201);
 
       return response.body.id as string;

@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import type { ComponentProps } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
 import type { RecentAmountVariant, RecentTransactionRow } from '@/shared/types/recent-transaction';
@@ -10,6 +10,7 @@ type TransactionListItemProps = {
   transaction: RecentTransactionRow;
   formatCurrency: (amount: number) => string;
   subtitle?: string;
+  onPress?: () => void;
 };
 
 function amountColor(theme: AppTheme, variant: RecentAmountVariant): string {
@@ -22,7 +23,8 @@ export function TransactionListItem({
   theme,
   transaction,
   formatCurrency,
-  subtitle
+  subtitle,
+  onPress
 }: TransactionListItemProps) {
   const tx = transaction;
   const iconName = tx.iconName as ComponentProps<typeof Ionicons>['name'];
@@ -40,14 +42,18 @@ export function TransactionListItem({
         : theme.colors.textSecondary;
 
   return (
-    <View
-      style={[
+    <Pressable
+      accessibilityRole="button"
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [
         styles.row,
         {
           backgroundColor: theme.colors.surface,
           borderColor: theme.colors.border,
           shadowColor: theme.colors.textPrimary
-        }
+        },
+        onPress && pressed && styles.rowPressed
       ]}
     >
       <View style={[styles.iconCircle, { backgroundColor: iconBg }]}>
@@ -62,7 +68,7 @@ export function TransactionListItem({
       <Text style={[styles.amount, { color: amountColor(theme, tx.amountVariant) }]}>
         {formatCurrency(tx.displayAmountMajor)}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -101,5 +107,8 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 15,
     fontWeight: '700'
+  },
+  rowPressed: {
+    opacity: 0.92
   }
 });

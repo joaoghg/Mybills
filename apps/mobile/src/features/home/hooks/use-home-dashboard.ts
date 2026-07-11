@@ -11,8 +11,8 @@ import { useCallback, useMemo } from 'react';
 import { useHttpClient } from '@/core/api/http-client-provider';
 import type { RecentTimeLabels } from '@/shared/lib/recent-transactions';
 import {
-  mapTransactionToRecentRow,
-  sortTransactionsByRecency
+  dedupeTransferTransactions,
+  mapTransactionToRecentRow
 } from '@/shared/lib/recent-transactions';
 import {
   daysUntilNextDueDay,
@@ -53,7 +53,8 @@ function pickNearestDueCard(cards: CreditCardOutput[], today: Date): CreditCardO
 
 export function useHomeDashboard(
   locale: string,
-  timeLabels: RecentTimeLabels
+  timeLabels: RecentTimeLabels,
+  transferLabel: string
 ): {
   isLoading: boolean;
   isError: boolean;
@@ -162,13 +163,14 @@ export function useHomeDashboard(
 
   const recent = useMemo((): RecentTransactionRow[] => {
     const txs = transactionsQuery.data ?? [];
-    const sorted = sortTransactionsByRecency(txs);
-    return sorted.slice(0, RECENT_LIMIT).map((tx: TransactionOutput) => {
+    const displayTransactions = dedupeTransferTransactions(txs).slice(0, RECENT_LIMIT);
+
+    return displayTransactions.map((tx: TransactionOutput) => {
       const catName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
       const catIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
-      return mapTransactionToRecentRow(tx, catName, catIcon, locale, timeLabels);
+      return mapTransactionToRecentRow(tx, catName, catIcon, locale, timeLabels, transferLabel);
     });
-  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels]);
+  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels, transferLabel]);
 
   return {
     isLoading,

@@ -24,10 +24,14 @@ import {
   listTransactionsQueryInputSchema,
   TransactionOutput,
   transactionOutputSchema,
+  TransferGroupIdParams,
+  transferGroupIdParamsSchema,
   UpdateTransactionInput,
   updateTransactionInputSchema,
   UpdateTransactionIsPaidInput,
-  updateTransactionIsPaidInputSchema
+  updateTransactionIsPaidInputSchema,
+  UpdateTransferInput,
+  updateTransferInputSchema
 } from '@mybills/dtos';
 import { SchemaObject } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
 import { toJSONSchema } from 'zod';
@@ -103,6 +107,55 @@ export class TransactionsController {
   ): Promise<CreateTransferOutput> {
     return await this.transactionsService.createTransfer({
       userId,
+      sourceAccountId: data.sourceAccountId,
+      destinationAccountId: data.destinationAccountId,
+      amount: data.amount,
+      date: data.date,
+      description: data.description
+    });
+  }
+
+  @Get('transfer/:transferGroupId')
+  @ApiOperation({
+    summary: 'Get transfer',
+    description: 'Returns a transfer pair by transfer group id.'
+  })
+  @ApiParam({ name: 'transferGroupId', description: 'Transfer group id' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Transfer retrieved successfully.',
+    schema: toJSONSchema(createTransferOutputSchema) as SchemaObject
+  })
+  @Serialize(createTransferOutputSchema)
+  async findTransfer(
+    @CurrentUser('sub') userId: string,
+    @Param(new ZodValidationPipe(transferGroupIdParamsSchema)) params: TransferGroupIdParams
+  ): Promise<CreateTransferOutput> {
+    return await this.transactionsService.findTransferByGroupId(params.transferGroupId, userId);
+  }
+
+  @Patch('transfer/:transferGroupId')
+  @ApiOperation({
+    summary: 'Update transfer',
+    description: 'Updates a transfer pair and rebalances both accounts atomically.'
+  })
+  @ApiParam({ name: 'transferGroupId', description: 'Transfer group id' })
+  @ApiBody({
+    schema: toJSONSchema(updateTransferInputSchema) as SchemaObject,
+    description: 'Transfer update payload'
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Transfer updated successfully.',
+    schema: toJSONSchema(createTransferOutputSchema) as SchemaObject
+  })
+  @Serialize(createTransferOutputSchema)
+  async updateTransfer(
+    @CurrentUser('sub') userId: string,
+    @Param(new ZodValidationPipe(transferGroupIdParamsSchema)) params: TransferGroupIdParams,
+    @Body(new ZodValidationPipe(updateTransferInputSchema)) data: UpdateTransferInput
+  ): Promise<CreateTransferOutput> {
+    return await this.transactionsService.updateTransfer(params.transferGroupId, userId, {
       sourceAccountId: data.sourceAccountId,
       destinationAccountId: data.destinationAccountId,
       amount: data.amount,

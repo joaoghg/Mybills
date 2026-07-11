@@ -1,5 +1,7 @@
 export * from './input/create-transaction-input.dto';
 export * from './input/create-transfer-input.dto';
+export * from './input/update-transfer-input.dto';
+export * from './input/transfer-group-id-params.dto';
 export * from './input/list-transactions-query-input.dto';
 export * from './input/update-transaction-input.dto';
 export * from './input/update-transaction-is-paid-input.dto';

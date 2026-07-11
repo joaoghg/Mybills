@@ -52,7 +52,32 @@ alwaysApply: false
 
 ## Command Hints
 
-- Focused unit run:
-  - `npm run test`
-- Focused e2e run:
-  - `npm run test:e2e`
+- Focused unit run (from `apps/api`):
+  - `pnpm test`
+  - Filter: `pnpm test -- --testPathPatterns=<pattern>`
+- Focused e2e run (from `apps/api`):
+  - `pnpm test:e2e`
+  - Filter: `pnpm test:e2e -- --testPathPatterns=<pattern>`
+- From monorepo root, use `pnpm --filter api <script>` (e.g. `pnpm --filter api test:e2e`).
+
+## E2E database setup (Hard)
+
+Before running or debugging e2e tests, assume the **test PostgreSQL** is required. Config lives in [`apps/api/.env.test`](apps/api/.env.test) (typically `localhost:5433`, database `mybills_test`). E2e loads it via [`apps/api/test/reset-database.ts`](apps/api/test/reset-database.ts) (`setup-e2e.ts` truncates tables before the suite).
+
+If e2e fails with **500 on `/auth/register`** or Prisma errors about unknown/missing columns, do **not** assume the database is down. Run this checklist from `apps/api` **in order**:
+
+1. **Apply pending migrations to the test DB**
+   - `pnpm prisma:migrate:test`
+   - Uses `.env.test` (`dotenv -e .env.test prisma migrate dev`).
+2. **Regenerate Prisma Client** when `schema.prisma` changed (especially new columns/enums):
+   - `pnpm prisma:generate`
+   - Without this, runtime errors like `Unknown argument 'types'` are common even after migrations succeed.
+3. **Re-run e2e**
+   - `pnpm test:e2e`
+
+Development DB scripts (not for e2e unless explicitly needed):
+
+- `pnpm prisma:migrate` — migrations against `.env.development`
+- `pnpm prisma:seed` — seed development data
+
+When adding e2e helpers that create categories or other entities, match current DTO/schema requirements (e.g. categories require `types` after the `add_category_types` migration).

@@ -17,8 +17,8 @@ import {
 } from '@/features/history/lib/group-transactions-by-date';
 import type { RecentTimeLabels } from '@/shared/lib/recent-transactions';
 import {
-  mapTransactionToRecentRow,
-  sortTransactionsByRecency
+  dedupeTransferTransactions,
+  mapTransactionToRecentRow
 } from '@/shared/lib/recent-transactions';
 
 const STALE_MS = 45_000;
@@ -68,16 +68,26 @@ function toHistoryRow(
   categoryName: string | undefined,
   categoryIcon: CategoryIcon | undefined,
   locale: string,
-  timeLabels: RecentTimeLabels
+  timeLabels: RecentTimeLabels,
+  transferLabel: string
 ): HistoryTransactionRow {
-  const base = mapTransactionToRecentRow(tx, categoryName, categoryIcon, locale, timeLabels);
+  const base = mapTransactionToRecentRow(
+    tx,
+    categoryName,
+    categoryIcon,
+    locale,
+    timeLabels,
+    transferLabel
+  );
 
   return {
     ...base,
     dateYmd: tx.date.split('T')[0],
-    txType: tx.type,
+    txType: tx.transferGroupId ? 'TRANSFER' : tx.type,
     amountCents: tx.amount,
-    subtitle: buildSubtitle(categoryName, tx.createdAt, locale)
+    subtitle: tx.transferGroupId
+      ? transferLabel
+      : buildSubtitle(categoryName, tx.createdAt, locale)
   };
 }
 
@@ -180,13 +190,15 @@ export function useTransactionHistory(
 
   const rows = useMemo((): HistoryTransactionRow[] => {
     const txs = transactionsQuery.data ?? [];
-    const sorted = sortTransactionsByRecency(txs);
-    return sorted.map((tx) => {
+    const transferLabel = t('transactions.types.transfer');
+    const displayTransactions = dedupeTransferTransactions(txs);
+
+    return displayTransactions.map((tx) => {
       const categoryName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
       const categoryIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
-      return toHistoryRow(tx, categoryName, categoryIcon, locale, timeLabels);
+      return toHistoryRow(tx, categoryName, categoryIcon, locale, timeLabels, transferLabel);
     });
-  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels]);
+  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels, t]);
 
   const sections = useMemo(() => groupTransactionsByDate(rows, t), [rows, t]);
 

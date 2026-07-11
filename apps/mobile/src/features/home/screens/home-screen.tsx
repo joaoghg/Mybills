@@ -11,8 +11,10 @@ import { GeneralBalanceCard } from '@/features/home/components/general-balance-c
 import { HomeContentSkeleton } from '@/features/home/components/home-content-skeleton';
 import { useHomeDashboard } from '@/features/home/hooks/use-home-dashboard';
 import type { AppTabParamList } from '@/navigation/types';
+import { navigateRoot } from '@/navigation/root-navigation-ref';
 import { AppScreenHeader } from '@/shared/components/app-screen-header';
 import { RecentTransactionsSection } from '@/shared/components/recent-transactions-section';
+import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
 import { firstNameFromUserName, useCurrentUser } from '@/shared/hooks/use-current-user';
 import { formatCurrencyValue } from '@/shared/utils/format-currency';
 
@@ -32,8 +34,17 @@ export function HomeScreen() {
     [t]
   );
 
-  const dashboard = useHomeDashboard(locale, timeLabels);
+  const dashboard = useHomeDashboard(locale, timeLabels, t('transactions.types.transfer'));
   const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
+
+  function handleTransactionPress(row: RecentTransactionRow) {
+    if (row.transferGroupId) {
+      navigateRoot('EditTransfer', { transferGroupId: row.transferGroupId });
+      return;
+    }
+
+    navigateRoot('EditTransaction', { transactionId: row.id });
+  }
 
   const isLoading = dashboard.isLoading || userQuery.isPending;
   const isError = dashboard.isError || userQuery.isError;
@@ -114,6 +125,7 @@ export function HomeScreen() {
             transactions={recentRows}
             emptyLabel={t('home.emptyTransactions')}
             onSeeAllPress={() => navigation.navigate('HistoryTab')}
+            onTransactionPress={handleTransactionPress}
             formatCurrency={formatMoney}
           />
         </>

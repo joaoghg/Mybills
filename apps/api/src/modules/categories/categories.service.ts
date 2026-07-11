@@ -48,7 +48,8 @@ export class CategoriesService {
       userId,
       name: DEFAULT_TRANSFER_CATEGORY.name,
       icon: DEFAULT_TRANSFER_CATEGORY.icon,
-      isSystem: true
+      isSystem: true,
+      types: ['INCOME', 'EXPENSE']
     });
   }
 

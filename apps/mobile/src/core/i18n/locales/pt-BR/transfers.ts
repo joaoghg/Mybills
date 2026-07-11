@@ -9,6 +9,17 @@ export const transfers = {
   noAccountsHint: 'Crie pelo menos duas contas antes de transferir.',
   submit: 'Transferir',
   submitLoading: 'Transferindo…',
+  editTitle: 'Editar transferência',
+  updateSubmit: 'Salvar alterações',
+  updateLoading: 'Salvando…',
+  deleteAction: 'Excluir transferência',
+  deleteLoading: 'Excluindo…',
+  deleteConfirmTitle: 'Excluir transferência?',
+  deleteConfirmMessage:
+    'As duas transações vinculadas serão removidas e os saldos das contas serão ajustados.',
+  deleteConfirm: 'Excluir',
+  deleteCancel: 'Cancelar',
+  notFound: 'Transferência não encontrada.',
   validation: {
     amountRequired: 'Informe um valor maior que zero.',
     dateRequired: 'Selecione uma data válida.',
