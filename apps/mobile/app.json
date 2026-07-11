@@ -5,6 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "mybills",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/splash-icon.png",
@@ -12,9 +13,11 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.mybills.app"
     },
     "android": {
+      "package": "com.mybills.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -26,9 +29,31 @@
     "web": {
       "favicon": "./assets/favicon.png"
     },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/7aa78271-24b8-43b0-8070-8c3c5dc5540c"
+    },
     "plugins": [
       "expo-secure-store",
-      "@react-native-community/datetimepicker"
-    ]
+      "@react-native-community/datetimepicker",
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#E6F4FE",
+          "defaultChannel": "default"
+        }
+      ],
+      "expo-updates"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "7aa78271-24b8-43b0-8070-8c3c5dc5540c"
+      }
+    },
+    "owner": "joaoghg"
   }
 }

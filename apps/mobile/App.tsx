@@ -9,11 +9,14 @@ import { UserPreferencesProvider, useUserPreferences } from '@/core/preferences'
 import { AppQueryProvider } from '@/core/query/query-provider';
 import { AuthSessionProvider, useAuthSession } from '@/core/session/auth-session-provider';
 import { ThemeProvider, useTheme } from '@/core/theme';
+import { useOtaUpdates } from '@/core/updates';
 import { OnboardingFlowScreen } from '@/features/onboarding/screens/onboarding-flow-screen';
 import { AuthenticatedRoot } from '@/navigation/root-navigator';
 import { AuthScreen } from '@/features/auth/screens/auth-screen';
 
 export default function App() {
+  useOtaUpdates();
+
   return (
     <SafeAreaProvider>
       <AppQueryProvider>
