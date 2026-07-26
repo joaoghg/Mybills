@@ -14,7 +14,7 @@ export interface TransactionRepository {
     userId: string
   ): Promise<TransferPair | null>;
   create(data: CreateTransactionData): Promise<Transaction>;
-  createTransferPair(data: CreateTransferData): Promise<CreateTransferResult>;
+  createTransferPair(data: CreateTransferData): Promise<CreateTransferResult | null>;
   update(transactionId: string, data: UpdateTransactionData): Promise<Transaction>;
   updateIsPaid(transactionId: string, isPaid: boolean): Promise<Transaction>;
   updateTransferPair(

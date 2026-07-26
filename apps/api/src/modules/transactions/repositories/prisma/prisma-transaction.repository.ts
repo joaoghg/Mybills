@@ -6,7 +6,10 @@ import {
   TransactionType
 } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
-import { CreateTransferData } from '../../contracts/create-transfer-data.contract';
+import {
+  CreateTransferData,
+  CreateTransferResult
+} from '../../contracts/create-transfer-data.contract';
 import { TransferPair } from '../../contracts/transfer-pair.contract';
 import { UpdateTransferData } from '../../contracts/update-transfer-data.contract';
 import { CreateTransactionData } from '../../contracts/create-transaction-data.contract';
@@ -143,7 +146,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
     return this.mapToEntity(transaction);
   }
 
-  async createTransferPair(data: CreateTransferData) {
+  async createTransferPair(data: CreateTransferData): Promise<CreateTransferResult | null> {
     return await this.prisma.$transaction(async (tx) => {
       const sourceAccount = await tx.account.update({
         where: {
@@ -211,7 +214,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
   async updateTransferPair(
     transferGroupId: string,
     data: UpdateTransferData
-  ): Promise<import('../../contracts/create-transfer-data.contract').CreateTransferResult | null> {
+  ): Promise<CreateTransferResult | null> {
     return await this.prisma.$transaction(async (tx) => {
       const existing = await tx.transaction.findMany({
         where: {
