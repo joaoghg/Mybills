@@ -29,6 +29,12 @@
       "transfer_edit_not_allowed": "Transferências devem ser editadas pelo endpoint de transferência",
       "transfer_paid_status_not_allowed": "O status de pagamento de transferências não pode ser alterado"
     },
+    "credit_cards": {
+      "account_required": "É necessário informar uma conta para pagar esta fatura",
+      "invalid_cycle_end": "Data de fim do ciclo inválida para este cartão",
+      "invoice_not_closed": "Este ciclo de fatura ainda não está fechado",
+      "invoice_empty": "Não há compras em aberto neste ciclo de fatura"
+    },
     "auth": {
       "invalid_credentials": "E-mail ou senha inválidos",
       "invalid_refresh_token": "Refresh token inválido"

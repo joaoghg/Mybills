@@ -3,6 +3,8 @@ import {
   CreateCreditCardInput,
   CreditCardOutput,
   ListCreditCardsOutput,
+  PayCreditCardInvoiceInput,
+  PayCreditCardInvoiceOutput,
   UpdateCreditCardInput
 } from '@mybills/dtos';
 import { CreditCardsController } from './credit-cards.controller';
@@ -12,14 +14,17 @@ describe('CreditCardsController', () => {
   let controller: CreditCardsController;
   let service: jest.Mocked<CreditCardsService>;
 
+  const linkedAccountId = '0f8a7e38-284d-4a8b-bf59-fb2f2c5d4b10';
+
   const baseCreditCard: CreditCardOutput = {
     id: '5ea4f605-31d5-4dcf-93bc-45fafad6f319',
     userId: '2cea6915-f57e-4ba4-84ec-08f47e4eb7f9',
-    accountId: '0f8a7e38-284d-4a8b-bf59-fb2f2c5d4b10',
+    accountId: linkedAccountId,
     name: 'Platinum',
     limit: 500000,
     closingDay: 10,
     dueDay: 18,
+    usedAmount: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   };
@@ -35,7 +40,8 @@ describe('CreditCardsController', () => {
             findById: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
-            remove: jest.fn()
+            remove: jest.fn(),
+            payInvoice: jest.fn()
           }
         }
       ]
@@ -73,7 +79,7 @@ describe('CreditCardsController', () => {
   describe('create', () => {
     it('should call creditCardsService.create with payload and user id', async () => {
       const input: CreateCreditCardInput = {
-        accountId: baseCreditCard.accountId,
+        accountId: linkedAccountId,
         name: 'Wallet Card',
         limit: 120000,
         closingDay: 12,
@@ -129,6 +135,39 @@ describe('CreditCardsController', () => {
 
       expect(service.remove).toHaveBeenCalledTimes(1);
       expect(service.remove).toHaveBeenCalledWith(baseCreditCard.id, baseCreditCard.userId);
+    });
+  });
+
+  describe('payInvoice', () => {
+    it('should call creditCardsService.payInvoice with credit card id, user id and payload', async () => {
+      const input: PayCreditCardInvoiceInput = {
+        cycleEnd: '2026-06-09',
+        accountId: linkedAccountId
+      };
+      const output: PayCreditCardInvoiceOutput = {
+        amount: 15000,
+        accountId: linkedAccountId,
+        paymentTransactionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        paidCount: 2,
+        cycleStart: '2026-05-10',
+        cycleEnd: '2026-06-09'
+      };
+
+      service.payInvoice.mockResolvedValue(output);
+
+      const result = await controller.payInvoice(
+        baseCreditCard.userId,
+        { id: baseCreditCard.id },
+        input
+      );
+
+      expect(result).toEqual(output);
+      expect(service.payInvoice).toHaveBeenCalledTimes(1);
+      expect(service.payInvoice).toHaveBeenCalledWith(
+        baseCreditCard.id,
+        baseCreditCard.userId,
+        input
+      );
     });
   });
 });

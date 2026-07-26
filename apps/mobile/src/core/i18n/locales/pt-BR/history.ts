@@ -7,6 +7,8 @@ export const history = {
   nextMonth: 'Próximo mês',
   searchPlaceholder: 'Buscar transações...',
   filters: 'Filtros',
+  filterByAccount: 'Filtrar por conta',
+  filterByCard: 'Filtrar por cartão',
   category: 'Categoria',
   type: 'Tipo',
   typeAll: 'Todos',

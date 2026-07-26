@@ -29,6 +29,12 @@
       "transfer_edit_not_allowed": "Transfers must be updated through the transfer endpoint",
       "transfer_paid_status_not_allowed": "Transfer paid status cannot be changed"
     },
+    "credit_cards": {
+      "account_required": "An account is required to pay this invoice",
+      "invalid_cycle_end": "Invalid invoice cycle end date for this card",
+      "invoice_not_closed": "This invoice cycle is not closed yet",
+      "invoice_empty": "There are no unpaid purchases in this invoice cycle"
+    },
     "auth": {
       "invalid_credentials": "Invalid email or password",
       "invalid_refresh_token": "Invalid refresh token"

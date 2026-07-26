@@ -14,13 +14,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '@/core/theme';
 import { HistoryCategoryPickerSheet } from '@/features/history/components/history-category-picker-sheet';
 import { HistoryDateSectionHeader } from '@/features/history/components/history-date-section-header';
+import { HistoryEntityPickerSheet } from '@/features/history/components/history-entity-picker-sheet';
 import { HistoryFilterBar } from '@/features/history/components/history-filter-bar';
 import { HistoryFiltersSheet } from '@/features/history/components/history-filters-sheet';
 import { HistoryMonthNavigator } from '@/features/history/components/history-month-navigator';
 import { HistorySearchBar } from '@/features/history/components/history-search-bar';
 import { HistoryTypePickerSheet } from '@/features/history/components/history-type-picker-sheet';
 import { useTransactionHistory } from '@/features/history/hooks/use-transaction-history';
-import type { TransactionDateSection } from '@/features/history/lib/group-transactions-by-date';
+import type { TransactionDateSection } from '@/shared/lib/group-transactions-by-date';
 import { navigateRoot } from '@/navigation/root-navigation-ref';
 import { AppScreenHeader } from '@/shared/components/app-screen-header';
 import { TransactionListItem } from '@/shared/components/transaction-list-item';
@@ -54,6 +55,8 @@ export function HistoryScreen() {
   }
 
   const [filtersSheetVisible, setFiltersSheetVisible] = useState(false);
+  const [accountSheetVisible, setAccountSheetVisible] = useState(false);
+  const [cardSheetVisible, setCardSheetVisible] = useState(false);
   const [categorySheetVisible, setCategorySheetVisible] = useState(false);
   const [typeSheetVisible, setTypeSheetVisible] = useState(false);
 
@@ -65,6 +68,22 @@ export function HistoryScreen() {
     ],
     [t]
   );
+
+  const selectedAccountLabel = useMemo(() => {
+    if (!history.filters.accountId) return t('history.typeAll');
+    return (
+      history.accounts.find((account) => account.id === history.filters.accountId)?.name ??
+      t('history.typeAll')
+    );
+  }, [history.accounts, history.filters.accountId, t]);
+
+  const selectedCardLabel = useMemo(() => {
+    if (!history.filters.cardId) return t('history.typeAll');
+    return (
+      history.creditCards.find((card) => card.id === history.filters.cardId)?.name ??
+      t('history.typeAll')
+    );
+  }, [history.creditCards, history.filters.cardId, t]);
 
   const listHeader = (
     <View style={styles.headerBlock}>
@@ -231,11 +250,41 @@ export function HistoryScreen() {
         includeTransfersLabel={t('history.includeTransfers')}
         activeFiltersLabel={t('history.activeFilters')}
         clearFiltersLabel={t('history.clearFilters')}
+        filterByAccountLabel={t('history.filterByAccount')}
+        filterByCardLabel={t('history.filterByCard')}
+        accountValueLabel={selectedAccountLabel}
+        cardValueLabel={selectedCardLabel}
         includeTransfer={history.filters.includeTransfer}
         hasActiveFilters={history.hasActiveAdvancedFilters}
+        accountFilterActive={history.filters.accountId !== null}
+        cardFilterActive={history.filters.cardId !== null}
         onClose={() => setFiltersSheetVisible(false)}
         onToggleIncludeTransfer={history.setIncludeTransfer}
+        onPressAccount={() => setAccountSheetVisible(true)}
+        onPressCard={() => setCardSheetVisible(true)}
         onClearFilters={history.clearAdvancedFilters}
+      />
+
+      <HistoryEntityPickerSheet
+        theme={theme}
+        visible={accountSheetVisible}
+        title={t('history.filterByAccount')}
+        allLabel={t('history.typeAll')}
+        entities={history.accounts}
+        selectedId={history.filters.accountId}
+        onClose={() => setAccountSheetVisible(false)}
+        onSelect={history.setAccountId}
+      />
+
+      <HistoryEntityPickerSheet
+        theme={theme}
+        visible={cardSheetVisible}
+        title={t('history.filterByCard')}
+        allLabel={t('history.typeAll')}
+        entities={history.creditCards}
+        selectedId={history.filters.cardId}
+        onClose={() => setCardSheetVisible(false)}
+        onSelect={history.setCardId}
       />
 
       <HistoryCategoryPickerSheet

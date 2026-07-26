@@ -1,3 +1,16 @@
+/**
+ * Credit-card billing cycles.
+ *
+ * Closing day STARTS a cycle (inclusive). The day before the next closing is the end.
+ *
+ * Examples with closingDay = 4:
+ * - Open on 10/May → { start: 'YYYY-05-04', end: 'YYYY-06-03' }
+ * - Open on 03/May → { start: 'YYYY-04-04', end: 'YYYY-05-03' }
+ * - Day 4 enters the new cycle: open on 04/May → { start: 'YYYY-05-04', end: 'YYYY-06-03' }
+ * - Closed ending 03/Jun → { start: 'YYYY-05-04', end: 'YYYY-06-03' }
+ * - canPay for cycle ending 03/Jun is true from 04/Jun onward
+ */
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }
@@ -16,7 +29,7 @@ function closingYmd(year: number, monthIndex: number, closingDay: number): strin
 }
 
 function ymdToLocalDate(ymd: string): Date {
-  const parts = ymd.split('-').map((p) => Number(p));
+  const parts = ymd.slice(0, 10).split('-').map((p) => Number(p));
   const y = parts[0] ?? 1970;
   const m = parts[1] ?? 1;
   const d = parts[2] ?? 1;
@@ -24,43 +37,106 @@ function ymdToLocalDate(ymd: string): Date {
 }
 
 function addOneCalendarDay(ymd: string): string {
-  const parts = ymd.split('-').map((p) => Number(p));
-  const y = parts[0] ?? 1970;
-  const m = parts[1] ?? 1;
-  const d = parts[2] ?? 1;
-  const next = new Date(y, m - 1, d);
-  next.setDate(next.getDate() + 1);
-  return ymdFromLocalDate(next);
+  const d = ymdToLocalDate(ymd);
+  d.setDate(d.getDate() + 1);
+  return ymdFromLocalDate(d);
+}
+
+function subtractOneCalendarDay(ymd: string): string {
+  const d = ymdToLocalDate(ymd);
+  d.setDate(d.getDate() - 1);
+  return ymdFromLocalDate(d);
 }
 
 function compareYmd(a: string, b: string): number {
-  if (a === b) return 0;
-  return a < b ? -1 : 1;
+  const aa = a.slice(0, 10);
+  const bb = b.slice(0, 10);
+  if (aa === bb) return 0;
+  return aa < bb ? -1 : 1;
 }
 
-export function getCurrentBillingCycleRange(
+function prevMonthClosing(year: number, monthIndex: number, closingDay: number): string {
+  const prevYear = monthIndex === 0 ? year - 1 : year;
+  const prevMonth = monthIndex === 0 ? 11 : monthIndex - 1;
+  return closingYmd(prevYear, prevMonth, closingDay);
+}
+
+function nextMonthClosing(year: number, monthIndex: number, closingDay: number): string {
+  const nextYear = monthIndex === 11 ? year + 1 : year;
+  const nextMonth = monthIndex === 11 ? 0 : monthIndex + 1;
+  return closingYmd(nextYear, nextMonth, closingDay);
+}
+
+/** Open (current) invoice: [thisClose, nextClose - 1]. Day of closing belongs to the new cycle. */
+export function getOpenBillingCycleRange(
   closingDay: number,
   today: Date
 ): { start: string; end: string } {
   const todayYmd = ymdFromLocalDate(today);
   const y = today.getFullYear();
   const m0 = today.getMonth();
-
   const thisClose = closingYmd(y, m0, closingDay);
 
-  if (compareYmd(todayYmd, thisClose) <= 0) {
-    const prevYear = m0 === 0 ? y - 1 : y;
-    const prevMonth = m0 === 0 ? 11 : m0 - 1;
-    const prevClose = closingYmd(prevYear, prevMonth, closingDay);
-    const start = addOneCalendarDay(prevClose);
-    return { start, end: thisClose };
+  if (compareYmd(todayYmd, thisClose) < 0) {
+    const prevClose = prevMonthClosing(y, m0, closingDay);
+    return { start: prevClose, end: subtractOneCalendarDay(thisClose) };
   }
 
-  const nextYear = m0 === 11 ? y + 1 : y;
-  const nextMonth = m0 === 11 ? 0 : m0 + 1;
-  const nextClose = closingYmd(nextYear, nextMonth, closingDay);
-  const start = addOneCalendarDay(thisClose);
-  return { start, end: nextClose };
+  const nextClose = nextMonthClosing(y, m0, closingDay);
+  return { start: thisClose, end: subtractOneCalendarDay(nextClose) };
+}
+
+/** @deprecated Prefer getOpenBillingCycleRange — same open-cycle semantics. */
+export function getCurrentBillingCycleRange(
+  closingDay: number,
+  today: Date
+): { start: string; end: string } {
+  return getOpenBillingCycleRange(closingDay, today);
+}
+
+/**
+ * Closed cycle identified by its inclusive end YMD (day before a closing day).
+ * Range: [prevClose, thisClose - 1] where thisClose = cycleEnd + 1.
+ */
+export function getClosedBillingCycleRange(
+  closingDay: number,
+  cycleEndYmd: string
+): { start: string; end: string } {
+  const end = cycleEndYmd.slice(0, 10);
+  const thisClose = addOneCalendarDay(end);
+  const closeDate = ymdToLocalDate(thisClose);
+  const prevClose = prevMonthClosing(
+    closeDate.getFullYear(),
+    closeDate.getMonth(),
+    closingDay
+  );
+  return { start: prevClose, end };
+}
+
+export function shiftBillingCycle(
+  closingDay: number,
+  current: { start: string; end: string },
+  delta: -1 | 1
+): { start: string; end: string } {
+  if (delta === -1) {
+    const end = subtractOneCalendarDay(current.start.slice(0, 10));
+    return getClosedBillingCycleRange(closingDay, end);
+  }
+
+  const start = addOneCalendarDay(current.end.slice(0, 10));
+  const startDate = ymdToLocalDate(start);
+  const nextClose = nextMonthClosing(
+    startDate.getFullYear(),
+    startDate.getMonth(),
+    closingDay
+  );
+  return { start, end: subtractOneCalendarDay(nextClose) };
+}
+
+/** Payable once today is on/after the closing day that ended the cycle (day after cycleEnd). */
+export function canPayBillingCycle(cycleEndYmd: string, today: Date): boolean {
+  const payFrom = addOneCalendarDay(cycleEndYmd.slice(0, 10));
+  return compareYmd(ymdFromLocalDate(today), payFrom) >= 0;
 }
 
 export function daysUntilNextDueDay(dueDay: number, today: Date): number {
@@ -71,9 +147,7 @@ export function daysUntilNextDueDay(dueDay: number, today: Date): number {
   if (compareYmd(thisDue, todayYmd) >= 0) {
     return diffDaysUtcMidnight(todayYmd, thisDue);
   }
-  const ny = m0 === 11 ? y + 1 : y;
-  const nm = m0 === 11 ? 0 : m0 + 1;
-  const nextDue = closingYmd(ny, nm, dueDay);
+  const nextDue = nextMonthClosing(y, m0, dueDay);
   return diffDaysUtcMidnight(todayYmd, nextDue);
 }
 
@@ -83,9 +157,7 @@ export function getNextDueDate(dueDay: number, today: Date): Date {
   const m0 = today.getMonth();
   const thisDue = closingYmd(y, m0, dueDay);
   const dueYmd =
-    compareYmd(thisDue, todayYmd) >= 0
-      ? thisDue
-      : closingYmd(m0 === 11 ? y + 1 : y, m0 === 11 ? 0 : m0 + 1, dueDay);
+    compareYmd(thisDue, todayYmd) >= 0 ? thisDue : nextMonthClosing(y, m0, dueDay);
   return ymdToLocalDate(dueYmd);
 }
 
@@ -102,8 +174,8 @@ export function formatDueDate(dueDay: number, today: Date, locale: string): stri
 }
 
 function diffDaysUtcMidnight(fromYmd: string, toYmd: string): number {
-  const fp = fromYmd.split('-').map((p) => Number(p));
-  const tp = toYmd.split('-').map((p) => Number(p));
+  const fp = fromYmd.slice(0, 10).split('-').map((p) => Number(p));
+  const tp = toYmd.slice(0, 10).split('-').map((p) => Number(p));
   const fy = fp[0] ?? 1970;
   const fm = fp[1] ?? 1;
   const fd = fp[2] ?? 1;

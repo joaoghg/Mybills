@@ -19,6 +19,7 @@ describe('CreditCardsService', () => {
     limit: 500000,
     closingDay: 10,
     dueDay: 18,
+    usedAmount: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   };
@@ -34,7 +35,8 @@ describe('CreditCardsService', () => {
             findByIdAndUserId: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
-            delete: jest.fn()
+            delete: jest.fn(),
+            payInvoice: jest.fn()
           }
         },
         {
@@ -215,6 +217,91 @@ describe('CreditCardsService', () => {
       repository.findByIdAndUserId.mockResolvedValue(null);
 
       await expect(service.remove(creditCard.id, creditCard.userId)).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('payInvoice', () => {
+    const now = new Date(Date.UTC(2026, 5, 15));
+    const cycleEnd = '2026-06-09';
+    const payResult = {
+      amount: 15000,
+      accountId: creditCard.accountId as string,
+      paymentTransactionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+      paidCount: 2,
+      cycleStart: '2026-05-10',
+      cycleEnd
+    };
+
+    it('should pay closed invoice using linked account', async () => {
+      repository.findByIdAndUserId.mockResolvedValue(creditCard);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      repository.payInvoice.mockResolvedValue(payResult);
+
+      const result = await service.payInvoice(
+        creditCard.id,
+        creditCard.userId,
+        { cycleEnd },
+        now
+      );
+
+      expect(result).toEqual(payResult);
+      expect(repository.payInvoice).toHaveBeenCalledWith({
+        userId: creditCard.userId,
+        creditCardId: creditCard.id,
+        accountId: creditCard.accountId,
+        cycleStart: '2026-05-10',
+        cycleEnd,
+        paymentDate: '2026-06-15',
+        description: 'Invoice payment'
+      });
+    });
+
+    it('should throw InvalidArgumentError if invoice cycle is not closed yet', async () => {
+      repository.findByIdAndUserId.mockResolvedValue(creditCard);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+
+      await expect(
+        service.payInvoice(
+          creditCard.id,
+          creditCard.userId,
+          { cycleEnd },
+          new Date(Date.UTC(2026, 5, 5))
+        )
+      ).rejects.toThrow(InvalidArgumentError);
+
+      expect(repository.payInvoice).not.toHaveBeenCalled();
+    });
+
+    it('should throw InvalidArgumentError if no account can be resolved', async () => {
+      repository.findByIdAndUserId.mockResolvedValue({ ...creditCard, accountId: null });
+
+      await expect(
+        service.payInvoice(creditCard.id, creditCard.userId, { cycleEnd }, now)
+      ).rejects.toThrow(InvalidArgumentError);
+
+      expect(repository.payInvoice).not.toHaveBeenCalled();
+    });
+
+    it('should throw InvalidArgumentError if invoice has no unpaid purchases', async () => {
+      repository.findByIdAndUserId.mockResolvedValue(creditCard);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      repository.payInvoice.mockResolvedValue(null);
+
+      await expect(
+        service.payInvoice(creditCard.id, creditCard.userId, { cycleEnd }, now)
+      ).rejects.toThrow(InvalidArgumentError);
+    });
+
+    it('should throw InvalidArgumentError on double pay when invoice is already empty', async () => {
+      repository.findByIdAndUserId.mockResolvedValue(creditCard);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      repository.payInvoice.mockResolvedValueOnce(payResult).mockResolvedValueOnce(null);
+
+      await service.payInvoice(creditCard.id, creditCard.userId, { cycleEnd }, now);
+
+      await expect(
+        service.payInvoice(creditCard.id, creditCard.userId, { cycleEnd }, now)
+      ).rejects.toThrow(InvalidArgumentError);
     });
   });
 });

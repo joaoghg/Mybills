@@ -1,3 +1,4 @@
+import { Ionicons } from '@expo/vector-icons';
 import {
   Modal,
   Pressable,
@@ -16,10 +17,18 @@ type HistoryFiltersSheetProps = {
   includeTransfersLabel: string;
   activeFiltersLabel: string;
   clearFiltersLabel: string;
+  filterByAccountLabel: string;
+  filterByCardLabel: string;
+  accountValueLabel: string;
+  cardValueLabel: string;
   includeTransfer: boolean;
   hasActiveFilters: boolean;
+  accountFilterActive: boolean;
+  cardFilterActive: boolean;
   onClose: () => void;
   onToggleIncludeTransfer: (value: boolean) => void;
+  onPressAccount: () => void;
+  onPressCard: () => void;
   onClearFilters: () => void;
 };
 
@@ -29,10 +38,18 @@ export function HistoryFiltersSheet({
   includeTransfersLabel,
   activeFiltersLabel,
   clearFiltersLabel,
+  filterByAccountLabel,
+  filterByCardLabel,
+  accountValueLabel,
+  cardValueLabel,
   includeTransfer,
   hasActiveFilters,
+  accountFilterActive,
+  cardFilterActive,
   onClose,
   onToggleIncludeTransfer,
+  onPressAccount,
+  onPressCard,
   onClearFilters
 }: HistoryFiltersSheetProps) {
   const insets = useSafeAreaInsets();
@@ -52,6 +69,54 @@ export function HistoryFiltersSheet({
         >
           <View style={[styles.handle, { backgroundColor: theme.colors.border }]} />
           <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{activeFiltersLabel}</Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: accountFilterActive }}
+            onPress={onPressAccount}
+            style={({ pressed }) => [
+              styles.filterRow,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: accountFilterActive ? theme.colors.primary : theme.colors.border
+              },
+              pressed && styles.pressed
+            ]}
+          >
+            <View style={styles.filterTextBlock}>
+              <Text style={[styles.filterLabel, { color: theme.colors.textPrimary }]}>
+                {filterByAccountLabel}
+              </Text>
+              <Text style={[styles.filterValue, { color: theme.colors.textSecondary }]}>
+                {accountValueLabel}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: cardFilterActive }}
+            onPress={onPressCard}
+            style={({ pressed }) => [
+              styles.filterRow,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: cardFilterActive ? theme.colors.primary : theme.colors.border
+              },
+              pressed && styles.pressed
+            ]}
+          >
+            <View style={styles.filterTextBlock}>
+              <Text style={[styles.filterLabel, { color: theme.colors.textPrimary }]}>
+                {filterByCardLabel}
+              </Text>
+              <Text style={[styles.filterValue, { color: theme.colors.textSecondary }]}>
+                {cardValueLabel}
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textSecondary} />
+          </Pressable>
 
           <View
             style={[
@@ -127,6 +192,28 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '800'
   },
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12
+  },
+  filterTextBlock: {
+    flex: 1,
+    gap: 2
+  },
+  filterLabel: {
+    fontSize: 15,
+    fontWeight: '600'
+  },
+  filterValue: {
+    fontSize: 13,
+    fontWeight: '500'
+  },
   toggleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -151,5 +238,8 @@ const styles = StyleSheet.create({
   clearLabel: {
     fontSize: 15,
     fontWeight: '700'
+  },
+  pressed: {
+    opacity: 0.92
   }
 });

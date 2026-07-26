@@ -17,6 +17,7 @@ export { updateAccount } from './accounts/update-account.js';
 export { createCreditCard } from './credit-cards/create-credit-card.js';
 export { deleteCreditCard } from './credit-cards/delete-credit-card.js';
 export { listCreditCards } from './credit-cards/list-credit-cards.js';
+export { payCreditCardInvoice } from './credit-cards/pay-credit-card-invoice.js';
 export { updateCreditCard } from './credit-cards/update-credit-card.js';
 export { listTransactions } from './transactions/list-transactions.js';
 export { createTransaction } from './transactions/create-transaction.js';
