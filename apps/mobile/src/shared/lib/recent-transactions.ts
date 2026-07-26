@@ -78,7 +78,7 @@ export function mapTransactionToRecentRow(
 ): RecentTransactionRow {
   const isTransferPair = Boolean(tx.transferGroupId);
   const merchant = isTransferPair
-    ? transferLabel ?? tx.description?.trim() || categoryName || ''
+    ? (transferLabel ?? tx.description?.trim()) || categoryName || ''
     : tx.description?.trim() || categoryName || '';
   const timeLabel = formatRecentTimeLabel(tx.date, tx.createdAt, locale, labels);
 
@@ -104,7 +104,9 @@ export function mapTransactionToRecentRow(
     timeLabel,
     displayAmountMajor,
     amountVariant,
-    iconName: isTransferPair ? 'swap-horizontal-outline' : (categoryIcon ?? pickCategoryIcon(categoryName)),
+    iconName: isTransferPair
+      ? 'swap-horizontal-outline'
+      : (categoryIcon ?? pickCategoryIcon(categoryName)),
     transferGroupId: tx.transferGroupId
   };
 }

@@ -117,6 +117,11 @@ export function EditTransactionScreen({ navigation, route }: Props) {
   function handleSelectType(nextType: NonNullable<UpdateTransactionInput['type']>) {
     setType(nextType);
 
+    if (nextType === 'TRANSFER') {
+      setSelectedCategoryId(null);
+      return;
+    }
+
     if (selectedCategoryId) {
       const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
       if (!selectedCategory || !selectedCategory.types.includes(nextType)) {
