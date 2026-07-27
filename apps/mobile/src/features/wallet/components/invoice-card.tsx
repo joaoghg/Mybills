@@ -16,6 +16,8 @@ type InvoiceCardProps = {
   dueLabel: string;
   payLabel: string;
   formatCurrency: (amount: number) => string;
+  onPress?: () => void;
+  onPayPress?: () => void;
 };
 
 export function InvoiceCard({
@@ -24,10 +26,14 @@ export function InvoiceCard({
   invoiceLabel,
   dueLabel,
   payLabel,
-  formatCurrency
+  formatCurrency,
+  onPress,
+  onPayPress
 }: InvoiceCardProps) {
   return (
-    <View
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
       style={[
         styles.card,
         {
@@ -59,11 +65,12 @@ export function InvoiceCard({
       </View>
       <Pressable
         accessibilityRole="button"
+        onPress={onPayPress}
         style={[styles.payButton, { backgroundColor: theme.colors.primary }]}
       >
         <Text style={[styles.payLabel, { color: theme.colors.textOnPrimary }]}>{payLabel}</Text>
       </Pressable>
-    </View>
+    </Pressable>
   );
 }
 

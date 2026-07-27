@@ -39,6 +39,14 @@ export class PrismaTransactionRepository implements TransactionRepository {
     };
   }
 
+  private utcDayStart(ymd: string): Date {
+    const parts = ymd.split('-');
+    const year = Number(parts[0] ?? 0);
+    const month = Number(parts[1] ?? 1);
+    const day = Number(parts[2] ?? 1);
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+
   private buildWhereClause(
     userId: string,
     filters?: ListTransactionsQueryInput
@@ -53,6 +61,11 @@ export class PrismaTransactionRepository implements TransactionRepository {
       const gte = new Date(Date.UTC(filters.year, filters.month - 1, 1));
       const lt = new Date(Date.UTC(filters.year, filters.month, 1));
       where.date = { gte, lt };
+    } else if (filters.from !== undefined && filters.to !== undefined) {
+      const gte = this.utcDayStart(filters.from);
+      const toStart = this.utcDayStart(filters.to);
+      const lt = new Date(Date.UTC(toStart.getUTCFullYear(), toStart.getUTCMonth(), toStart.getUTCDate() + 1));
+      where.date = { gte, lt };
     }
 
     if (filters.type !== undefined) {
@@ -64,6 +77,18 @@ export class PrismaTransactionRepository implements TransactionRepository {
 
     if (filters.categoryId !== undefined) {
       where.categoryId = filters.categoryId;
+    }
+
+    if (filters.accountId !== undefined) {
+      where.accountId = filters.accountId;
+    }
+
+    if (filters.cardId !== undefined) {
+      where.cardId = filters.cardId;
+    }
+
+    if (filters.isPaid !== undefined) {
+      where.isPaid = filters.isPaid;
     }
 
     if (filters.search !== undefined) {
@@ -79,7 +104,8 @@ export class PrismaTransactionRepository implements TransactionRepository {
   ): Promise<Transaction[]> {
     const transactions = await this.prisma.transaction.findMany({
       where: this.buildWhereClause(userId, filters),
-      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }]
+      orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
+      ...(filters?.limit !== undefined ? { take: filters.limit } : {})
     });
 
     return transactions.map((transaction) => this.mapToEntity(transaction));

@@ -303,4 +303,189 @@ describe('CreditCards (e2e)', () => {
     expect(response.body.message).toEqual(expect.any(String));
     expect(response.body.errors).toBeDefined();
   });
+
+  describe('POST /credit-cards/:id/pay-invoice', () => {
+    async function createCardPurchase(
+      accessToken: string,
+      cardId: string,
+      amount: number,
+      date: string
+    ) {
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          type: 'EXPENSE',
+          amount,
+          date,
+          cardId,
+          isPaid: false,
+          description: 'Card purchase'
+        })
+        .expect(201);
+    }
+
+    it('should pay a closed invoice once and reject double pay', async () => {
+      const accessToken = await authenticateUser('credit-cards-pay-happy@mybills.dev');
+      const account = await createAccount(accessToken, 'Pay Account', 50000);
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId: account.id,
+          name: 'Pay Card',
+          limit: 100000,
+          closingDay: 10,
+          dueDay: 18
+        })
+        .expect(201);
+
+      const cardId = cardResponse.body.id as string;
+
+      await createCardPurchase(accessToken, cardId, 10000, '2026-05-15');
+      await createCardPurchase(accessToken, cardId, 5000, '2026-06-01');
+
+      const payResponse = await request(app.getHttpServer())
+        .post(`/credit-cards/${cardId}/pay-invoice`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ cycleEnd: '2026-06-09' })
+        .expect(201);
+
+      expect(payResponse.body).toMatchObject({
+        amount: 15000,
+        accountId: account.id,
+        paidCount: 2,
+        cycleStart: '2026-05-10',
+        cycleEnd: '2026-06-09',
+        paymentTransactionId: expect.any(String)
+      });
+
+      const accountAfter = await request(app.getHttpServer())
+        .get(`/accounts/${account.id}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(accountAfter.body.balance).toBe(35000);
+
+      const cardAfter = await request(app.getHttpServer())
+        .get(`/credit-cards/${cardId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(cardAfter.body.usedAmount).toBe(0);
+
+      const paymentTx = await request(app.getHttpServer())
+        .get(`/transactions/${payResponse.body.paymentTransactionId as string}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(paymentTx.body).toMatchObject({
+        type: 'EXPENSE',
+        amount: 15000,
+        accountId: account.id,
+        cardId: null,
+        isPaid: true
+      });
+
+      const doublePay = await request(app.getHttpServer())
+        .post(`/credit-cards/${cardId}/pay-invoice`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ cycleEnd: '2026-06-09' })
+        .expect(400);
+
+      expect(doublePay.body).toMatchObject({
+        code: 'credit_cards.invoice_empty',
+        error: 'invalid_argument'
+      });
+    });
+
+    it('should reject paying an open cycle before closing day', async () => {
+      const accessToken = await authenticateUser('credit-cards-pay-before@mybills.dev');
+      const account = await createAccount(accessToken, 'Before Account', 50000);
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId: account.id,
+          name: 'Before Card',
+          limit: 100000,
+          closingDay: 10,
+          dueDay: 18
+        })
+        .expect(201);
+
+      const cardId = cardResponse.body.id as string;
+      await createCardPurchase(accessToken, cardId, 8000, '2099-01-15');
+
+      const response = await request(app.getHttpServer())
+        .post(`/credit-cards/${cardId}/pay-invoice`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ cycleEnd: '2099-02-09' })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        code: 'credit_cards.invoice_not_closed',
+        error: 'invalid_argument'
+      });
+    });
+
+    it('should reject paying when no account is available', async () => {
+      const accessToken = await authenticateUser('credit-cards-pay-no-account@mybills.dev');
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          name: 'No Account Card',
+          limit: 100000,
+          closingDay: 10,
+          dueDay: 18
+        })
+        .expect(201);
+
+      const cardId = cardResponse.body.id as string;
+      await createCardPurchase(accessToken, cardId, 8000, '2026-05-15');
+
+      const response = await request(app.getHttpServer())
+        .post(`/credit-cards/${cardId}/pay-invoice`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ cycleEnd: '2026-06-09' })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        code: 'credit_cards.account_required',
+        error: 'invalid_argument'
+      });
+    });
+
+    it('should reject paying an empty invoice cycle', async () => {
+      const accessToken = await authenticateUser('credit-cards-pay-empty@mybills.dev');
+      const account = await createAccount(accessToken, 'Empty Account', 50000);
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId: account.id,
+          name: 'Empty Card',
+          limit: 100000,
+          closingDay: 10,
+          dueDay: 18
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .post(`/credit-cards/${cardResponse.body.id as string}/pay-invoice`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ cycleEnd: '2026-06-09' })
+        .expect(400);
+
+      expect(response.body).toMatchObject({
+        code: 'credit_cards.invoice_empty',
+        error: 'invalid_argument'
+      });
+    });
+  });
 });

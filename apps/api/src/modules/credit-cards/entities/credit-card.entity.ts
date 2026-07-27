@@ -6,6 +6,7 @@ export class CreditCard {
   limit: number;
   closingDay: number;
   dueDay: number;
+  usedAmount: number;
   createdAt: string;
   updatedAt: string;
 }

@@ -53,12 +53,26 @@ export class TransactionsController {
   @ApiOperation({
     summary: 'List transactions',
     description:
-      'Lists transactions of the authenticated user with optional filters for month, year, search, category, type, and transfers.'
+      'Lists transactions of the authenticated user with optional filters. Use month/year or from/to (YYYY-MM-DD, inclusive UTC), not both.'
   })
   @ApiQuery({ name: 'month', required: false, type: Number, description: 'Calendar month (1-12)' })
   @ApiQuery({ name: 'year', required: false, type: Number, description: 'Calendar year' })
+  @ApiQuery({
+    name: 'from',
+    required: false,
+    type: String,
+    description: 'Range start YYYY-MM-DD (requires to; XOR month/year)'
+  })
+  @ApiQuery({
+    name: 'to',
+    required: false,
+    type: String,
+    description: 'Range end YYYY-MM-DD inclusive (requires from; XOR month/year)'
+  })
   @ApiQuery({ name: 'search', required: false, type: String, description: 'Description search' })
   @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category id' })
+  @ApiQuery({ name: 'accountId', required: false, type: String, description: 'Account id' })
+  @ApiQuery({ name: 'cardId', required: false, type: String, description: 'Credit card id' })
   @ApiQuery({
     name: 'type',
     required: false,
@@ -66,10 +80,22 @@ export class TransactionsController {
     description: 'Transaction type filter'
   })
   @ApiQuery({
+    name: 'isPaid',
+    required: false,
+    type: Boolean,
+    description: 'Filter by paid status'
+  })
+  @ApiQuery({
     name: 'includeTransfer',
     required: false,
     type: Boolean,
     description: 'Include transfer transactions (default excludes when false)'
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Max results (1-100)'
   })
   @ApiResponse({
     status: HttpStatus.OK,

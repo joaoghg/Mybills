@@ -1,5 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { AppTheme } from '@/core/theme';
 import type { HomeCreditCardSummary } from '@/features/home/hooks/use-home-dashboard';
@@ -14,6 +14,9 @@ type CreditCardSummaryCardProps = {
   availableLimitLabel: string;
   emptyLabel: string;
   formatCurrency: (amount: number) => string;
+  canCycleCards?: boolean;
+  onCycleCard?: () => void;
+  onPress?: () => void;
 };
 
 export function CreditCardSummaryCard({
@@ -25,7 +28,10 @@ export function CreditCardSummaryCard({
   currentInvoiceLabel,
   availableLimitLabel,
   emptyLabel,
-  formatCurrency
+  formatCurrency,
+  canCycleCards = false,
+  onCycleCard,
+  onPress
 }: CreditCardSummaryCardProps) {
   if (!card) {
     return (
@@ -45,7 +51,9 @@ export function CreditCardSummaryCard({
   }
 
   return (
-    <View
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPress}
       style={[
         styles.card,
         {
@@ -60,7 +68,9 @@ export function CreditCardSummaryCard({
           <Ionicons name="card-outline" size={22} color={theme.colors.secondary} />
         </View>
         <View style={styles.headerText}>
-          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>{title}</Text>
+          <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+            {card.cardName || title}
+          </Text>
           <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
             {dueOnLabel}
           </Text>
@@ -71,6 +81,20 @@ export function CreditCardSummaryCard({
               {statusOpenLabel}
             </Text>
           </View>
+        ) : null}
+        {canCycleCards && onCycleCard ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={card.cardName}
+            hitSlop={8}
+            onPress={(event) => {
+              event.stopPropagation?.();
+              onCycleCard();
+            }}
+            style={[styles.cycleBtn, { backgroundColor: theme.colors.surfaceAlt }]}
+          >
+            <Ionicons name="chevron-forward" size={18} color={theme.colors.textPrimary} />
+          </Pressable>
         ) : null}
       </View>
 
@@ -98,7 +122,7 @@ export function CreditCardSummaryCard({
       <Text style={[styles.footer, { color: theme.colors.textSecondary }]}>
         {availableLimitLabel}: {formatCurrency(card.availableMajor)}
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
@@ -152,6 +176,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 0.6
+  },
+  cycleBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
   },
   invoiceRow: {
     flexDirection: 'row',

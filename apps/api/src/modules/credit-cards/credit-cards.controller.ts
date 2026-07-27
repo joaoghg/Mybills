@@ -19,6 +19,10 @@ import {
   creditCardOutputSchema,
   ListCreditCardsOutput,
   listCreditCardsOutputSchema,
+  PayCreditCardInvoiceInput,
+  payCreditCardInvoiceInputSchema,
+  PayCreditCardInvoiceOutput,
+  payCreditCardInvoiceOutputSchema,
   UpdateCreditCardInput,
   updateCreditCardInputSchema
 } from '@mybills/dtos';
@@ -97,6 +101,31 @@ export class CreditCardsController {
       closingDay: data.closingDay,
       dueDay: data.dueDay
     });
+  }
+
+  @Post(':id/pay-invoice')
+  @ApiOperation({
+    summary: 'Pay credit card invoice',
+    description:
+      'Pays a closed billing cycle: creates one account EXPENSE and marks card purchases as paid without double debit.'
+  })
+  @ApiParam({ name: 'id', description: 'Credit card id' })
+  @ApiBody({
+    schema: toJSONSchema(payCreditCardInvoiceInputSchema) as SchemaObject,
+    description: 'Invoice payment payload'
+  })
+  @ApiResponse({
+    status: HttpStatus.CREATED,
+    description: 'Invoice paid successfully.',
+    schema: toJSONSchema(payCreditCardInvoiceOutputSchema) as SchemaObject
+  })
+  @Serialize(payCreditCardInvoiceOutputSchema)
+  async payInvoice(
+    @CurrentUser('sub') userId: string,
+    @Param(new ZodValidationPipe(creditCardIdParamsSchema)) params: CreditCardIdParams,
+    @Body(new ZodValidationPipe(payCreditCardInvoiceInputSchema)) data: PayCreditCardInvoiceInput
+  ): Promise<PayCreditCardInvoiceOutput> {
+    return await this.creditCardsService.payInvoice(params.id, userId, data);
   }
 
   @Patch(':id')

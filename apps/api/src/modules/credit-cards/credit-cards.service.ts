@@ -1,11 +1,19 @@
 import { Inject, Injectable } from '@nestjs/common';
+import type { PayCreditCardInvoiceInput, PayCreditCardInvoiceOutput } from '@mybills/dtos';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
 import { AccountsService } from '../accounts/accounts.service';
 import { CreateCreditCardData } from './contracts/create-credit-card-data.contract';
 import { UpdateCreditCardData } from './contracts/update-credit-card-data.contract';
 import { CreditCard } from './entities/credit-card.entity';
+import {
+  canPayBillingCycle,
+  getClosedBillingCycleRange,
+  utcTodayYmd
+} from './lib/billing-cycle';
 import { CreditCardRepository } from './repositories/credit-card.repository';
+
+const INVOICE_PAYMENT_DESCRIPTION = 'Invoice payment';
 
 @Injectable()
 export class CreditCardsService {
@@ -96,6 +104,77 @@ export class CreditCardsService {
 
     await this.findById(creditCardId, userId);
     await this.repository.delete(creditCardId);
+  }
+
+  async payInvoice(
+    creditCardId: string,
+    userId: string,
+    input: PayCreditCardInvoiceInput,
+    now: Date = new Date()
+  ): Promise<PayCreditCardInvoiceOutput> {
+    this.validateCreditCardId(creditCardId);
+    this.validateUserId(userId);
+
+    if (input.accountId !== undefined) {
+      this.validateAccountId(input.accountId);
+    }
+
+    const creditCard = await this.findById(creditCardId, userId);
+    const accountId = input.accountId ?? creditCard.accountId ?? null;
+
+    if (!accountId) {
+      throw new InvalidArgumentError({
+        code: 'credit_cards.account_required',
+        i18nKey: 'errors.credit_cards.account_required'
+      });
+    }
+
+    const accountExists = await this.accountsService.accountExistsForUser(accountId, userId);
+
+    if (!accountExists) {
+      throw new NotFoundError({
+        code: 'credit_cards.account_not_found',
+        i18nKey: 'errors.not_found.resource',
+        i18nArgs: { resource: 'account' }
+      });
+    }
+
+    const cycle = getClosedBillingCycleRange(creditCard.closingDay, input.cycleEnd);
+
+    if (!cycle) {
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invalid_cycle_end',
+        i18nKey: 'errors.credit_cards.invalid_cycle_end'
+      });
+    }
+
+    const todayYmd = utcTodayYmd(now);
+
+    if (!canPayBillingCycle(input.cycleEnd, todayYmd)) {
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invoice_not_closed',
+        i18nKey: 'errors.credit_cards.invoice_not_closed'
+      });
+    }
+
+    const result = await this.repository.payInvoice({
+      userId,
+      creditCardId,
+      accountId,
+      cycleStart: cycle.start,
+      cycleEnd: cycle.end,
+      paymentDate: todayYmd,
+      description: INVOICE_PAYMENT_DESCRIPTION
+    });
+
+    if (!result) {
+      throw new InvalidArgumentError({
+        code: 'credit_cards.invoice_empty',
+        i18nKey: 'errors.credit_cards.invoice_empty'
+      });
+    }
+
+    return result;
   }
 
   private validateCreateData(data: CreateCreditCardData): void {

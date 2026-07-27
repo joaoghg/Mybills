@@ -442,5 +442,49 @@ describe('Transactions (e2e)', () => {
       expect(response.body.message).toEqual(expect.any(String));
       expect(response.body.errors).toBeDefined();
     });
+
+    it('should filter by from/to range, isPaid and limit', async () => {
+      const accessToken = await authenticateUser('transactions-filter-range@mybills.dev');
+      const accountId = await createAccount(accessToken, 'Filter Range Account', 10000);
+      const categoryId = await createCategory(accessToken, 'Range Cat');
+      await seedTransactions(accessToken, accountId, categoryId);
+
+      const byRange = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ from: '2026-04-01', to: '2026-04-02', includeTransfer: true })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(byRange.body).toHaveLength(2);
+
+      const unpaid = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ from: '2026-03-01', to: '2026-04-30', isPaid: false, includeTransfer: true })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(unpaid.body.length).toBeGreaterThanOrEqual(2);
+
+      const limited = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ from: '2026-03-01', to: '2026-04-30', includeTransfer: true, limit: 1 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      expect(limited.body).toHaveLength(1);
+    });
+
+    it('should reject from/to combined with month/year', async () => {
+      const accessToken = await authenticateUser('transactions-filter-xor@mybills.dev');
+
+      const response = await request(app.getHttpServer())
+        .get('/transactions')
+        .query({ from: '2026-04-01', to: '2026-04-30', month: 4, year: 2026 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(400);
+
+      expect(response.body.message).toEqual(expect.any(String));
+      expect(response.body.errors).toBeDefined();
+    });
   });
 });

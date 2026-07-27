@@ -21,6 +21,7 @@ describe('TransactionsController', () => {
     accountId: '4f2f72e9-517c-4f6e-83f6-c9a9df15ddef',
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
+    transferGroupId: null,
     description: 'Market purchase',
     type: TransactionType.EXPENSE,
     amount: 2590,
@@ -71,6 +72,24 @@ describe('TransactionsController', () => {
         search: 'market',
         type: 'EXPENSE',
         includeTransfer: false
+      };
+      const output: ListTransactionsOutput = [baseTransaction];
+      service.findAll.mockResolvedValue(output);
+
+      const result = await controller.findAll(baseTransaction.userId, query);
+
+      expect(result).toEqual(output);
+      expect(service.findAll).toHaveBeenCalledWith(baseTransaction.userId, query);
+    });
+
+    it('should forward from/to, cardId, accountId, isPaid and limit filters', async () => {
+      const query: ListTransactionsQueryInput = {
+        from: '2026-05-04',
+        to: '2026-06-03',
+        cardId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        accountId: baseTransaction.accountId as string,
+        isPaid: false,
+        limit: 3
       };
       const output: ListTransactionsOutput = [baseTransaction];
       service.findAll.mockResolvedValue(output);

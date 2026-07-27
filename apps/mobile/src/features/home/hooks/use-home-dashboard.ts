@@ -6,7 +6,7 @@ import {
 } from '@mybills/api-client';
 import type { CategoryIcon, CreditCardOutput, TransactionOutput } from '@mybills/dtos';
 import { useQuery } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
 import type { RecentTimeLabels } from '@/shared/lib/recent-transactions';
@@ -17,13 +17,10 @@ import {
 import {
   daysUntilNextDueDay,
   formatDueDate,
-  getCurrentBillingCycleRange,
+  getOpenBillingCycleRange,
   ymdFromLocalDate
 } from '@/shared/lib/billing-cycle';
-import {
-  sumUnpaidCardExpensesAllTime,
-  sumUnpaidCardExpensesInRange
-} from '@/shared/lib/card-expenses';
+import { sumUnpaidCardExpensesInRange } from '@/shared/lib/card-expenses';
 import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
 import { centsToMajor } from '@/shared/utils/cents-to-major';
 
@@ -61,9 +58,12 @@ export function useHomeDashboard(
   refetchAll: () => Promise<void>;
   totalBalanceMajor: number;
   creditCard: HomeCreditCardSummary | null;
+  canCycleCards: boolean;
+  selectNextCard: () => void;
   recent: RecentTransactionRow[];
 } {
   const client = useHttpClient();
+  const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
 
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
@@ -77,9 +77,51 @@ export function useHomeDashboard(
     staleTime: STALE_MS
   });
 
-  const transactionsQuery = useQuery({
-    queryKey: ['transactions'],
-    queryFn: () => listTransactions(client),
+  const cards = creditCardsQuery.data ?? [];
+
+  useEffect(() => {
+    const list = creditCardsQuery.data ?? [];
+    if (list.length === 0) {
+      setSelectedCardId(null);
+      return;
+    }
+    const exists = selectedCardId !== null && list.some((c) => c.id === selectedCardId);
+    if (exists) return;
+    const nearest = pickNearestDueCard(list, new Date());
+    setSelectedCardId(nearest?.id ?? list[0]?.id ?? null);
+  }, [creditCardsQuery.data, selectedCardId]);
+
+  const selectedCard = useMemo((): CreditCardOutput | null => {
+    if (!selectedCardId) return null;
+    return cards.find((c) => c.id === selectedCardId) ?? null;
+  }, [cards, selectedCardId]);
+
+  const openCycle = useMemo(() => {
+    if (!selectedCard) return null;
+    return getOpenBillingCycleRange(selectedCard.closingDay, new Date());
+  }, [selectedCard]);
+
+  const invoiceQuery = useQuery({
+    queryKey: [
+      'transactions',
+      'invoice',
+      selectedCardId,
+      openCycle?.start ?? null,
+      openCycle?.end ?? null
+    ],
+    queryFn: () =>
+      listTransactions(client, {
+        cardId: selectedCardId!,
+        from: openCycle!.start,
+        to: openCycle!.end
+      }),
+    enabled: selectedCardId !== null && openCycle !== null,
+    staleTime: STALE_MS
+  });
+
+  const recentTransactionsQuery = useQuery({
+    queryKey: ['transactions', 'recent', RECENT_LIMIT],
+    queryFn: () => listTransactions(client, { limit: RECENT_LIMIT }),
     staleTime: STALE_MS
   });
 
@@ -92,23 +134,32 @@ export function useHomeDashboard(
   const isLoading =
     accountsQuery.isPending ||
     creditCardsQuery.isPending ||
-    transactionsQuery.isPending ||
+    (selectedCardId !== null && invoiceQuery.isPending) ||
+    recentTransactionsQuery.isPending ||
     categoriesQuery.isPending;
 
   const isError =
     accountsQuery.isError ||
     creditCardsQuery.isError ||
-    transactionsQuery.isError ||
+    invoiceQuery.isError ||
+    recentTransactionsQuery.isError ||
     categoriesQuery.isError;
 
   const refetchAll = useCallback(async () => {
     await Promise.all([
       accountsQuery.refetch(),
       creditCardsQuery.refetch(),
-      transactionsQuery.refetch(),
+      invoiceQuery.refetch(),
+      recentTransactionsQuery.refetch(),
       categoriesQuery.refetch()
     ]);
-  }, [accountsQuery, creditCardsQuery, transactionsQuery, categoriesQuery]);
+  }, [
+    accountsQuery,
+    creditCardsQuery,
+    invoiceQuery,
+    recentTransactionsQuery,
+    categoriesQuery
+  ]);
 
   const categoryNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -132,26 +183,39 @@ export function useHomeDashboard(
     return centsToMajor(totalCents);
   }, [accountsQuery.data]);
 
-  const creditCard = useMemo((): HomeCreditCardSummary | null => {
-    const cards = creditCardsQuery.data ?? [];
-    const txs = transactionsQuery.data ?? [];
-    const today = new Date();
-    const primary = pickNearestDueCard(cards, today);
-    if (!primary) return null;
+  const canCycleCards = cards.length > 1;
 
-    const { start, end } = getCurrentBillingCycleRange(primary.closingDay, today);
+  const selectNextCard = useCallback(() => {
+    if (cards.length <= 1 || selectedCardId === null) return;
+    const index = cards.findIndex((c) => c.id === selectedCardId);
+    if (index < 0) return;
+    const next = cards[(index + 1) % cards.length];
+    if (next) setSelectedCardId(next.id);
+  }, [cards, selectedCardId]);
+
+  const creditCard = useMemo((): HomeCreditCardSummary | null => {
+    if (!selectedCard || !openCycle) return null;
+
+    const today = new Date();
     const todayYmd = ymdFromLocalDate(today);
-    const invoiceCents = sumUnpaidCardExpensesInRange(txs, primary.id, start, end, todayYmd);
-    const usedCents = sumUnpaidCardExpensesAllTime(txs, primary.id);
-    const limitMajor = centsToMajor(primary.limit);
+    const invoiceTxs = invoiceQuery.data ?? [];
+    const invoiceCents = sumUnpaidCardExpensesInRange(
+      invoiceTxs,
+      selectedCard.id,
+      openCycle.start,
+      openCycle.end,
+      todayYmd
+    );
+    const usedCents = selectedCard.usedAmount;
+    const limitMajor = centsToMajor(selectedCard.limit);
     const usedMajor = centsToMajor(usedCents);
-    const availableMajor = Math.max(0, centsToMajor(primary.limit - usedCents));
-    const usageRatio = primary.limit > 0 ? Math.min(1, usedCents / primary.limit) : 0;
+    const availableMajor = Math.max(0, centsToMajor(selectedCard.limit - usedCents));
+    const usageRatio = selectedCard.limit > 0 ? Math.min(1, usedCents / selectedCard.limit) : 0;
 
     return {
-      cardId: primary.id,
-      cardName: primary.name,
-      dueDateLabel: formatDueDate(primary.dueDay, today, locale),
+      cardId: selectedCard.id,
+      cardName: selectedCard.name,
+      dueDateLabel: formatDueDate(selectedCard.dueDay, today, locale),
       invoiceTotalMajor: centsToMajor(invoiceCents),
       limitMajor,
       usedMajor,
@@ -159,10 +223,10 @@ export function useHomeDashboard(
       usageRatio,
       isOpen: invoiceCents > 0
     };
-  }, [creditCardsQuery.data, transactionsQuery.data, locale]);
+  }, [selectedCard, openCycle, invoiceQuery.data, locale]);
 
   const recent = useMemo((): RecentTransactionRow[] => {
-    const txs = transactionsQuery.data ?? [];
+    const txs = recentTransactionsQuery.data ?? [];
     const displayTransactions = dedupeTransferTransactions(txs).slice(0, RECENT_LIMIT);
 
     return displayTransactions.map((tx: TransactionOutput) => {
@@ -170,7 +234,14 @@ export function useHomeDashboard(
       const catIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
       return mapTransactionToRecentRow(tx, catName, catIcon, locale, timeLabels, transferLabel);
     });
-  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels, transferLabel]);
+  }, [
+    recentTransactionsQuery.data,
+    categoryNameById,
+    categoryIconById,
+    locale,
+    timeLabels,
+    transferLabel
+  ]);
 
   return {
     isLoading,
@@ -178,6 +249,8 @@ export function useHomeDashboard(
     refetchAll,
     totalBalanceMajor,
     creditCard,
+    canCycleCards,
+    selectNextCard,
     recent
   };
 }

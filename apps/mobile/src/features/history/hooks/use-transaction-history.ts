@@ -1,7 +1,14 @@
-import { listCategories, listTransactions } from '@mybills/api-client';
+import {
+  listAccounts,
+  listCategories,
+  listCreditCards,
+  listTransactions
+} from '@mybills/api-client';
 import type {
+  AccountOutput,
   CategoryIcon,
   CategoryOutput,
+  CreditCardOutput,
   ListTransactionsQueryInput,
   TransactionOutput
 } from '@mybills/dtos';
@@ -10,16 +17,16 @@ import type { TFunction } from 'i18next';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
-import {
-  groupTransactionsByDate,
-  type HistoryTransactionRow,
-  type TransactionDateSection
-} from '@/features/history/lib/group-transactions-by-date';
 import type { RecentTimeLabels } from '@/shared/lib/recent-transactions';
 import {
   dedupeTransferTransactions,
   mapTransactionToRecentRow
 } from '@/shared/lib/recent-transactions';
+import {
+  groupTransactionsByDate,
+  type HistoryTransactionRow,
+  type TransactionDateSection
+} from '@/shared/lib/group-transactions-by-date';
 
 const STALE_MS = 45_000;
 
@@ -30,6 +37,8 @@ export type HistoryFilters = {
   selectedYear: number;
   search: string;
   categoryId: string | null;
+  accountId: string | null;
+  cardId: string | null;
   type: HistoryTypeFilter;
   includeTransfer: boolean;
 };
@@ -82,7 +91,7 @@ function toHistoryRow(
 
   return {
     ...base,
-    dateYmd: tx.date.split('T')[0],
+    dateYmd: tx.date.split('T')[0] ?? tx.date,
     txType: tx.transferGroupId ? 'TRANSFER' : tx.type,
     amountCents: tx.amount,
     subtitle: tx.transferGroupId
@@ -98,6 +107,8 @@ function buildApiQuery(filters: HistoryFilters, debouncedSearch: string): ListTr
     includeTransfer: filters.includeTransfer,
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+    ...(filters.accountId ? { accountId: filters.accountId } : {}),
+    ...(filters.cardId ? { cardId: filters.cardId } : {}),
     ...(filters.type ? { type: filters.type } : {})
   };
 }
@@ -106,6 +117,8 @@ function hasActiveAdvancedFilters(filters: HistoryFilters, debouncedSearch: stri
   return (
     debouncedSearch.length > 0 ||
     filters.categoryId !== null ||
+    filters.accountId !== null ||
+    filters.cardId !== null ||
     filters.type !== null ||
     filters.includeTransfer
   );
@@ -118,6 +131,8 @@ export function useTransactionHistory(
 ): {
   filters: HistoryFilters;
   categories: CategoryOutput[];
+  accounts: AccountOutput[];
+  creditCards: CreditCardOutput[];
   sections: TransactionDateSection[];
   isLoading: boolean;
   isError: boolean;
@@ -126,6 +141,8 @@ export function useTransactionHistory(
   refetch: () => Promise<void>;
   setSearch: (value: string) => void;
   setCategoryId: (categoryId: string | null) => void;
+  setAccountId: (accountId: string | null) => void;
+  setCardId: (cardId: string | null) => void;
   setType: (type: HistoryTypeFilter) => void;
   setIncludeTransfer: (value: boolean) => void;
   goToPreviousMonth: () => void;
@@ -142,6 +159,8 @@ export function useTransactionHistory(
     selectedYear: initial.year,
     search: '',
     categoryId: null,
+    accountId: null,
+    cardId: null,
     type: null,
     includeTransfer: false
   });
@@ -164,13 +183,42 @@ export function useTransactionHistory(
     staleTime: STALE_MS
   });
 
-  const isLoading = transactionsQuery.isPending || categoriesQuery.isPending;
-  const isError = transactionsQuery.isError || categoriesQuery.isError;
-  const isRefetching = transactionsQuery.isRefetching || categoriesQuery.isRefetching;
+  const accountsQuery = useQuery({
+    queryKey: ['accounts'],
+    queryFn: () => listAccounts(client),
+    staleTime: STALE_MS
+  });
+
+  const creditCardsQuery = useQuery({
+    queryKey: ['credit-cards'],
+    queryFn: () => listCreditCards(client),
+    staleTime: STALE_MS
+  });
+
+  const isLoading =
+    transactionsQuery.isPending ||
+    categoriesQuery.isPending ||
+    accountsQuery.isPending ||
+    creditCardsQuery.isPending;
+  const isError =
+    transactionsQuery.isError ||
+    categoriesQuery.isError ||
+    accountsQuery.isError ||
+    creditCardsQuery.isError;
+  const isRefetching =
+    transactionsQuery.isRefetching ||
+    categoriesQuery.isRefetching ||
+    accountsQuery.isRefetching ||
+    creditCardsQuery.isRefetching;
 
   const refetch = useCallback(async () => {
-    await Promise.all([transactionsQuery.refetch(), categoriesQuery.refetch()]);
-  }, [transactionsQuery, categoriesQuery]);
+    await Promise.all([
+      transactionsQuery.refetch(),
+      categoriesQuery.refetch(),
+      accountsQuery.refetch(),
+      creditCardsQuery.refetch()
+    ]);
+  }, [transactionsQuery, categoriesQuery, accountsQuery, creditCardsQuery]);
 
   const categoryNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -221,6 +269,14 @@ export function useTransactionHistory(
     setFilters((current) => ({ ...current, categoryId }));
   }, []);
 
+  const setAccountId = useCallback((accountId: string | null) => {
+    setFilters((current) => ({ ...current, accountId }));
+  }, []);
+
+  const setCardId = useCallback((cardId: string | null) => {
+    setFilters((current) => ({ ...current, cardId }));
+  }, []);
+
   const setType = useCallback((type: HistoryTypeFilter) => {
     setFilters((current) => ({ ...current, type }));
   }, []);
@@ -260,6 +316,8 @@ export function useTransactionHistory(
       ...current,
       search: '',
       categoryId: null,
+      accountId: null,
+      cardId: null,
       type: null,
       includeTransfer: false
     }));
@@ -268,6 +326,8 @@ export function useTransactionHistory(
   return {
     filters,
     categories: categoriesQuery.data ?? [],
+    accounts: accountsQuery.data ?? [],
+    creditCards: creditCardsQuery.data ?? [],
     sections,
     isLoading,
     isError,
@@ -276,6 +336,8 @@ export function useTransactionHistory(
     refetch,
     setSearch,
     setCategoryId,
+    setAccountId,
+    setCardId,
     setType,
     setIncludeTransfer,
     goToPreviousMonth,

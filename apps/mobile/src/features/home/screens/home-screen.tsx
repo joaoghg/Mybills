@@ -1,6 +1,6 @@
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,7 @@ import { useHomeDashboard } from '@/features/home/hooks/use-home-dashboard';
 import type { AppTabParamList } from '@/navigation/types';
 import { navigateRoot } from '@/navigation/root-navigation-ref';
 import { AppScreenHeader } from '@/shared/components/app-screen-header';
+import { InvoiceDetailSheet } from '@/shared/components/invoice-detail-sheet';
 import { RecentTransactionsSection } from '@/shared/components/recent-transactions-section';
 import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
 import { firstNameFromUserName, useCurrentUser } from '@/shared/hooks/use-current-user';
@@ -25,6 +26,7 @@ export function HomeScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<AppTabParamList>>();
   const locale = i18n.language;
   const userQuery = useCurrentUser();
+  const [invoiceSheetVisible, setInvoiceSheetVisible] = useState(false);
 
   const timeLabels = useMemo(
     () => ({
@@ -69,68 +71,83 @@ export function HomeScreen() {
   };
 
   return (
-    <ScrollView
-      style={[styles.scroll, { backgroundColor: theme.colors.background }]}
-      contentContainerStyle={scrollContent}
-      showsVerticalScrollIndicator={false}
-    >
-      <AppScreenHeader
-        theme={theme}
-        greeting={greeting}
-        isLoadingGreeting={userQuery.isPending}
-      />
+    <>
+      <ScrollView
+        style={[styles.scroll, { backgroundColor: theme.colors.background }]}
+        contentContainerStyle={scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <AppScreenHeader
+          theme={theme}
+          greeting={greeting}
+          isLoadingGreeting={userQuery.isPending}
+        />
 
-      {isLoading ? (
-        <HomeContentSkeleton theme={theme} />
-      ) : isError ? (
-        <View style={styles.errorBox}>
-          <Text style={[styles.errorText, { color: theme.colors.textPrimary }]}>
-            {t('home.loadError')}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => void refetchAll()}
-            style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
-          >
-            <Text style={[styles.retryLabel, { color: theme.colors.textOnPrimary }]}>
-              {t('home.retry')}
+        {isLoading ? (
+          <HomeContentSkeleton theme={theme} />
+        ) : isError ? (
+          <View style={styles.errorBox}>
+            <Text style={[styles.errorText, { color: theme.colors.textPrimary }]}>
+              {t('home.loadError')}
             </Text>
-          </Pressable>
-        </View>
-      ) : (
-        <>
-          <GeneralBalanceCard
-            theme={theme}
-            label={t('home.generalBalance')}
-            balanceMajor={dashboard.totalBalanceMajor}
-            formatCurrency={formatMoney}
-          />
-          <CreditCardSummaryCard
-            theme={theme}
-            card={dashboard.creditCard}
-            title={t('home.creditCard')}
-            dueOnLabel={t('home.dueOn', {
-              date: dashboard.creditCard?.dueDateLabel ?? ''
-            })}
-            statusOpenLabel={t('home.invoiceStatusOpen')}
-            currentInvoiceLabel={t('home.currentInvoice')}
-            availableLimitLabel={t('home.availableLimit')}
-            emptyLabel={t('home.emptyCards')}
-            formatCurrency={formatMoney}
-          />
-          <RecentTransactionsSection
-            theme={theme}
-            sectionTitle={t('home.recentSection')}
-            seeAllLabel={t('home.seeAll')}
-            transactions={recentRows}
-            emptyLabel={t('home.emptyTransactions')}
-            onSeeAllPress={() => navigation.navigate('HistoryTab')}
-            onTransactionPress={handleTransactionPress}
-            formatCurrency={formatMoney}
-          />
-        </>
-      )}
-    </ScrollView>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void refetchAll()}
+              style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
+            >
+              <Text style={[styles.retryLabel, { color: theme.colors.textOnPrimary }]}>
+                {t('home.retry')}
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <>
+            <GeneralBalanceCard
+              theme={theme}
+              label={t('home.generalBalance')}
+              balanceMajor={dashboard.totalBalanceMajor}
+              formatCurrency={formatMoney}
+            />
+            <CreditCardSummaryCard
+              theme={theme}
+              card={dashboard.creditCard}
+              title={t('home.creditCard')}
+              dueOnLabel={t('home.dueOn', {
+                date: dashboard.creditCard?.dueDateLabel ?? ''
+              })}
+              statusOpenLabel={t('home.invoiceStatusOpen')}
+              currentInvoiceLabel={t('home.currentInvoice')}
+              availableLimitLabel={t('home.availableLimit')}
+              emptyLabel={t('home.emptyCards')}
+              formatCurrency={formatMoney}
+              canCycleCards={dashboard.canCycleCards}
+              onCycleCard={dashboard.selectNextCard}
+              onPress={
+                dashboard.creditCard
+                  ? () => setInvoiceSheetVisible(true)
+                  : undefined
+              }
+            />
+            <RecentTransactionsSection
+              theme={theme}
+              sectionTitle={t('home.recentSection')}
+              seeAllLabel={t('home.seeAll')}
+              transactions={recentRows}
+              emptyLabel={t('home.emptyTransactions')}
+              onSeeAllPress={() => navigation.navigate('HistoryTab')}
+              onTransactionPress={handleTransactionPress}
+              formatCurrency={formatMoney}
+            />
+          </>
+        )}
+      </ScrollView>
+
+      <InvoiceDetailSheet
+        cardId={dashboard.creditCard?.cardId ?? null}
+        visible={invoiceSheetVisible}
+        onClose={() => setInvoiceSheetVisible(false)}
+      />
+    </>
   );
 }
 
