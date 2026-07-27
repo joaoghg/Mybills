@@ -13,6 +13,6 @@ export const home = {
   emptyCards: 'No cards yet.',
   emptyTransactions: 'No transactions yet.',
   noDescription: 'No description',
-  todayAt: 'Today, {{time}}',
-  yesterdayAt: 'Yesterday, {{time}}'
+  today: 'Today',
+  yesterday: 'Yesterday'
 } as const;

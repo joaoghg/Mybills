@@ -13,6 +13,6 @@ export const home = {
   emptyCards: 'Nenhum cartão cadastrado.',
   emptyTransactions: 'Nenhuma transação ainda.',
   noDescription: 'Sem descrição',
-  todayAt: 'Hoje, {{time}}',
-  yesterdayAt: 'Ontem, {{time}}'
+  today: 'Hoje',
+  yesterday: 'Ontem'
 } as const;

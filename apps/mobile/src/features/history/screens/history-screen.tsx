@@ -36,8 +36,8 @@ export function HistoryScreen() {
 
   const timeLabels = useMemo(
     () => ({
-      todayAt: (time: string) => t('home.todayAt', { time }),
-      yesterdayAt: (time: string) => t('home.yesterdayAt', { time })
+      today: t('home.today'),
+      yesterday: t('home.yesterday')
     }),
     [t]
   );
