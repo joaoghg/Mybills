@@ -23,7 +23,6 @@ import { TransactionTypeSegment } from '@/features/transactions/components/trans
 import { useDeleteTransaction } from '@/features/transactions/hooks/use-delete-transaction';
 import { useTransaction } from '@/features/transactions/hooks/use-transaction';
 import { useUpdateTransaction } from '@/features/transactions/hooks/use-update-transaction';
-import { updateUserTransactionIsPaid } from '@/features/transactions/services/transactions.service';
 import { translateCreateTransactionError } from '@/features/transactions/utils/create-transaction-error';
 import {
   translateCreateTransactionZodError,
@@ -186,18 +185,13 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     }
 
     mutate(
-      { transactionId, input: parsed.data },
       {
-        onSuccess: async () => {
-          if (isPaid !== initialIsPaid) {
-            try {
-              await updateUserTransactionIsPaid(client, transactionId, { isPaid });
-            } catch (paidError) {
-              setLocalError(translateCreateTransactionError(paidError, t));
-              return;
-            }
-          }
-
+        transactionId,
+        input: parsed.data,
+        ...(isPaid !== initialIsPaid ? { nextIsPaid: isPaid } : {})
+      },
+      {
+        onSuccess: () => {
           navigation.goBack();
         }
       }
