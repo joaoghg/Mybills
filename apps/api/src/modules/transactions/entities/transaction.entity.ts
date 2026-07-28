@@ -17,6 +17,7 @@ export class Transaction {
   date: string;
   isPaid: boolean;
   isProjected: boolean;
+  invoicePaymentMonth: string | null;
   createdAt: string;
   updatedAt: string;
 }

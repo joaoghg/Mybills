@@ -15,9 +15,16 @@ import { UpdateTransactionData } from './contracts/update-transaction-data.contr
 import { Transaction } from './entities/transaction.entity';
 import {
   generateInstallmentOccurrences,
+  generateInstallmentOccurrencesByCount,
   inclusiveMonthCount,
-  parseYmd
+  parseYmd,
+  utcTodayYmd
 } from './lib/monthly-schedule';
+import {
+  getInvoicePaymentMonth,
+  inclusivePaymentMonthCount,
+  parseYearMonth
+} from '../credit-cards/lib/billing-cycle';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { TransactionSeriesMaintenanceService } from './transaction-series-maintenance.service';
 
@@ -95,23 +102,12 @@ export class TransactionsService {
     const anchorDay = parseYmd(data.date).day;
 
     if (schedule.mode === 'INSTALLMENT') {
-      const monthCount = inclusiveMonthCount(data.date, schedule.endDate);
-      if (monthCount < 2) {
-        throw new InvalidArgumentError({
-          code: 'transactions.installment_requires_two_months',
-          i18nKey: 'errors.transactions.installment_requires_two_months'
-        });
-      }
-
-      let drafts;
-      try {
-        drafts = generateInstallmentOccurrences(data.date, schedule.endDate);
-      } catch {
-        throw new InvalidArgumentError({
-          code: 'transactions.invalid_installment_end_date',
-          i18nKey: 'errors.transactions.invalid_installment_end_date'
-        });
-      }
+      const drafts = await this.resolveInstallmentDrafts(
+        data.userId,
+        data.date,
+        schedule.endDate,
+        data.cardId
+      );
 
       const occurrences = drafts.map((draft, index) => ({
         occurrenceNumber: draft.occurrenceNumber,
@@ -334,15 +330,101 @@ export class TransactionsService {
       });
     }
 
-    const scope = data.scope ?? 'SINGLE';
+    const schedule = data.schedule;
     const nextAccountId =
       data.accountId === undefined ? currentTransaction.accountId : data.accountId;
     const nextCategoryId =
       data.categoryId === undefined ? currentTransaction.categoryId : data.categoryId;
     const nextCardId = data.cardId === undefined ? currentTransaction.cardId : data.cardId;
     const nextType = data.type === undefined ? currentTransaction.type : data.type;
+    const nextAmount = data.amount === undefined ? currentTransaction.amount : data.amount;
+    const nextDate =
+      data.date === undefined ? currentTransaction.date.slice(0, 10) : data.date;
+    const nextDescription =
+      data.description === undefined ? currentTransaction.description : data.description;
 
     await this.validateRelations(userId, nextType, nextAccountId, nextCategoryId, nextCardId);
+
+    if (schedule && schedule.mode !== 'NONE') {
+      if (nextType === TransactionType.TRANSFER) {
+        throw new InvalidArgumentError({
+          code: 'transactions.schedule_not_allowed_for_transfer',
+          i18nKey: 'errors.transactions.schedule_not_allowed_for_transfer'
+        });
+      }
+
+      const currentSeriesType = currentTransaction.seriesType;
+      const wantsInstallment = schedule.mode === 'INSTALLMENT';
+      const wantsRecurring = schedule.mode === 'RECURRING';
+      const sameType =
+        (wantsInstallment && currentSeriesType === TransactionSeriesType.INSTALLMENT) ||
+        (wantsRecurring && currentSeriesType === TransactionSeriesType.RECURRING);
+
+      if (!sameType) {
+        if (!currentTransaction.seriesId) {
+          return await this.promoteStandaloneToSeries(currentTransaction, {
+            accountId: nextAccountId,
+            categoryId: nextCategoryId,
+            cardId: nextCardId,
+            description: nextDescription,
+            type: nextType,
+            amount: nextAmount,
+            date: nextDate,
+            schedule
+          });
+        }
+
+        if (
+          currentSeriesType === TransactionSeriesType.INSTALLMENT &&
+          wantsRecurring &&
+          currentTransaction.occurrenceNumber !== null
+        ) {
+          return await this.convertInstallmentToRecurring(
+            currentTransaction,
+            {
+              accountId: data.accountId,
+              categoryId: data.categoryId,
+              cardId: data.cardId,
+              description: data.description,
+              type: data.type,
+              amount: data.amount,
+              date: data.date
+            },
+            nextDate
+          );
+        }
+
+        if (
+          currentSeriesType === TransactionSeriesType.RECURRING &&
+          wantsInstallment &&
+          currentTransaction.occurrenceNumber !== null
+        ) {
+          return await this.convertRecurringToInstallment(
+            currentTransaction,
+            {
+              accountId: data.accountId,
+              categoryId: data.categoryId,
+              cardId: data.cardId,
+              description: data.description,
+              type: data.type,
+              amount: data.amount,
+              date: data.date
+            },
+            nextDate,
+            schedule.endDate
+          );
+        }
+      }
+    }
+
+    if (schedule?.mode === 'NONE' && currentTransaction.seriesId) {
+      throw new InvalidArgumentError({
+        code: 'transactions.schedule_detach_not_allowed',
+        i18nKey: 'errors.transactions.schedule_detach_not_allowed'
+      });
+    }
+
+    const scope = data.scope ?? 'SINGLE';
 
     if (
       scope === 'THIS_AND_FUTURE' &&
@@ -399,6 +481,187 @@ export class TransactionsService {
     }
 
     return updatedTransaction;
+  }
+
+  private async promoteStandaloneToSeries(
+    current: Transaction,
+    merged: {
+      accountId: string | null;
+      categoryId: string | null;
+      cardId: string | null;
+      description: string | null;
+      type: TransactionType;
+      amount: number;
+      date: string;
+      schedule: { mode: 'INSTALLMENT'; endDate: string } | { mode: 'RECURRING' };
+    }
+  ): Promise<Transaction> {
+    const anchorDay = parseYmd(merged.date).day;
+    let occurrences;
+    let seriesType: TransactionSeriesType;
+    let totalOccurrences: number | null;
+
+    if (merged.schedule.mode === 'INSTALLMENT') {
+      const drafts = await this.resolveInstallmentDrafts(
+        current.userId,
+        merged.date,
+        merged.schedule.endDate,
+        merged.cardId
+      );
+
+      occurrences = drafts.map((draft, index) => ({
+        occurrenceNumber: draft.occurrenceNumber,
+        date: draft.date,
+        isPaid: index === 0 ? current.isPaid : false,
+        isProjected: false
+      }));
+      seriesType = TransactionSeriesType.INSTALLMENT;
+      totalOccurrences = drafts.length;
+    } else {
+      occurrences = this.seriesMaintenance.buildInitialRecurringOccurrences(
+        merged.date,
+        anchorDay,
+        current.isPaid
+      );
+      seriesType = TransactionSeriesType.RECURRING;
+      totalOccurrences = null;
+    }
+
+    if (current.isPaid && current.accountId && !current.isProjected) {
+      await this.applyBalanceImpact(current.accountId, current.userId, current.type, -current.amount);
+    }
+
+    const created = await this.repository.promoteToSeries(current.id, {
+      userId: current.userId,
+      type: seriesType,
+      accountId: merged.accountId,
+      categoryId: merged.categoryId,
+      cardId: merged.cardId,
+      description: merged.description,
+      transactionType: merged.type,
+      amount: merged.amount,
+      anchorDate: merged.date,
+      anchorDay,
+      totalOccurrences,
+      occurrences
+    });
+
+    const first = await this.findById(created.firstTransactionId, current.userId);
+
+    if (first.isPaid && first.accountId && !first.isProjected) {
+      await this.applyBalanceImpact(first.accountId, first.userId, first.type, first.amount);
+    }
+
+    return first;
+  }
+
+  private async convertInstallmentToRecurring(
+    current: Transaction,
+    fieldUpdates: UpdateTransactionData,
+    nextDate: string
+  ): Promise<Transaction> {
+    if (!current.seriesId || current.occurrenceNumber === null) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_series_conversion',
+        i18nKey: 'errors.transactions.invalid_series_conversion'
+      });
+    }
+
+    const affected = await this.repository.findBySeriesFromOccurrence(
+      current.seriesId,
+      current.occurrenceNumber
+    );
+
+    for (const row of affected) {
+      if (row.isPaid && row.accountId && !row.isProjected) {
+        await this.applyBalanceImpact(row.accountId, current.userId, row.type, -row.amount);
+      }
+    }
+
+    const todayYmd = utcTodayYmd();
+    const updated = await this.repository.convertSeriesToRecurring({
+      seriesId: current.seriesId,
+      fromOccurrenceNumber: current.occurrenceNumber,
+      fieldUpdates: {
+        ...fieldUpdates,
+        date: fieldUpdates.date ?? nextDate
+      },
+      todayYmd
+    });
+
+    await this.seriesMaintenance.extendActiveRecurringSeries(todayYmd);
+
+    const refreshedAffected = await this.repository.findBySeriesFromOccurrence(
+      current.seriesId,
+      current.occurrenceNumber
+    );
+
+    for (const row of refreshedAffected) {
+      if (row.isPaid && row.accountId && !row.isProjected) {
+        await this.applyBalanceImpact(row.accountId, current.userId, row.type, row.amount);
+      }
+    }
+
+    return (await this.findById(updated.id, current.userId)) ?? updated;
+  }
+
+  private async convertRecurringToInstallment(
+    current: Transaction,
+    fieldUpdates: UpdateTransactionData,
+    nextDate: string,
+    endDate: string
+  ): Promise<Transaction> {
+    if (!current.seriesId || current.occurrenceNumber === null) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_series_conversion',
+        i18nKey: 'errors.transactions.invalid_series_conversion'
+      });
+    }
+
+    const nextCardId =
+      fieldUpdates.cardId !== undefined ? fieldUpdates.cardId : current.cardId;
+    const drafts = await this.resolveInstallmentDrafts(
+      current.userId,
+      nextDate,
+      endDate,
+      nextCardId
+    );
+
+    const affected = await this.repository.findBySeriesFromOccurrence(
+      current.seriesId,
+      current.occurrenceNumber
+    );
+
+    for (const row of affected) {
+      if (row.isPaid && row.accountId && !row.isProjected) {
+        await this.applyBalanceImpact(row.accountId, current.userId, row.type, -row.amount);
+      }
+    }
+
+    const updated = await this.repository.convertSeriesToInstallment({
+      seriesId: current.seriesId,
+      fromOccurrenceNumber: current.occurrenceNumber,
+      startDate: nextDate,
+      endDate,
+      occurrenceCount: drafts.length,
+      fieldUpdates: {
+        ...fieldUpdates,
+        date: fieldUpdates.date ?? nextDate
+      }
+    });
+
+    const refreshedAffected = await this.repository.findBySeriesFromOccurrence(
+      current.seriesId,
+      current.occurrenceNumber
+    );
+
+    for (const row of refreshedAffected) {
+      if (row.isPaid && row.accountId && !row.isProjected) {
+        await this.applyBalanceImpact(row.accountId, current.userId, row.type, row.amount);
+      }
+    }
+
+    return (await this.findById(updated.id, current.userId)) ?? updated;
   }
 
   async updateIsPaid(transactionId: string, userId: string, isPaid: boolean): Promise<Transaction> {
@@ -497,6 +760,53 @@ export class TransactionsService {
     }
 
     await this.repository.delete(transactionId);
+  }
+
+  private async resolveInstallmentDrafts(
+    userId: string,
+    startYmd: string,
+    endDate: string,
+    cardId?: string | null
+  ) {
+    if (cardId) {
+      const card = await this.creditCardsService.findById(cardId, userId);
+      const firstPay = getInvoicePaymentMonth(card.closingDay, card.dueDay, startYmd);
+      const lastPay = parseYearMonth(endDate);
+      const count = inclusivePaymentMonthCount(firstPay, lastPay);
+
+      if (count < 2) {
+        throw new InvalidArgumentError({
+          code: 'transactions.installment_requires_two_months',
+          i18nKey: 'errors.transactions.installment_requires_two_months'
+        });
+      }
+
+      try {
+        return generateInstallmentOccurrencesByCount(startYmd, count);
+      } catch {
+        throw new InvalidArgumentError({
+          code: 'transactions.invalid_installment_end_date',
+          i18nKey: 'errors.transactions.invalid_installment_end_date'
+        });
+      }
+    }
+
+    const monthCount = inclusiveMonthCount(startYmd, endDate);
+    if (monthCount < 2) {
+      throw new InvalidArgumentError({
+        code: 'transactions.installment_requires_two_months',
+        i18nKey: 'errors.transactions.installment_requires_two_months'
+      });
+    }
+
+    try {
+      return generateInstallmentOccurrences(startYmd, endDate);
+    } catch {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_installment_end_date',
+        i18nKey: 'errors.transactions.invalid_installment_end_date'
+      });
+    }
   }
 
   private async validateRelations(
@@ -674,7 +984,7 @@ export class TransactionsService {
         });
       }
 
-      if (schedule.endDate <= data.date) {
+      if (!data.cardId && schedule.endDate <= data.date) {
         throw new InvalidArgumentError({
           code: 'transactions.invalid_installment_end_date',
           i18nKey: 'errors.transactions.invalid_installment_end_date'
@@ -691,7 +1001,8 @@ export class TransactionsService {
       data.description === undefined &&
       data.type === undefined &&
       data.amount === undefined &&
-      data.date === undefined
+      data.date === undefined &&
+      data.schedule === undefined
     ) {
       throw new InvalidArgumentError({
         code: 'transactions.at_least_one_field_required',
@@ -745,6 +1056,26 @@ export class TransactionsService {
         i18nKey: 'errors.validation.invalid_field',
         i18nArgs: { field: 'transaction_date' }
       });
+    }
+
+    if (data.schedule?.mode === 'INSTALLMENT') {
+      if (!data.schedule.endDate || Number.isNaN(new Date(data.schedule.endDate).getTime())) {
+        throw new InvalidArgumentError({
+          code: 'transactions.invalid_installment_end_date',
+          i18nKey: 'errors.transactions.invalid_installment_end_date'
+        });
+      }
+
+      if (
+        data.cardId === undefined &&
+        data.date !== undefined &&
+        data.schedule.endDate <= data.date
+      ) {
+        throw new InvalidArgumentError({
+          code: 'transactions.invalid_installment_end_date',
+          i18nKey: 'errors.transactions.invalid_installment_end_date'
+        });
+      }
     }
   }
 

@@ -20,6 +20,7 @@ import { useHttpClient } from '@/core/api/http-client-provider';
 import { useTheme } from '@/core/theme';
 import { CategorySelectPicker } from '@/features/transactions/components/category-select-picker';
 import { TransactionDateField } from '@/features/transactions/components/transaction-date-field';
+import { TransactionScheduleSegment } from '@/features/transactions/components/transaction-schedule-segment';
 import { TransactionTypeSegment } from '@/features/transactions/components/transaction-type-segment';
 import { useDeleteTransaction } from '@/features/transactions/hooks/use-delete-transaction';
 import { useTransaction } from '@/features/transactions/hooks/use-transaction';
@@ -27,13 +28,40 @@ import { useUpdateTransaction } from '@/features/transactions/hooks/use-update-t
 import { translateCreateTransactionError } from '@/features/transactions/utils/create-transaction-error';
 import {
   translateCreateTransactionZodError,
-  validateCreateTransactionClient
+  validateCreateTransactionClient,
+  type ScheduleMode
 } from '@/features/transactions/utils/create-transaction-validation';
 import type { RootStackParamList } from '@/navigation/types';
 import { InputField } from '@/shared/components/input-field';
 import { MoneyInputField } from '@/shared/components/money-input-field';
+import {
+  formatYearMonth,
+  getInvoicePaymentMonth,
+  inclusivePaymentMonthCount,
+  parseYearMonth
+} from '@/shared/lib/billing-cycle';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditTransaction'>;
+
+function monthSpanInclusive(startYmd: string, endYmd: string): number {
+  const start = startYmd.split('-').map(Number);
+  const end = endYmd.split('-').map(Number);
+  const startMonths = (start[0] ?? 0) * 12 + ((start[1] ?? 1) - 1);
+  const endMonths = (end[0] ?? 0) * 12 + ((end[1] ?? 1) - 1);
+  return endMonths - startMonths + 1;
+}
+
+function seriesTypeToScheduleMode(
+  seriesType: 'INSTALLMENT' | 'RECURRING' | null | undefined
+): ScheduleMode {
+  if (seriesType === 'INSTALLMENT') {
+    return 'INSTALLMENT';
+  }
+  if (seriesType === 'RECURRING') {
+    return 'RECURRING';
+  }
+  return 'NONE';
+}
 
 export function EditTransactionScreen({ navigation, route }: Props) {
   const { transactionId } = route.params;
@@ -73,6 +101,8 @@ export function EditTransactionScreen({ navigation, route }: Props) {
   const [amountCents, setAmountCents] = useState(0);
   const [description, setDescription] = useState('');
   const [dateYmd, setDateYmd] = useState('');
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('NONE');
+  const [endDateYmd, setEndDateYmd] = useState<string | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -89,6 +119,8 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     setAmountCents(transaction.amount);
     setDescription(transaction.description ?? '');
     setDateYmd(transaction.date.split('T')[0] ?? transaction.date);
+    setScheduleMode(seriesTypeToScheduleMode(transaction.seriesType));
+    setEndDateYmd(null);
     setSelectedCategoryId(transaction.categoryId);
     setSelectedAccountId(transaction.accountId);
     setSelectedCardId(transaction.cardId);
@@ -108,6 +140,53 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     return categories.filter((category) => category.types.includes(type));
   }, [categories, type]);
 
+  const originalScheduleMode = seriesTypeToScheduleMode(transaction?.seriesType);
+  const scheduleChanged = scheduleMode !== originalScheduleMode;
+
+  const scheduleOptions = useMemo(() => {
+    if (transaction?.seriesId) {
+      return [
+        { value: 'INSTALLMENT' as const, label: t('transactions.scheduleModes.installment') },
+        { value: 'RECURRING' as const, label: t('transactions.scheduleModes.recurring') }
+      ];
+    }
+
+    return [
+      { value: 'NONE' as const, label: t('transactions.scheduleModes.none') },
+      { value: 'INSTALLMENT' as const, label: t('transactions.scheduleModes.installment') },
+      { value: 'RECURRING' as const, label: t('transactions.scheduleModes.recurring') }
+    ];
+  }, [t, transaction?.seriesId]);
+
+  const selectedCard = useMemo(
+    () => creditCards.find((card) => card.id === selectedCardId) ?? null,
+    [creditCards, selectedCardId]
+  );
+
+  const cardInstallmentSummary = useMemo(() => {
+    if (scheduleMode !== 'INSTALLMENT' || !endDateYmd || !selectedCard) {
+      return null;
+    }
+
+    const firstPay = getInvoicePaymentMonth(selectedCard.closingDay, selectedCard.dueDay, dateYmd);
+    const lastPay = parseYearMonth(endDateYmd);
+    const count = inclusivePaymentMonthCount(firstPay, lastPay);
+    if (count < 2) {
+      return null;
+    }
+
+    return {
+      count,
+      first: formatYearMonth(firstPay),
+      last: formatYearMonth(lastPay)
+    };
+  }, [scheduleMode, endDateYmd, selectedCard, dateYmd]);
+
+  const installmentCount =
+    scheduleMode === 'INSTALLMENT' && endDateYmd && !selectedCard
+      ? monthSpanInclusive(dateYmd, endDateYmd)
+      : cardInstallmentSummary?.count ?? null;
+
   const remoteMessage =
     isError && error ? translateCreateTransactionError(error, t) : null;
   const deleteRemoteMessage =
@@ -119,6 +198,10 @@ export function EditTransactionScreen({ navigation, route }: Props) {
 
     if (nextType === 'TRANSFER') {
       setSelectedCategoryId(null);
+      if (!transaction?.seriesId) {
+        setScheduleMode('NONE');
+        setEndDateYmd(null);
+      }
       return;
     }
 
@@ -158,20 +241,48 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     }
   }
 
+  function handleSelectSchedule(mode: ScheduleMode) {
+    setScheduleMode(mode);
+    if (mode !== 'INSTALLMENT') {
+      setEndDateYmd(null);
+    }
+  }
+
   async function submitWithScope(scope: TransactionSeriesScope) {
     setLocalError(null);
 
-    const clientError = validateCreateTransactionClient(t, amountCents, isPaid, selectedAccountId);
+    const clientError = validateCreateTransactionClient(
+      t,
+      amountCents,
+      isPaid,
+      selectedAccountId,
+      scheduleChanged ? scheduleMode : 'NONE',
+      dateYmd,
+      endDateYmd,
+      selectedCard?.closingDay,
+      selectedCard?.dueDay
+    );
     if (clientError) {
       setLocalError(clientError);
       return;
     }
+
+    const schedule = !scheduleChanged
+      ? undefined
+      : scheduleMode === 'INSTALLMENT' && endDateYmd
+        ? { mode: 'INSTALLMENT' as const, endDate: endDateYmd }
+        : scheduleMode === 'RECURRING'
+          ? { mode: 'RECURRING' as const }
+          : scheduleMode === 'NONE'
+            ? { mode: 'NONE' as const }
+            : undefined;
 
     const payload = {
       type,
       amount: amountCents,
       date: dateYmd,
       scope,
+      ...(schedule ? { schedule } : {}),
       ...(description.trim() ? { description: description.trim() } : { description: null }),
       ...(type !== 'TRANSFER' && selectedCategoryId
         ? { categoryId: selectedCategoryId }
@@ -201,6 +312,11 @@ export function EditTransactionScreen({ navigation, route }: Props) {
   }
 
   async function handleSubmit() {
+    if (scheduleChanged) {
+      await submitWithScope('THIS_AND_FUTURE');
+      return;
+    }
+
     if (transaction?.seriesId) {
       Alert.alert(t('transactions.seriesScopeTitle'), undefined, [
         { text: t('transactions.seriesScopeCancel'), style: 'cancel' },
@@ -319,6 +435,69 @@ export function EditTransactionScreen({ navigation, route }: Props) {
           locale={i18n.language}
           onChangeYmd={setDateYmd}
         />
+
+        {type !== 'TRANSFER' ? (
+          <>
+            <TransactionScheduleSegment
+              theme={theme}
+              selected={scheduleMode}
+              options={scheduleOptions}
+              onSelect={handleSelectSchedule}
+              label={t('transactions.scheduleLabel')}
+            />
+            {scheduleMode === 'INSTALLMENT' &&
+            (scheduleChanged || !transaction.seriesId) ? (
+              <>
+                <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                  {selectedCard
+                    ? t('transactions.scheduleInstallmentCardHint')
+                    : t('transactions.scheduleInstallmentHint')}
+                </Text>
+                <TransactionDateField
+                  theme={theme}
+                  valueYmd={endDateYmd ?? dateYmd}
+                  locale={i18n.language}
+                  onChangeYmd={setEndDateYmd}
+                  label={t('transactions.installmentEndDateLabel')}
+                  minimumDateYmd={
+                    selectedCard
+                      ? `${formatYearMonth(getInvoicePaymentMonth(selectedCard.closingDay, selectedCard.dueDay, dateYmd))}-01`
+                      : dateYmd
+                  }
+                />
+                {cardInstallmentSummary ? (
+                  <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                    {t('transactions.scheduleInstallmentCardSummary', {
+                      count: cardInstallmentSummary.count,
+                      first: cardInstallmentSummary.first,
+                      last: cardInstallmentSummary.last
+                    })}
+                  </Text>
+                ) : null}
+                {!selectedCard && installmentCount !== null && installmentCount >= 2 ? (
+                  <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                    {t('transactions.scheduleInstallmentSummary', { count: installmentCount })}
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
+            {scheduleMode === 'RECURRING' && scheduleChanged ? (
+              <>
+                <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                  {t('transactions.scheduleRecurringHint')}
+                </Text>
+                <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                  {t('transactions.scheduleRecurringSummary')}
+                </Text>
+              </>
+            ) : null}
+            {scheduleChanged && !transaction.seriesId && scheduleMode !== 'NONE' ? (
+              <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                {t('transactions.schedulePaidFirstOnlyHint')}
+              </Text>
+            ) : null}
+          </>
+        ) : null}
 
         {transaction.seriesId ? (
           <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>

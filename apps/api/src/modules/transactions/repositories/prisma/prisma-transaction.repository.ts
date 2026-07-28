@@ -14,6 +14,10 @@ import {
   SeriesOccurrenceInput
 } from '../../contracts/create-series-data.contract';
 import {
+  ConvertSeriesToInstallmentData,
+  ConvertSeriesToRecurringData
+} from '../../contracts/convert-series-data.contract';
+import {
   CreateTransferData,
   CreateTransferResult
 } from '../../contracts/create-transfer-data.contract';
@@ -23,12 +27,38 @@ import { UpdateTransferData } from '../../contracts/update-transfer-data.contrac
 import { CreateTransactionData } from '../../contracts/create-transaction-data.contract';
 import { UpdateTransactionData } from '../../contracts/update-transaction-data.contract';
 import { Transaction } from '../../entities/transaction.entity';
-import { addMonthsPreserveDay, parseYmd } from '../../lib/monthly-schedule';
+import {
+  addMonthsPreserveDay,
+  compareYmd,
+  generateInstallmentOccurrences,
+  generateInstallmentOccurrencesByCount,
+  parseYmd
+} from '../../lib/monthly-schedule';
+import {
+  formatYearMonth,
+  getInvoicePaymentMonth
+} from '../../../credit-cards/lib/billing-cycle';
 import { TransactionRepository } from '../transaction.repository';
 
 type PrismaTransactionWithSeries = PrismaTransaction & {
   series?: Pick<PrismaTransactionSeries, 'type' | 'totalOccurrences'> | null;
+  card?: { closingDay: number; dueDay: number } | null;
 };
+
+const transactionDetailInclude = {
+  series: {
+    select: {
+      type: true,
+      totalOccurrences: true
+    }
+  },
+  card: {
+    select: {
+      closingDay: true,
+      dueDay: true
+    }
+  }
+} as const;
 
 @Injectable()
 export class PrismaTransactionRepository implements TransactionRepository {
@@ -54,6 +84,18 @@ export class PrismaTransactionRepository implements TransactionRepository {
   }
 
   private mapToEntity(transaction: PrismaTransactionWithSeries): Transaction {
+    const dateYmd = transaction.date.toISOString().slice(0, 10);
+    const invoicePaymentMonth =
+      transaction.cardId && transaction.card
+        ? formatYearMonth(
+            getInvoicePaymentMonth(
+              transaction.card.closingDay,
+              transaction.card.dueDay,
+              dateYmd
+            )
+          )
+        : null;
+
     return {
       id: transaction.id,
       userId: transaction.userId,
@@ -71,6 +113,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
       date: transaction.date.toISOString(),
       isPaid: transaction.isPaid,
       isProjected: transaction.isProjected,
+      invoicePaymentMonth,
       createdAt: transaction.createdAt.toISOString(),
       updatedAt: transaction.updatedAt.toISOString()
     };
@@ -147,14 +190,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
   ): Promise<Transaction[]> {
     const transactions = await this.prisma.transaction.findMany({
       where: this.buildWhereClause(userId, filters),
-      include: {
-        series: {
-          select: {
-            type: true,
-            totalOccurrences: true
-          }
-        }
-      },
+      include: transactionDetailInclude,
       orderBy: [{ date: 'desc' }, { createdAt: 'desc' }],
       ...(filters?.limit !== undefined ? { take: filters.limit } : {})
     });
@@ -168,14 +204,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
         id: transactionId,
         userId
       },
-      include: {
-        series: {
-          select: {
-            type: true,
-            totalOccurrences: true
-          }
-        }
-      }
+      include: transactionDetailInclude
     });
 
     if (!transaction) {
@@ -194,14 +223,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
         transferGroupId,
         userId
       },
-      include: {
-        series: {
-          select: {
-            type: true,
-            totalOccurrences: true
-          }
-        }
-      }
+      include: transactionDetailInclude
     });
 
     if (transactions.length !== 2) {
@@ -235,14 +257,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
         isPaid: data.isPaid,
         isProjected: false
       },
-      include: {
-        series: {
-          select: {
-            type: true,
-            totalOccurrences: true
-          }
-        }
-      }
+      include: transactionDetailInclude
     });
 
     return this.mapToEntity(transaction);
@@ -301,6 +316,360 @@ export class PrismaTransactionRepository implements TransactionRepository {
         seriesId: series.id,
         firstTransactionId: first.id
       };
+    });
+  }
+
+  async promoteToSeries(
+    existingTransactionId: string,
+    data: CreateSeriesWithOccurrencesData
+  ): Promise<CreateSeriesWithOccurrencesResult> {
+    return await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.transaction.findUnique({
+        where: { id: existingTransactionId }
+      });
+
+      if (!existing || existing.seriesId) {
+        throw new Error('Cannot promote transaction to series');
+      }
+
+      const firstOccurrence =
+        data.occurrences.find((item) => item.occurrenceNumber === 1) ?? data.occurrences[0];
+
+      if (!firstOccurrence) {
+        throw new Error('Series requires at least one occurrence');
+      }
+
+      const remaining = data.occurrences.filter(
+        (item) => item.occurrenceNumber !== firstOccurrence.occurrenceNumber
+      );
+
+      const series = await tx.transactionSeries.create({
+        data: {
+          userId: data.userId,
+          type: data.type,
+          accountId: data.accountId ?? null,
+          categoryId: data.categoryId ?? null,
+          cardId: data.cardId ?? null,
+          description: data.description ?? null,
+          transactionType: data.transactionType,
+          amount: data.amount,
+          anchorDate: this.utcDayStart(data.anchorDate),
+          anchorDay: data.anchorDay,
+          totalOccurrences: data.totalOccurrences,
+          nextOccurrenceNumber: data.occurrences.length + 1,
+          isActive: data.type === TransactionSeriesType.RECURRING
+        }
+      });
+
+      await tx.transaction.update({
+        where: { id: existingTransactionId },
+        data: {
+          accountId: data.accountId ?? null,
+          categoryId: data.categoryId ?? null,
+          cardId: data.cardId ?? null,
+          description: data.description ?? null,
+          type: data.transactionType,
+          amount: data.amount,
+          date: this.utcDayStart(firstOccurrence.date),
+          isProjected: false,
+          seriesId: series.id,
+          occurrenceNumber: 1
+        }
+      });
+
+      await Promise.all(
+        remaining.map((occurrence) =>
+          tx.transaction.create({
+            data: {
+              userId: data.userId,
+              accountId: data.accountId ?? null,
+              categoryId: data.categoryId ?? null,
+              cardId: data.cardId ?? null,
+              description: data.description ?? null,
+              type: data.transactionType,
+              amount: data.amount,
+              date: this.utcDayStart(occurrence.date),
+              isPaid: occurrence.isPaid,
+              isProjected: occurrence.isProjected,
+              seriesId: series.id,
+              occurrenceNumber: occurrence.occurrenceNumber
+            }
+          })
+        )
+      );
+
+      return {
+        seriesId: series.id,
+        firstTransactionId: existingTransactionId
+      };
+    });
+  }
+
+  async convertSeriesToRecurring(data: ConvertSeriesToRecurringData): Promise<Transaction> {
+    return await this.prisma.$transaction(async (tx) => {
+      const series = await tx.transactionSeries.findUnique({
+        where: { id: data.seriesId }
+      });
+
+      if (!series) {
+        throw new Error('Series not found');
+      }
+
+      const fieldUpdates = data.fieldUpdates;
+      const targets = await tx.transaction.findMany({
+        where: {
+          seriesId: data.seriesId,
+          occurrenceNumber: { gte: data.fromOccurrenceNumber }
+        },
+        orderBy: { occurrenceNumber: 'asc' }
+      });
+
+      let editedId: string | null = null;
+
+      for (const target of targets) {
+        const offset =
+          target.occurrenceNumber !== null
+            ? target.occurrenceNumber - data.fromOccurrenceNumber
+            : 0;
+
+        let nextDate = target.date;
+        if (fieldUpdates.date !== undefined) {
+          if (offset === 0) {
+            nextDate = this.utcDayStart(fieldUpdates.date);
+          } else {
+            const anchorDay = parseYmd(fieldUpdates.date).day;
+            nextDate = this.utcDayStart(
+              addMonthsPreserveDay(fieldUpdates.date, offset, anchorDay)
+            );
+          }
+        }
+
+        const dateYmd = nextDate.toISOString().slice(0, 10);
+        const isProjected = compareYmd(dateYmd, data.todayYmd) > 0;
+
+        const row = await tx.transaction.update({
+          where: { id: target.id },
+          data: {
+            ...(fieldUpdates.accountId !== undefined ? { accountId: fieldUpdates.accountId } : {}),
+            ...(fieldUpdates.categoryId !== undefined
+              ? { categoryId: fieldUpdates.categoryId }
+              : {}),
+            ...(fieldUpdates.cardId !== undefined ? { cardId: fieldUpdates.cardId } : {}),
+            ...(fieldUpdates.description !== undefined
+              ? { description: fieldUpdates.description }
+              : {}),
+            ...(fieldUpdates.type !== undefined ? { type: fieldUpdates.type } : {}),
+            ...(fieldUpdates.amount !== undefined ? { amount: fieldUpdates.amount } : {}),
+            date: nextDate,
+            isProjected
+          }
+        });
+
+        if (target.occurrenceNumber === data.fromOccurrenceNumber) {
+          editedId = row.id;
+        }
+      }
+
+      const pastRows = await tx.transaction.findMany({
+        where: {
+          seriesId: data.seriesId,
+          occurrenceNumber: { lt: data.fromOccurrenceNumber }
+        }
+      });
+
+      for (const past of pastRows) {
+        const dateYmd = past.date.toISOString().slice(0, 10);
+        await tx.transaction.update({
+          where: { id: past.id },
+          data: {
+            isProjected: compareYmd(dateYmd, data.todayYmd) > 0
+          }
+        });
+      }
+
+      const anchorDate =
+        fieldUpdates.date !== undefined && data.fromOccurrenceNumber === 1
+          ? fieldUpdates.date
+          : series.anchorDate.toISOString().slice(0, 10);
+      const anchorDay =
+        fieldUpdates.date !== undefined && data.fromOccurrenceNumber === 1
+          ? parseYmd(fieldUpdates.date).day
+          : series.anchorDay;
+
+      await tx.transactionSeries.update({
+        where: { id: data.seriesId },
+        data: {
+          type: TransactionSeriesType.RECURRING,
+          totalOccurrences: null,
+          isActive: true,
+          ...(fieldUpdates.accountId !== undefined ? { accountId: fieldUpdates.accountId } : {}),
+          ...(fieldUpdates.categoryId !== undefined
+            ? { categoryId: fieldUpdates.categoryId }
+            : {}),
+          ...(fieldUpdates.cardId !== undefined ? { cardId: fieldUpdates.cardId } : {}),
+          ...(fieldUpdates.description !== undefined
+            ? { description: fieldUpdates.description }
+            : {}),
+          ...(fieldUpdates.type !== undefined ? { transactionType: fieldUpdates.type } : {}),
+          ...(fieldUpdates.amount !== undefined ? { amount: fieldUpdates.amount } : {}),
+          ...(fieldUpdates.date !== undefined && data.fromOccurrenceNumber === 1
+            ? {
+                anchorDate: this.utcDayStart(anchorDate),
+                anchorDay
+              }
+            : {})
+        }
+      });
+
+      const edited =
+        editedId !== null
+          ? await tx.transaction.findUniqueOrThrow({
+              where: { id: editedId },
+              include: transactionDetailInclude
+            })
+          : await tx.transaction.findFirstOrThrow({
+              where: {
+                seriesId: data.seriesId,
+                occurrenceNumber: data.fromOccurrenceNumber
+              },
+              include: transactionDetailInclude
+            });
+
+      return this.mapToEntity(edited);
+    });
+  }
+
+  async convertSeriesToInstallment(data: ConvertSeriesToInstallmentData): Promise<Transaction> {
+    return await this.prisma.$transaction(async (tx) => {
+      const series = await tx.transactionSeries.findUnique({
+        where: { id: data.seriesId }
+      });
+
+      if (!series) {
+        throw new Error('Series not found');
+      }
+
+      const drafts =
+        data.occurrenceCount !== undefined
+          ? generateInstallmentOccurrencesByCount(data.startDate, data.occurrenceCount)
+          : generateInstallmentOccurrences(data.startDate, data.endDate);
+      const fieldUpdates = data.fieldUpdates;
+
+      const toDelete = await tx.transaction.findMany({
+        where: {
+          seriesId: data.seriesId,
+          occurrenceNumber: { gte: data.fromOccurrenceNumber }
+        }
+      });
+
+      const keepFirst =
+        toDelete.find((row) => row.occurrenceNumber === data.fromOccurrenceNumber) ?? null;
+
+      if (!keepFirst) {
+        throw new Error('Starting occurrence not found');
+      }
+
+      await tx.transaction.deleteMany({
+        where: {
+          seriesId: data.seriesId,
+          occurrenceNumber: { gt: data.fromOccurrenceNumber }
+        }
+      });
+
+      const firstDraft = drafts[0];
+      if (!firstDraft) {
+        throw new Error('Installment requires occurrences');
+      }
+
+      await tx.transaction.update({
+        where: { id: keepFirst.id },
+        data: {
+          ...(fieldUpdates.accountId !== undefined ? { accountId: fieldUpdates.accountId } : {}),
+          ...(fieldUpdates.categoryId !== undefined
+            ? { categoryId: fieldUpdates.categoryId }
+            : {}),
+          ...(fieldUpdates.cardId !== undefined ? { cardId: fieldUpdates.cardId } : {}),
+          ...(fieldUpdates.description !== undefined
+            ? { description: fieldUpdates.description }
+            : {}),
+          ...(fieldUpdates.type !== undefined ? { type: fieldUpdates.type } : {}),
+          ...(fieldUpdates.amount !== undefined ? { amount: fieldUpdates.amount } : {}),
+          date: this.utcDayStart(firstDraft.date),
+          isProjected: false,
+          occurrenceNumber: data.fromOccurrenceNumber
+        }
+      });
+
+      const accountId =
+        fieldUpdates.accountId !== undefined ? fieldUpdates.accountId : series.accountId;
+      const categoryId =
+        fieldUpdates.categoryId !== undefined ? fieldUpdates.categoryId : series.categoryId;
+      const cardId = fieldUpdates.cardId !== undefined ? fieldUpdates.cardId : series.cardId;
+      const description =
+        fieldUpdates.description !== undefined ? fieldUpdates.description : series.description;
+      const transactionType =
+        fieldUpdates.type !== undefined ? fieldUpdates.type : series.transactionType;
+      const amount = fieldUpdates.amount !== undefined ? fieldUpdates.amount : series.amount;
+
+      for (let index = 1; index < drafts.length; index += 1) {
+        const draft = drafts[index];
+        if (!draft) {
+          continue;
+        }
+
+        await tx.transaction.create({
+          data: {
+            userId: series.userId,
+            accountId,
+            categoryId,
+            cardId,
+            description,
+            type: transactionType,
+            amount,
+            date: this.utcDayStart(draft.date),
+            isPaid: false,
+            isProjected: false,
+            seriesId: series.id,
+            occurrenceNumber: data.fromOccurrenceNumber + index
+          }
+        });
+      }
+
+      await tx.transaction.updateMany({
+        where: { seriesId: data.seriesId },
+        data: { isProjected: false }
+      });
+
+      const totalOccurrences = data.fromOccurrenceNumber + drafts.length - 1;
+
+      await tx.transactionSeries.update({
+        where: { id: data.seriesId },
+        data: {
+          type: TransactionSeriesType.INSTALLMENT,
+          totalOccurrences,
+          isActive: false,
+          nextOccurrenceNumber: totalOccurrences + 1,
+          accountId,
+          categoryId,
+          cardId,
+          description,
+          transactionType,
+          amount,
+          ...(data.fromOccurrenceNumber === 1
+            ? {
+                anchorDate: this.utcDayStart(data.startDate),
+                anchorDay: parseYmd(data.startDate).day
+              }
+            : {})
+        }
+      });
+
+      const edited = await tx.transaction.findUniqueOrThrow({
+        where: { id: keepFirst.id },
+        include: transactionDetailInclude
+      });
+
+      return this.mapToEntity(edited);
     });
   }
 
@@ -462,14 +831,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
         amount: data.amount,
         date: data.date ? this.utcDayStart(data.date) : undefined
       },
-      include: {
-        series: {
-          select: {
-            type: true,
-            totalOccurrences: true
-          }
-        }
-      }
+      include: transactionDetailInclude
     });
 
     return this.mapToEntity(transaction);
@@ -484,14 +846,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
         seriesId,
         occurrenceNumber: { gte: fromOccurrenceNumber }
       },
-      include: {
-        series: {
-          select: {
-            type: true,
-            totalOccurrences: true
-          }
-        }
-      },
+      include: transactionDetailInclude,
       orderBy: { occurrenceNumber: 'asc' }
     });
 
@@ -540,14 +895,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
           amount: data.amount,
           date: nextDate
         },
-        include: {
-          series: {
-            select: {
-              type: true,
-              totalOccurrences: true
-            }
-          }
-        }
+        include: transactionDetailInclude
       });
 
       updated.push(this.mapToEntity(row));
@@ -588,14 +936,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
     const transaction = await this.prisma.transaction.update({
       where: { id: transactionId },
       data: { isPaid },
-      include: {
-        series: {
-          select: {
-            type: true,
-            totalOccurrences: true
-          }
-        }
-      }
+      include: transactionDetailInclude
     });
 
     return this.mapToEntity(transaction);
@@ -617,14 +958,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
           seriesId,
           occurrenceNumber: { gte: fromOccurrenceNumber }
         },
-        include: {
-          series: {
-            select: {
-              type: true,
-              totalOccurrences: true
-            }
-          }
-        }
+        include: transactionDetailInclude
       });
 
       const deleted = targets.map((item) => this.mapToEntity(item));

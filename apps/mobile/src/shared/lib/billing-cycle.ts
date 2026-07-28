@@ -67,6 +67,84 @@ function nextMonthClosing(year: number, monthIndex: number, closingDay: number):
   return closingYmd(nextYear, nextMonth, closingDay);
 }
 
+export type YearMonth = {
+  year: number;
+  month: number;
+};
+
+export function formatYearMonth(ym: YearMonth): string {
+  return `${ym.year}-${pad2(ym.month)}`;
+}
+
+export function parseYearMonth(ymdOrYm: string): YearMonth {
+  const parts = ymdOrYm.slice(0, 10).split('-').map(Number);
+  return {
+    year: parts[0] ?? 1970,
+    month: parts[1] ?? 1
+  };
+}
+
+export function paymentMonthIndex(ym: YearMonth): number {
+  return ym.year * 12 + (ym.month - 1);
+}
+
+export function inclusivePaymentMonthCount(from: YearMonth, to: YearMonth): number {
+  return paymentMonthIndex(to) - paymentMonthIndex(from) + 1;
+}
+
+/**
+ * Cycle that contains `ymd`: [closingDay, nextClosingDay - 1].
+ * Closing day starts a new cycle.
+ */
+export function getCycleContainingDate(
+  closingDay: number,
+  ymd: string
+): { start: string; end: string } {
+  const date = ymd.slice(0, 10);
+  const d = ymdToLocalDate(date);
+  const y = d.getFullYear();
+  const m0 = d.getMonth();
+  const thisClose = closingYmd(y, m0, closingDay);
+
+  if (compareYmd(date, thisClose) < 0) {
+    const prevClose = prevMonthClosing(y, m0, closingDay);
+    return { start: prevClose, end: subtractOneCalendarDay(thisClose) };
+  }
+
+  const nextClose = nextMonthClosing(y, m0, closingDay);
+  return { start: thisClose, end: subtractOneCalendarDay(nextClose) };
+}
+
+/**
+ * Due date for the invoice that contains `ymd`: first dueDay strictly after the cycle closing day.
+ */
+export function getInvoiceDueYmd(closingDay: number, dueDay: number, ymd: string): string {
+  const cycle = getCycleContainingDate(closingDay, ymd);
+  const closeYmd = addOneCalendarDay(cycle.end);
+  const closeDate = ymdToLocalDate(closeYmd);
+  const y = closeDate.getFullYear();
+  const m0 = closeDate.getMonth();
+  const dueSameMonth = closingYmd(y, m0, dueDay);
+
+  if (compareYmd(dueSameMonth, closeYmd) > 0) {
+    return dueSameMonth;
+  }
+
+  return nextMonthClosing(y, m0, dueDay);
+}
+
+/**
+ * Payment month for the invoice that contains `ymd`:
+ * calendar month of the invoice due date (vencimento).
+ */
+export function getInvoicePaymentMonth(
+  closingDay: number,
+  dueDay: number,
+  ymd: string
+): YearMonth {
+  return parseYearMonth(getInvoiceDueYmd(closingDay, dueDay, ymd));
+}
+
 /** Open (current) invoice: [thisClose, nextClose - 1]. Day of closing belongs to the new cycle. */
 export function getOpenBillingCycleRange(
   closingDay: number,

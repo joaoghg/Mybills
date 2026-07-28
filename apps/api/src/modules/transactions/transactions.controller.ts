@@ -254,7 +254,7 @@ export class TransactionsController {
   @ApiOperation({
     summary: 'Update transaction',
     description:
-      'Updates an existing transaction from the user. For series, scope SINGLE or THIS_AND_FUTURE.'
+      'Updates an existing transaction from the user. Supports schedule conversion (standalone to series, or INSTALLMENT↔RECURRING). For series field edits, scope SINGLE or THIS_AND_FUTURE.'
   })
   @ApiParam({ name: 'id', description: 'Transaction id' })
   @ApiBody({
@@ -280,7 +280,8 @@ export class TransactionsController {
       type: data.type,
       amount: data.amount,
       date: data.date,
-      scope: data.scope
+      scope: data.scope,
+      schedule: data.schedule
     });
   }
 

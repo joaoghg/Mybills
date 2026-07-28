@@ -18,6 +18,10 @@ export const transactions = {
     recurring: 'Recurring'
   },
   scheduleInstallmentHint: 'Creates one installment per month until the end date. Amount is per installment.',
+  scheduleInstallmentCardHint:
+    'The purchase date stays the same. Installments follow the card invoice payment months.',
+  scheduleInstallmentCardSummary:
+    '{{count}} installments · 1st invoice {{first}} · last {{last}}',
   scheduleRecurringHint: 'Repeats every month with no end date. Keeps the next 12 months generated.',
   schedulePaidFirstOnlyHint: 'If marked as paid, only the first occurrence is paid.',
   scheduleInstallmentSummary: '{{count}} installments',
@@ -25,6 +29,7 @@ export const transactions = {
   seriesInstallmentLabel: 'Installment {{current}} of {{total}}',
   seriesRecurringLabel: 'Recurring',
   projectedLabel: 'Projected',
+  invoicePaymentMonthLabel: 'Invoice {{month}}',
   seriesScopeTitle: 'Apply to',
   seriesScopeSingle: 'This only',
   seriesScopeFuture: 'This and future',

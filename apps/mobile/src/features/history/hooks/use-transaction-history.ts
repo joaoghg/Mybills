@@ -48,6 +48,44 @@ function currentMonthYear(): { month: number; year: number } {
   return { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function lastDayOfCalendarMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+function selectedYearMonth(year: number, month: number): string {
+  return `${year}-${pad2(month)}`;
+}
+
+function belongsToHistoryMonth(
+  tx: TransactionOutput,
+  selectedYear: number,
+  selectedMonth: number
+): boolean {
+  const selectedYm = selectedYearMonth(selectedYear, selectedMonth);
+  if (tx.cardId && tx.invoicePaymentMonth) {
+    return tx.invoicePaymentMonth === selectedYm;
+  }
+  const dateYmd = tx.date.split('T')[0] ?? tx.date;
+  return dateYmd.startsWith(selectedYm);
+}
+
+function formatInvoiceMonthLabel(invoicePaymentMonth: string, locale: string): string {
+  const [yearPart, monthPart] = invoicePaymentMonth.split('-').map(Number);
+  const year = yearPart ?? 1970;
+  const month = monthPart ?? 1;
+  try {
+    return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
+      new Date(year, month - 1, 1)
+    );
+  } catch {
+    return invoicePaymentMonth;
+  }
+}
+
 function formatTimeFromIso(iso: string, locale: string): string {
   const date = new Date(iso);
   try {
@@ -106,6 +144,13 @@ function toHistoryRow(
   if (tx.isProjected) {
     extras.push(t('transactions.projectedLabel'));
   }
+  if (tx.cardId && tx.invoicePaymentMonth) {
+    extras.push(
+      t('transactions.invoicePaymentMonthLabel', {
+        month: formatInvoiceMonthLabel(tx.invoicePaymentMonth, locale)
+      })
+    );
+  }
 
   return {
     ...base,
@@ -119,9 +164,20 @@ function toHistoryRow(
 }
 
 function buildApiQuery(filters: HistoryFilters, debouncedSearch: string): ListTransactionsQueryInput {
+  let fromYear = filters.selectedYear;
+  let fromMonth = filters.selectedMonth - 1;
+  if (fromMonth < 1) {
+    fromMonth = 12;
+    fromYear -= 1;
+  }
+
+  const from = `${fromYear}-${pad2(fromMonth)}-01`;
+  const toDay = lastDayOfCalendarMonth(filters.selectedYear, filters.selectedMonth);
+  const to = `${filters.selectedYear}-${pad2(filters.selectedMonth)}-${pad2(toDay)}`;
+
   return {
-    year: filters.selectedYear,
-    month: filters.selectedMonth,
+    from,
+    to,
     includeTransfer: filters.includeTransfer,
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
@@ -257,14 +313,25 @@ export function useTransactionHistory(
   const rows = useMemo((): HistoryTransactionRow[] => {
     const txs = transactionsQuery.data ?? [];
     const transferLabel = t('transactions.types.transfer');
-    const displayTransactions = dedupeTransferTransactions(txs);
+    const displayTransactions = dedupeTransferTransactions(txs).filter((tx) =>
+      belongsToHistoryMonth(tx, filters.selectedYear, filters.selectedMonth)
+    );
 
     return displayTransactions.map((tx) => {
       const categoryName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
       const categoryIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
       return toHistoryRow(tx, categoryName, categoryIcon, locale, timeLabels, transferLabel, t);
     });
-  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels, t]);
+  }, [
+    transactionsQuery.data,
+    categoryNameById,
+    categoryIconById,
+    locale,
+    timeLabels,
+    t,
+    filters.selectedYear,
+    filters.selectedMonth
+  ]);
 
   const sections = useMemo(() => groupTransactionsByDate(rows, t), [rows, t]);
 

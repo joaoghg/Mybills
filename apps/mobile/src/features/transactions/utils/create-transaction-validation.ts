@@ -1,6 +1,12 @@
 import type { TFunction } from 'i18next';
 import type { ZodError } from 'zod';
 
+import {
+  getInvoicePaymentMonth,
+  inclusivePaymentMonthCount,
+  parseYearMonth
+} from '@/shared/lib/billing-cycle';
+
 function messageForIssue(issue: ZodError['issues'][number], t: TFunction): string | null {
   const field = issue.path[0];
   if (field === 'amount') {
@@ -36,7 +42,9 @@ export function validateCreateTransactionClient(
   accountId: string | null,
   scheduleMode: ScheduleMode = 'NONE',
   dateYmd?: string,
-  endDateYmd?: string | null
+  endDateYmd?: string | null,
+  cardClosingDay?: number | null,
+  cardDueDay?: number | null
 ): string | null {
   if (amountCents <= 0) {
     return t('transactions.validation.amountRequired');
@@ -47,6 +55,15 @@ export function validateCreateTransactionClient(
   if (scheduleMode === 'INSTALLMENT') {
     if (!endDateYmd) {
       return t('transactions.validation.installmentEndDateRequired');
+    }
+    if (cardClosingDay != null && cardDueDay != null && dateYmd) {
+      const firstPay = getInvoicePaymentMonth(cardClosingDay, cardDueDay, dateYmd);
+      const lastPay = parseYearMonth(endDateYmd);
+      const count = inclusivePaymentMonthCount(firstPay, lastPay);
+      if (count < 2) {
+        return t('transactions.validation.installmentMinMonths');
+      }
+      return null;
     }
     if (dateYmd && endDateYmd <= dateYmd) {
       return t('transactions.validation.installmentEndDateInvalid');

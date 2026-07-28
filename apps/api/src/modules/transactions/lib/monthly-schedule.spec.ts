@@ -2,6 +2,7 @@ import {
   addMonthsPreserveDay,
   compareYmd,
   generateInstallmentOccurrences,
+  generateInstallmentOccurrencesByCount,
   generateRecurringOccurrences,
   inclusiveMonthCount,
   utcTodayYmd
@@ -38,6 +39,15 @@ describe('monthly-schedule', () => {
 
     it('counts months inclusively', () => {
       expect(inclusiveMonthCount('2026-01-15', '2026-04-15')).toBe(4);
+    });
+  });
+
+  describe('generateInstallmentOccurrencesByCount', () => {
+    it('should generate 12 months from Jul 21 ending Jun 21 next year', () => {
+      const occurrences = generateInstallmentOccurrencesByCount('2026-07-21', 12);
+      expect(occurrences).toHaveLength(12);
+      expect(occurrences[0]).toEqual({ occurrenceNumber: 1, date: '2026-07-21' });
+      expect(occurrences[11]).toEqual({ occurrenceNumber: 12, date: '2027-06-21' });
     });
   });
 

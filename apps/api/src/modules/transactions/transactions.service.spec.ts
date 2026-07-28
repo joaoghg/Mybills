@@ -35,6 +35,7 @@ describe('TransactionsService', () => {
     date: '2026-04-04T00:00:00.000Z',
     isPaid: false,
     isProjected: false,
+    invoicePaymentMonth: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -76,6 +77,9 @@ describe('TransactionsService', () => {
             updateTransferPair: jest.fn(),
             deleteTransferPair: jest.fn(),
             createSeriesWithOccurrences: jest.fn(),
+            promoteToSeries: jest.fn(),
+            convertSeriesToRecurring: jest.fn(),
+            convertSeriesToInstallment: jest.fn(),
             updateManyFromOccurrence: jest.fn(),
             findBySeriesFromOccurrence: jest.fn(),
             deleteFromOccurrence: jest.fn(),
@@ -304,6 +308,67 @@ describe('TransactionsService', () => {
       expect(accountsService.update).toHaveBeenCalledTimes(1);
     });
 
+    it('should create card installment series by invoice payment months', async () => {
+      const cardId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+      const first: Transaction = {
+        ...baseTransaction,
+        cardId,
+        seriesId: '33333333-3333-3333-3333-333333333333',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 12,
+        date: '2026-07-21T00:00:00.000Z',
+        invoicePaymentMonth: '2026-08',
+        isPaid: false
+      };
+
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      creditCardsService.findById.mockResolvedValue({
+        id: cardId,
+        userId: first.userId,
+        accountId: first.accountId,
+        name: 'Nubank',
+        limit: 500000,
+        closingDay: 4,
+        dueDay: 11,
+        usedAmount: 0,
+        createdAt: first.createdAt,
+        updatedAt: first.updatedAt
+      });
+      repository.createSeriesWithOccurrences.mockResolvedValue({
+        seriesId: first.seriesId as string,
+        firstTransactionId: first.id
+      });
+      repository.findByIdAndUserId.mockResolvedValue(first);
+
+      const result = await service.create({
+        userId: first.userId,
+        accountId: first.accountId,
+        categoryId: first.categoryId,
+        cardId,
+        type: TransactionType.EXPENSE,
+        amount: first.amount,
+        date: '2026-07-21',
+        isPaid: false,
+        schedule: { mode: 'INSTALLMENT', endDate: '2027-07-15' }
+      });
+
+      expect(result).toEqual(first);
+      expect(repository.createSeriesWithOccurrences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'INSTALLMENT',
+          totalOccurrences: 12,
+          occurrences: expect.arrayContaining([
+            expect.objectContaining({ occurrenceNumber: 1, date: '2026-07-21' }),
+            expect.objectContaining({ occurrenceNumber: 12, date: '2027-06-21' })
+          ])
+        })
+      );
+      const call = repository.createSeriesWithOccurrences.mock.calls[0]?.[0];
+      expect(call?.occurrences).toHaveLength(12);
+    });
+
     it('should create recurring series with projected future occurrences', async () => {
       const first: Transaction = {
         ...baseTransaction,
@@ -444,6 +509,141 @@ describe('TransactionsService', () => {
 
       await expect(
         service.update(baseTransaction.id, baseTransaction.userId, { amount: 1000 })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
+
+    it('should promote a standalone transaction to installment series', async () => {
+      const promoted: Transaction = {
+        ...baseTransaction,
+        seriesId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3
+      };
+
+      repository.findByIdAndUserId
+        .mockResolvedValueOnce(baseTransaction)
+        .mockResolvedValueOnce(promoted);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.promoteToSeries.mockResolvedValue({
+        seriesId: promoted.seriesId as string,
+        firstTransactionId: promoted.id
+      });
+
+      const result = await service.update(baseTransaction.id, baseTransaction.userId, {
+        schedule: { mode: 'INSTALLMENT', endDate: '2026-06-04' }
+      });
+
+      expect(result).toEqual(promoted);
+      expect(repository.promoteToSeries).toHaveBeenCalledWith(
+        baseTransaction.id,
+        expect.objectContaining({
+          type: 'INSTALLMENT',
+          totalOccurrences: 3,
+          occurrences: expect.arrayContaining([
+            expect.objectContaining({ occurrenceNumber: 1, isPaid: false })
+          ])
+        })
+      );
+    });
+
+    it('should convert installment series to recurring', async () => {
+      const installment: Transaction = {
+        ...baseTransaction,
+        seriesId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3
+      };
+      const converted: Transaction = {
+        ...installment,
+        seriesType: 'RECURRING',
+        seriesTotalOccurrences: null
+      };
+      const seriesMaintenance = (
+        service as unknown as {
+          seriesMaintenance: {
+            extendActiveRecurringSeries: jest.Mock;
+          };
+        }
+      ).seriesMaintenance;
+
+      repository.findByIdAndUserId
+        .mockResolvedValueOnce(installment)
+        .mockResolvedValueOnce(converted);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.findBySeriesFromOccurrence.mockResolvedValue([installment]);
+      repository.convertSeriesToRecurring.mockResolvedValue(converted);
+      seriesMaintenance.extendActiveRecurringSeries.mockResolvedValue(2);
+
+      const result = await service.update(installment.id, installment.userId, {
+        schedule: { mode: 'RECURRING' }
+      });
+
+      expect(result).toEqual(converted);
+      expect(repository.convertSeriesToRecurring).toHaveBeenCalledWith(
+        expect.objectContaining({
+          seriesId: installment.seriesId,
+          fromOccurrenceNumber: 1
+        })
+      );
+      expect(seriesMaintenance.extendActiveRecurringSeries).toHaveBeenCalled();
+    });
+
+    it('should convert recurring series to installment', async () => {
+      const recurring: Transaction = {
+        ...baseTransaction,
+        seriesId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        occurrenceNumber: 1,
+        seriesType: 'RECURRING',
+        seriesTotalOccurrences: null
+      };
+      const converted: Transaction = {
+        ...recurring,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3
+      };
+
+      repository.findByIdAndUserId
+        .mockResolvedValueOnce(recurring)
+        .mockResolvedValueOnce(converted);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.findBySeriesFromOccurrence.mockResolvedValue([recurring]);
+      repository.convertSeriesToInstallment.mockResolvedValue(converted);
+
+      const result = await service.update(recurring.id, recurring.userId, {
+        schedule: { mode: 'INSTALLMENT', endDate: '2026-06-04' }
+      });
+
+      expect(result).toEqual(converted);
+      expect(repository.convertSeriesToInstallment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          seriesId: recurring.seriesId,
+          startDate: '2026-04-04',
+          endDate: '2026-06-04'
+        })
+      );
+    });
+
+    it('should reject detaching a series back to NONE', async () => {
+      repository.findByIdAndUserId.mockResolvedValue({
+        ...baseTransaction,
+        seriesId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 2
+      });
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+
+      await expect(
+        service.update(baseTransaction.id, baseTransaction.userId, {
+          schedule: { mode: 'NONE' },
+          amount: 1000
+        })
       ).rejects.toThrow(InvalidArgumentError);
     });
   });

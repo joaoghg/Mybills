@@ -36,7 +36,11 @@ export const createTransactionInputSchema = z
     schedule: transactionScheduleSchema.optional().default({ mode: 'NONE' })
   })
   .superRefine((data, ctx) => {
-    if (data.schedule.mode === 'INSTALLMENT' && data.schedule.endDate <= data.date) {
+    if (
+      data.schedule.mode === 'INSTALLMENT' &&
+      !data.cardId &&
+      data.schedule.endDate <= data.date
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['schedule', 'endDate'],

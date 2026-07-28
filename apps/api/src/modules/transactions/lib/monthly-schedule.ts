@@ -93,6 +93,20 @@ export function generateInstallmentOccurrences(startYmd: string, endYmd: string)
 }
 
 /**
+ * Installment dates from start for exactly `count` months (1st = startYmd).
+ */
+export function generateInstallmentOccurrencesByCount(
+  startYmd: string,
+  count: number
+): OccurrenceDraft[] {
+  if (count < 2) {
+    throw new Error('installment requires at least 2 months');
+  }
+
+  return generateRecurringOccurrences(startYmd, count, 1);
+}
+
+/**
  * Recurring monthly dates from start for `count` occurrences (1-based numbering from startNumber).
  */
 export function generateRecurringOccurrences(

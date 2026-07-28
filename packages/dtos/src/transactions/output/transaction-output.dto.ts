@@ -20,6 +20,10 @@ export const transactionOutputSchema = z.object({
   date: z.string(),
   isPaid: z.boolean(),
   isProjected: z.boolean(),
+  invoicePaymentMonth: z
+    .string()
+    .regex(/^\d{4}-\d{2}$/)
+    .nullable(),
   createdAt: z.string(),
   updatedAt: z.string()
 });

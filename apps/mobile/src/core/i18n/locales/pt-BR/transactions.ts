@@ -18,6 +18,10 @@ export const transactions = {
     recurring: 'Recorrente'
   },
   scheduleInstallmentHint: 'Cria uma parcela por mês até a data final. O valor é de cada parcela.',
+  scheduleInstallmentCardHint:
+    'A data da compra permanece. As parcelas seguem os meses de pagamento da fatura do cartão.',
+  scheduleInstallmentCardSummary:
+    '{{count}} parcelas · 1ª fatura {{first}} · última {{last}}',
   scheduleRecurringHint: 'Repete todo mês sem data final. Mantém os próximos 12 meses gerados.',
   schedulePaidFirstOnlyHint: 'Se marcado como pago, apenas a primeira ocorrência fica paga.',
   scheduleInstallmentSummary: '{{count}} parcelas',
@@ -25,6 +29,7 @@ export const transactions = {
   seriesInstallmentLabel: 'Parcela {{current}} de {{total}}',
   seriesRecurringLabel: 'Recorrente',
   projectedLabel: 'Prevista',
+  invoicePaymentMonthLabel: 'Fatura de {{month}}',
   seriesScopeTitle: 'Aplicar em',
   seriesScopeSingle: 'Somente esta',
   seriesScopeFuture: 'Esta e futuras',

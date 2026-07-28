@@ -32,6 +32,7 @@ describe('TransactionsController', () => {
     date: '2026-04-04T00:00:00.000Z',
     isPaid: false,
     isProjected: false,
+    invoicePaymentMonth: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -128,7 +129,8 @@ describe('TransactionsController', () => {
         type: TransactionType.EXPENSE,
         amount: 2590,
         date: '2026-04-04',
-        isPaid: false
+        isPaid: false,
+        schedule: { mode: 'NONE' }
       };
 
       service.create.mockResolvedValue(baseTransaction);
@@ -156,7 +158,8 @@ describe('TransactionsController', () => {
     it('should call transactionsService.update with transaction id, user id and payload', async () => {
       const input: UpdateTransactionInput = {
         amount: 3000,
-        description: 'Updated description'
+        description: 'Updated description',
+        scope: 'SINGLE'
       };
       const output: TransactionOutput = {
         ...baseTransaction,
@@ -182,7 +185,8 @@ describe('TransactionsController', () => {
         type: input.type,
         amount: input.amount,
         date: input.date,
-        scope: input.scope
+        scope: input.scope,
+        schedule: input.schedule
       });
     });
   });

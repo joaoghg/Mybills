@@ -22,7 +22,13 @@ import {
 import type { RootStackParamList } from '@/navigation/types';
 import { InputField } from '@/shared/components/input-field';
 import { MoneyInputField } from '@/shared/components/money-input-field';
-import { ymdFromLocalDate } from '@/shared/lib/billing-cycle';
+import {
+  formatYearMonth,
+  getInvoicePaymentMonth,
+  inclusivePaymentMonthCount,
+  parseYearMonth,
+  ymdFromLocalDate
+} from '@/shared/lib/billing-cycle';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'AddTransaction'>;
 
@@ -84,10 +90,34 @@ export function CreateTransactionScreen({ navigation }: Props) {
     [t]
   );
 
+  const selectedCard = useMemo(
+    () => creditCards.find((card) => card.id === selectedCardId) ?? null,
+    [creditCards, selectedCardId]
+  );
+
+  const cardInstallmentSummary = useMemo(() => {
+    if (scheduleMode !== 'INSTALLMENT' || !endDateYmd || !selectedCard) {
+      return null;
+    }
+
+    const firstPay = getInvoicePaymentMonth(selectedCard.closingDay, selectedCard.dueDay, dateYmd);
+    const lastPay = parseYearMonth(endDateYmd);
+    const count = inclusivePaymentMonthCount(firstPay, lastPay);
+    if (count < 2) {
+      return null;
+    }
+
+    return {
+      count,
+      first: formatYearMonth(firstPay),
+      last: formatYearMonth(lastPay)
+    };
+  }, [scheduleMode, endDateYmd, selectedCard, dateYmd]);
+
   const installmentCount =
-    scheduleMode === 'INSTALLMENT' && endDateYmd
+    scheduleMode === 'INSTALLMENT' && endDateYmd && !selectedCard
       ? monthSpanInclusive(dateYmd, endDateYmd)
-      : null;
+      : cardInstallmentSummary?.count ?? null;
 
   const filteredCategories = useMemo(() => {
     if (type === 'TRANSFER') {
@@ -178,7 +208,9 @@ export function CreateTransactionScreen({ navigation }: Props) {
       selectedAccountId,
       scheduleMode,
       dateYmd,
-      endDateYmd
+      endDateYmd,
+      selectedCard?.closingDay,
+      selectedCard?.dueDay
     );
     if (clientError) {
       setLocalError(clientError);
@@ -266,7 +298,9 @@ export function CreateTransactionScreen({ navigation }: Props) {
             {scheduleMode === 'INSTALLMENT' ? (
               <>
                 <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
-                  {t('transactions.scheduleInstallmentHint')}
+                  {selectedCard
+                    ? t('transactions.scheduleInstallmentCardHint')
+                    : t('transactions.scheduleInstallmentHint')}
                 </Text>
                 <TransactionDateField
                   theme={theme}
@@ -274,9 +308,22 @@ export function CreateTransactionScreen({ navigation }: Props) {
                   locale={i18n.language}
                   onChangeYmd={setEndDateYmd}
                   label={t('transactions.installmentEndDateLabel')}
-                  minimumDateYmd={dateYmd}
+                  minimumDateYmd={
+                    selectedCard
+                      ? `${formatYearMonth(getInvoicePaymentMonth(selectedCard.closingDay, selectedCard.dueDay, dateYmd))}-01`
+                      : dateYmd
+                  }
                 />
-                {installmentCount !== null && installmentCount >= 2 ? (
+                {cardInstallmentSummary ? (
+                  <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                    {t('transactions.scheduleInstallmentCardSummary', {
+                      count: cardInstallmentSummary.count,
+                      first: cardInstallmentSummary.first,
+                      last: cardInstallmentSummary.last
+                    })}
+                  </Text>
+                ) : null}
+                {!selectedCard && installmentCount !== null && installmentCount >= 2 ? (
                   <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
                     {t('transactions.scheduleInstallmentSummary', { count: installmentCount })}
                   </Text>

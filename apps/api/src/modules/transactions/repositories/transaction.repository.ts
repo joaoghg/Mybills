@@ -4,6 +4,10 @@ import {
   CreateSeriesWithOccurrencesData,
   CreateSeriesWithOccurrencesResult
 } from '../contracts/create-series-data.contract';
+import {
+  ConvertSeriesToInstallmentData,
+  ConvertSeriesToRecurringData
+} from '../contracts/convert-series-data.contract';
 import { CreateTransferData, CreateTransferResult } from '../contracts/create-transfer-data.contract';
 import { TransferPair } from '../contracts/transfer-pair.contract';
 import { TransactionSeriesRecord } from '../contracts/transaction-series-record.contract';
@@ -23,6 +27,12 @@ export interface TransactionRepository {
   createSeriesWithOccurrences(
     data: CreateSeriesWithOccurrencesData
   ): Promise<CreateSeriesWithOccurrencesResult>;
+  promoteToSeries(
+    existingTransactionId: string,
+    data: CreateSeriesWithOccurrencesData
+  ): Promise<CreateSeriesWithOccurrencesResult>;
+  convertSeriesToRecurring(data: ConvertSeriesToRecurringData): Promise<Transaction>;
+  convertSeriesToInstallment(data: ConvertSeriesToInstallmentData): Promise<Transaction>;
   createTransferPair(data: CreateTransferData): Promise<CreateTransferResult | null>;
   update(transactionId: string, data: UpdateTransactionData): Promise<Transaction>;
   updateManyFromOccurrence(

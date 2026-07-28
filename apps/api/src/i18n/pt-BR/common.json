@@ -30,7 +30,9 @@
       "transfer_paid_status_not_allowed": "O status de pagamento de transferências não pode ser alterado",
       "schedule_not_allowed_for_transfer": "Parcelas e recorrência não são permitidas em transferências",
       "installment_requires_two_months": "Parcelamento exige pelo menos dois meses",
-      "invalid_installment_end_date": "Data final das parcelas inválida"
+      "invalid_installment_end_date": "Data final das parcelas inválida",
+      "schedule_detach_not_allowed": "Não é possível converter uma série de volta para transação avulsa",
+      "invalid_series_conversion": "Esta conversão de tipo de série não é permitida"
     },
     "credit_cards": {
       "account_required": "É necessário informar uma conta para pagar esta fatura",
