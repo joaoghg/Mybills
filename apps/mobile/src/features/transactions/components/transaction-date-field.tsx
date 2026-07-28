@@ -11,6 +11,8 @@ type Props = {
   valueYmd: string;
   locale: string;
   onChangeYmd: (ymd: string) => void;
+  label?: string;
+  minimumDateYmd?: string;
 };
 
 function ymdToLocalDate(ymd: string): Date {
@@ -30,12 +32,23 @@ function formatDateLabel(ymd: string, locale: string): string {
   }
 }
 
-export function TransactionDateField({ theme, valueYmd, locale, onChangeYmd }: Props) {
+export function TransactionDateField({
+  theme,
+  valueYmd,
+  locale,
+  onChangeYmd,
+  label,
+  minimumDateYmd
+}: Props) {
   const { t } = useTranslation();
   const [showPicker, setShowPicker] = useState(false);
 
   const pickerDate = useMemo(() => ymdToLocalDate(valueYmd), [valueYmd]);
   const displayLabel = useMemo(() => formatDateLabel(valueYmd, locale), [valueYmd, locale]);
+  const minimumDate = useMemo(
+    () => (minimumDateYmd ? ymdToLocalDate(minimumDateYmd) : undefined),
+    [minimumDateYmd]
+  );
 
   function handleChange(_event: DateTimePickerEvent, selectedDate?: Date) {
     if (Platform.OS === 'android') {
@@ -49,10 +62,11 @@ export function TransactionDateField({ theme, valueYmd, locale, onChangeYmd }: P
   return (
     <View style={styles.wrapper}>
       <Text style={[styles.label, { color: theme.colors.textPrimary }]}>
-        {t('transactions.dateLabel')}
+        {label ?? t('transactions.dateLabel')}
       </Text>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={label ?? t('transactions.dateLabel')}
         onPress={() => setShowPicker(true)}
         style={({ pressed }) => [
           styles.field,
@@ -71,6 +85,7 @@ export function TransactionDateField({ theme, valueYmd, locale, onChangeYmd }: P
           mode="date"
           display={Platform.OS === 'ios' ? 'spinner' : 'default'}
           onChange={handleChange}
+          minimumDate={minimumDate}
         />
       ) : null}
     </View>

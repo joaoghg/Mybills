@@ -1,6 +1,8 @@
 import z from 'zod';
 import { transactionTypeSchema } from './create-transaction-input.dto';
 
+export const transactionSeriesScopeSchema = z.enum(['SINGLE', 'THIS_AND_FUTURE']);
+
 export const updateTransactionInputSchema = z
   .object({
     accountId: z.uuid().nullable().optional(),
@@ -9,7 +11,8 @@ export const updateTransactionInputSchema = z
     description: z.string().trim().nullable().optional(),
     type: transactionTypeSchema.optional(),
     amount: z.int().positive().optional(),
-    date: z.iso.date().optional()
+    date: z.iso.date().optional(),
+    scope: transactionSeriesScopeSchema.optional().default('SINGLE')
   })
   .refine(
     (data) =>
@@ -22,4 +25,5 @@ export const updateTransactionInputSchema = z
       data.date !== undefined
   );
 
+export type TransactionSeriesScope = z.infer<typeof transactionSeriesScopeSchema>;
 export type UpdateTransactionInput = z.infer<typeof updateTransactionInputSchema>;

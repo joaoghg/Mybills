@@ -181,11 +181,14 @@ export function EditTransferScreen({ navigation, route }: Props) {
         style: 'destructive',
         onPress: () => {
           setLocalError(null);
-          deleteTransaction(transfer.sourceTransaction.id, {
-            onSuccess: () => {
-              navigation.goBack();
+          deleteTransaction(
+            { transactionId: transfer.sourceTransaction.id },
+            {
+              onSuccess: () => {
+                navigation.goBack();
+              }
             }
-          });
+          );
         }
       }
     ]);

@@ -113,7 +113,8 @@ export function useHomeDashboard(
       listTransactions(client, {
         cardId: selectedCardId!,
         from: openCycle!.start,
-        to: openCycle!.end
+        to: openCycle!.end,
+        isProjected: false
       }),
     enabled: selectedCardId !== null && openCycle !== null,
     staleTime: STALE_MS
@@ -121,7 +122,7 @@ export function useHomeDashboard(
 
   const recentTransactionsQuery = useQuery({
     queryKey: ['transactions', 'recent', RECENT_LIMIT],
-    queryFn: () => listTransactions(client, { limit: RECENT_LIMIT }),
+    queryFn: () => listTransactions(client, { limit: RECENT_LIMIT, isProjected: false }),
     staleTime: STALE_MS
   });
 

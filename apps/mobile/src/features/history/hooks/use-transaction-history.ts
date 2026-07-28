@@ -63,13 +63,15 @@ function formatTimeFromIso(iso: string, locale: string): string {
 function buildSubtitle(
   categoryName: string | undefined,
   createdAt: string,
-  locale: string
+  locale: string,
+  extras: string[] = []
 ): string {
   const time = formatTimeFromIso(createdAt, locale);
   const category = categoryName?.trim();
-  if (category && time) return `${category} • ${time}`;
-  if (category) return category;
-  return time;
+  const parts = [...extras];
+  if (category) parts.push(category);
+  if (time) parts.push(time);
+  return parts.join(' • ');
 }
 
 function toHistoryRow(
@@ -78,7 +80,8 @@ function toHistoryRow(
   categoryIcon: CategoryIcon | undefined,
   locale: string,
   timeLabels: RecentTimeLabels,
-  transferLabel: string
+  transferLabel: string,
+  t: TFunction
 ): HistoryTransactionRow {
   const base = mapTransactionToRecentRow(
     tx,
@@ -89,6 +92,21 @@ function toHistoryRow(
     transferLabel
   );
 
+  const extras: string[] = [];
+  if (tx.seriesType === 'INSTALLMENT' && tx.occurrenceNumber && tx.seriesTotalOccurrences) {
+    extras.push(
+      t('transactions.seriesInstallmentLabel', {
+        current: tx.occurrenceNumber,
+        total: tx.seriesTotalOccurrences
+      })
+    );
+  } else if (tx.seriesType === 'RECURRING') {
+    extras.push(t('transactions.seriesRecurringLabel'));
+  }
+  if (tx.isProjected) {
+    extras.push(t('transactions.projectedLabel'));
+  }
+
   return {
     ...base,
     dateYmd: tx.date.split('T')[0] ?? tx.date,
@@ -96,7 +114,7 @@ function toHistoryRow(
     amountCents: tx.amount,
     subtitle: tx.transferGroupId
       ? transferLabel
-      : buildSubtitle(categoryName, tx.createdAt, locale)
+      : buildSubtitle(categoryName, tx.createdAt, locale, extras)
   };
 }
 
@@ -244,7 +262,7 @@ export function useTransactionHistory(
     return displayTransactions.map((tx) => {
       const categoryName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
       const categoryIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
-      return toHistoryRow(tx, categoryName, categoryIcon, locale, timeLabels, transferLabel);
+      return toHistoryRow(tx, categoryName, categoryIcon, locale, timeLabels, transferLabel, t);
     });
   }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels, t]);
 

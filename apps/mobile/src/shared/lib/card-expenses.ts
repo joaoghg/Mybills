@@ -27,6 +27,7 @@ export function sumUnpaidCardExpensesInRange(
     if (tx.cardId !== cardId) continue;
     if (tx.type !== 'EXPENSE') continue;
     if (tx.isPaid) continue;
+    if (tx.isProjected) continue;
     const txDate = toYmd(tx.date);
     if (compareYmd(txDate, startYmd) < 0) continue;
     if (compareYmd(txDate, effectiveEnd) > 0) continue;
@@ -44,6 +45,7 @@ export function sumUnpaidCardExpensesAllTime(
     if (tx.cardId !== cardId) continue;
     if (tx.type !== 'EXPENSE') continue;
     if (tx.isPaid) continue;
+    if (tx.isProjected) continue;
     sum += tx.amount;
   }
   return sum;

@@ -1,4 +1,5 @@
-import { updateTransactionInputSchema, type UpdateTransactionInput } from '@mybills/dtos';
+import type { TransactionSeriesScope, UpdateTransactionInput } from '@mybills/dtos';
+import { updateTransactionInputSchema } from '@mybills/dtos';
 import { listAccounts, listCategories, listCreditCards } from '@mybills/api-client';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
@@ -157,7 +158,7 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     }
   }
 
-  async function handleSubmit() {
+  async function submitWithScope(scope: TransactionSeriesScope) {
     setLocalError(null);
 
     const clientError = validateCreateTransactionClient(t, amountCents, isPaid, selectedAccountId);
@@ -170,6 +171,7 @@ export function EditTransactionScreen({ navigation, route }: Props) {
       type,
       amount: amountCents,
       date: dateYmd,
+      scope,
       ...(description.trim() ? { description: description.trim() } : { description: null }),
       ...(type !== 'TRANSFER' && selectedCategoryId
         ? { categoryId: selectedCategoryId }
@@ -198,20 +200,65 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     );
   }
 
+  async function handleSubmit() {
+    if (transaction?.seriesId) {
+      Alert.alert(t('transactions.seriesScopeTitle'), undefined, [
+        { text: t('transactions.seriesScopeCancel'), style: 'cancel' },
+        {
+          text: t('transactions.seriesScopeSingle'),
+          onPress: () => {
+            void submitWithScope('SINGLE');
+          }
+        },
+        {
+          text: t('transactions.seriesScopeFuture'),
+          onPress: () => {
+            void submitWithScope('THIS_AND_FUTURE');
+          }
+        }
+      ]);
+      return;
+    }
+
+    await submitWithScope('SINGLE');
+  }
+
+  function deleteWithScope(scope: TransactionSeriesScope) {
+    setLocalError(null);
+    deleteTransaction(
+      { transactionId, scope },
+      {
+        onSuccess: () => {
+          navigation.goBack();
+        }
+      }
+    );
+  }
+
   function confirmDelete() {
+    if (transaction?.seriesId) {
+      Alert.alert(t('transactions.seriesDeleteTitle'), t('transactions.seriesDeleteMessage'), [
+        { text: t('transactions.seriesScopeCancel'), style: 'cancel' },
+        {
+          text: t('transactions.seriesScopeSingle'),
+          style: 'destructive',
+          onPress: () => deleteWithScope('SINGLE')
+        },
+        {
+          text: t('transactions.seriesScopeFuture'),
+          style: 'destructive',
+          onPress: () => deleteWithScope('THIS_AND_FUTURE')
+        }
+      ]);
+      return;
+    }
+
     Alert.alert(t('transactions.deleteConfirmTitle'), t('transactions.deleteConfirmMessage'), [
       { text: t('transactions.deleteCancel'), style: 'cancel' },
       {
         text: t('transactions.deleteConfirm'),
         style: 'destructive',
-        onPress: () => {
-          setLocalError(null);
-          deleteTransaction(transactionId, {
-            onSuccess: () => {
-              navigation.goBack();
-            }
-          });
-        }
+        onPress: () => deleteWithScope('SINGLE')
       }
     ]);
   }
@@ -272,6 +319,20 @@ export function EditTransactionScreen({ navigation, route }: Props) {
           locale={i18n.language}
           onChangeYmd={setDateYmd}
         />
+
+        {transaction.seriesId ? (
+          <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+            {transaction.seriesType === 'INSTALLMENT' &&
+            transaction.occurrenceNumber &&
+            transaction.seriesTotalOccurrences
+              ? t('transactions.seriesInstallmentLabel', {
+                  current: transaction.occurrenceNumber,
+                  total: transaction.seriesTotalOccurrences
+                })
+              : t('transactions.seriesRecurringLabel')}
+            {transaction.isProjected ? ` · ${t('transactions.projectedLabel')}` : ''}
+          </Text>
+        ) : null}
 
         {type !== 'TRANSFER' ? (
           <CategorySelectPicker

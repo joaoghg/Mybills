@@ -39,6 +39,9 @@ function buildQueryString(query: ListTransactionsQueryInput): string {
   if (query.isPaid !== undefined) {
     params.set('isPaid', String(query.isPaid));
   }
+  if (query.isProjected !== undefined) {
+    params.set('isProjected', String(query.isProjected));
+  }
   if (query.includeTransfer !== undefined) {
     params.set('includeTransfer', String(query.includeTransfer));
   }

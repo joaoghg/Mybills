@@ -487,4 +487,123 @@ describe('Transactions (e2e)', () => {
       expect(response.body.errors).toBeDefined();
     });
   });
+
+  it('should create installment series across months and pay only the first', async () => {
+    const accessToken = await authenticateUser('transactions-installment@mybills.dev');
+    const accountId = await createAccount(accessToken, 'Installment Account', 20000);
+
+    const created = await request(app.getHttpServer())
+      .post('/transactions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        accountId,
+        description: 'Phone',
+        type: 'EXPENSE',
+        amount: 1000,
+        date: '2026-01-15',
+        isPaid: true,
+        schedule: { mode: 'INSTALLMENT', endDate: '2026-03-15' }
+      })
+      .expect(201);
+
+    expect(created.body).toMatchObject({
+      seriesId: expect.any(String),
+      occurrenceNumber: 1,
+      seriesType: 'INSTALLMENT',
+      seriesTotalOccurrences: 3,
+      isPaid: true,
+      isProjected: false
+    });
+
+    const january = await request(app.getHttpServer())
+      .get('/transactions')
+      .query({ month: 1, year: 2026 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    const february = await request(app.getHttpServer())
+      .get('/transactions')
+      .query({ month: 2, year: 2026 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    const march = await request(app.getHttpServer())
+      .get('/transactions')
+      .query({ month: 3, year: 2026 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(january.body).toHaveLength(1);
+    expect(february.body).toHaveLength(1);
+    expect(march.body).toHaveLength(1);
+    expect(february.body[0]).toMatchObject({
+      isPaid: false,
+      occurrenceNumber: 2,
+      seriesId: created.body.seriesId
+    });
+
+    const balance = await getAccountBalance(accessToken, accountId);
+    expect(balance).toBe(19000);
+  });
+
+  it('should create recurring series with projected future rows and delete this-and-future', async () => {
+    const accessToken = await authenticateUser('transactions-recurring@mybills.dev');
+    const accountId = await createAccount(accessToken, 'Recurring Account', 50000);
+
+    const created = await request(app.getHttpServer())
+      .post('/transactions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        accountId,
+        description: 'Rent',
+        type: 'EXPENSE',
+        amount: 5000,
+        date: '2026-01-05',
+        isPaid: false,
+        schedule: { mode: 'RECURRING' }
+      })
+      .expect(201);
+
+    expect(created.body).toMatchObject({
+      seriesId: expect.any(String),
+      occurrenceNumber: 1,
+      seriesType: 'RECURRING',
+      isProjected: false
+    });
+
+    const list = await request(app.getHttpServer())
+      .get('/transactions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(list.body.length).toBeGreaterThanOrEqual(12);
+
+    const projected = (list.body as Array<{ isProjected: boolean }>).filter(
+      (row) => row.isProjected
+    );
+    expect(projected.length).toBeGreaterThan(0);
+
+    const nonProjectedRecent = await request(app.getHttpServer())
+      .get('/transactions')
+      .query({ isProjected: false, limit: 5 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(
+      (nonProjectedRecent.body as Array<{ isProjected: boolean }>).every((row) => !row.isProjected)
+    ).toBe(true);
+
+    await request(app.getHttpServer())
+      .delete(`/transactions/${created.body.id as string}`)
+      .query({ scope: 'THIS_AND_FUTURE' })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(204);
+
+    const afterDelete = await request(app.getHttpServer())
+      .get('/transactions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect(afterDelete.body).toHaveLength(0);
+  });
 });

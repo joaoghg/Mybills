@@ -18,6 +18,8 @@ import {
   createTransferInputSchema,
   CreateTransferOutput,
   createTransferOutputSchema,
+  DeleteTransactionQueryInput,
+  deleteTransactionQueryInputSchema,
   ListTransactionsOutput,
   listTransactionsOutputSchema,
   ListTransactionsQueryInput,
@@ -84,6 +86,12 @@ export class TransactionsController {
     required: false,
     type: Boolean,
     description: 'Filter by paid status'
+  })
+  @ApiQuery({
+    name: 'isProjected',
+    required: false,
+    type: Boolean,
+    description: 'Filter by projected (future recurring) status'
   })
   @ApiQuery({
     name: 'includeTransfer',
@@ -237,14 +245,16 @@ export class TransactionsController {
       type: data.type,
       amount: data.amount,
       date: data.date,
-      isPaid: data.isPaid
+      isPaid: data.isPaid,
+      schedule: data.schedule
     });
   }
 
   @Patch(':id')
   @ApiOperation({
     summary: 'Update transaction',
-    description: 'Updates an existing transaction from the user.'
+    description:
+      'Updates an existing transaction from the user. For series, scope SINGLE or THIS_AND_FUTURE.'
   })
   @ApiParam({ name: 'id', description: 'Transaction id' })
   @ApiBody({
@@ -269,7 +279,8 @@ export class TransactionsController {
       description: data.description,
       type: data.type,
       amount: data.amount,
-      date: data.date
+      date: data.date,
+      scope: data.scope
     });
   }
 
@@ -302,17 +313,26 @@ export class TransactionsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete transaction',
-    description: 'Deletes a transaction from the authenticated user.'
+    description:
+      'Deletes a transaction from the authenticated user. For series, scope SINGLE or THIS_AND_FUTURE.'
   })
   @ApiParam({ name: 'id', description: 'Transaction id' })
+  @ApiQuery({
+    name: 'scope',
+    required: false,
+    enum: ['SINGLE', 'THIS_AND_FUTURE'],
+    description: 'Series delete scope (default SINGLE)'
+  })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
     description: 'Transaction deleted successfully.'
   })
   async remove(
     @CurrentUser('sub') userId: string,
-    @Param(new ZodValidationPipe(transactionIdParamsSchema)) params: TransactionIdParams
+    @Param(new ZodValidationPipe(transactionIdParamsSchema)) params: TransactionIdParams,
+    @Query(new ZodValidationPipe(deleteTransactionQueryInputSchema))
+    query: DeleteTransactionQueryInput
   ): Promise<void> {
-    await this.transactionsService.remove(params.id, userId);
+    await this.transactionsService.remove(params.id, userId, query.scope);
   }
 }

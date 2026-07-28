@@ -10,4 +10,5 @@ export interface CreateTransactionData {
   amount: number;
   date: string;
   isPaid: boolean;
+  schedule?: { mode: 'NONE' } | { mode: 'INSTALLMENT'; endDate: string } | { mode: 'RECURRING' };
 }

@@ -1,5 +1,7 @@
 import { TransactionType } from 'src/generated/prisma/client';
 
+export type TransactionSeriesScope = 'SINGLE' | 'THIS_AND_FUTURE';
+
 export interface UpdateTransactionData {
   accountId?: string | null;
   categoryId?: string | null;
@@ -8,4 +10,5 @@ export interface UpdateTransactionData {
   type?: TransactionType;
   amount?: number;
   date?: string;
+  scope?: TransactionSeriesScope;
 }

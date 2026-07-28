@@ -45,7 +45,8 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
         userId,
         cardId: { in: cardIds },
         type: TransactionType.EXPENSE,
-        isPaid: false
+        isPaid: false,
+        isProjected: false
       },
       _sum: { amount: true }
     });
@@ -67,7 +68,8 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
         userId,
         cardId,
         type: TransactionType.EXPENSE,
-        isPaid: false
+        isPaid: false,
+        isProjected: false
       },
       _sum: { amount: true }
     });
@@ -167,6 +169,7 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
           cardId: data.creditCardId,
           type: TransactionType.EXPENSE,
           isPaid: false,
+          isProjected: false,
           date: {
             gte: this.utcDayStart(data.cycleStart),
             lt: this.utcDayAfter(data.cycleEnd)

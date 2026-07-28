@@ -27,7 +27,10 @@
       "category_type_mismatch": "A categoria selecionada não é compatível com o tipo da transação",
       "transfer_failed": "A transferência não pôde ser concluída",
       "transfer_edit_not_allowed": "Transferências devem ser editadas pelo endpoint de transferência",
-      "transfer_paid_status_not_allowed": "O status de pagamento de transferências não pode ser alterado"
+      "transfer_paid_status_not_allowed": "O status de pagamento de transferências não pode ser alterado",
+      "schedule_not_allowed_for_transfer": "Parcelas e recorrência não são permitidas em transferências",
+      "installment_requires_two_months": "Parcelamento exige pelo menos dois meses",
+      "invalid_installment_end_date": "Data final das parcelas inválida"
     },
     "credit_cards": {
       "account_required": "É necessário informar uma conta para pagar esta fatura",

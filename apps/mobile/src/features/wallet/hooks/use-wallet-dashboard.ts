@@ -87,7 +87,8 @@ export function useWalletDashboard(): {
         cardId: selectedCardId!,
         from: openCycle!.start,
         to: openCycle!.end,
-        type: 'EXPENSE'
+        type: 'EXPENSE',
+        isProjected: false
       }),
     staleTime: STALE_MS,
     enabled: Boolean(selectedCardId && openCycle)

@@ -8,6 +8,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { CreditCardsService } from '../credit-cards/credit-cards.service';
 import { Transaction } from './entities/transaction.entity';
 import { TransactionRepository } from './repositories/transaction.repository';
+import { TransactionSeriesMaintenanceService } from './transaction-series-maintenance.service';
 import { TransactionsService } from './transactions.service';
 
 describe('TransactionsService', () => {
@@ -24,11 +25,16 @@ describe('TransactionsService', () => {
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
     transferGroupId: null,
+    seriesId: null,
+    occurrenceNumber: null,
+    seriesType: null,
+    seriesTotalOccurrences: null,
     description: 'Market purchase',
     type: TransactionType.EXPENSE,
     amount: 2590,
     date: '2026-04-04T00:00:00.000Z',
     isPaid: false,
+    isProjected: false,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -68,7 +74,23 @@ describe('TransactionsService', () => {
             delete: jest.fn(),
             findByTransferGroupIdAndUserId: jest.fn(),
             updateTransferPair: jest.fn(),
-            deleteTransferPair: jest.fn()
+            deleteTransferPair: jest.fn(),
+            createSeriesWithOccurrences: jest.fn(),
+            updateManyFromOccurrence: jest.fn(),
+            findBySeriesFromOccurrence: jest.fn(),
+            deleteFromOccurrence: jest.fn(),
+            findSeriesById: jest.fn(),
+            findActiveRecurringSeries: jest.fn(),
+            appendSeriesOccurrences: jest.fn(),
+            activateDueProjected: jest.fn()
+          }
+        },
+        {
+          provide: TransactionSeriesMaintenanceService,
+          useValue: {
+            buildInitialRecurringOccurrences: jest.fn(),
+            runMaintenance: jest.fn(),
+            extendActiveRecurringSeries: jest.fn()
           }
         },
         {
@@ -231,6 +253,105 @@ describe('TransactionsService', () => {
 
       expect(result).toEqual(baseTransaction);
       expect(accountsService.update).not.toHaveBeenCalled();
+    });
+
+    it('should create installment series and pay only the first occurrence', async () => {
+      const first: Transaction = {
+        ...baseTransaction,
+        seriesId: '11111111-1111-1111-1111-111111111111',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3,
+        isPaid: true
+      };
+
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.createSeriesWithOccurrences.mockResolvedValue({
+        seriesId: first.seriesId as string,
+        firstTransactionId: first.id
+      });
+      repository.findByIdAndUserId.mockResolvedValue(first);
+      accountsService.findById.mockResolvedValue(account);
+      accountsService.update.mockResolvedValue({
+        ...account,
+        balance: account.balance - first.amount
+      });
+
+      const result = await service.create({
+        userId: first.userId,
+        accountId: first.accountId,
+        categoryId: first.categoryId,
+        type: TransactionType.EXPENSE,
+        amount: first.amount,
+        date: '2026-01-15',
+        isPaid: true,
+        schedule: { mode: 'INSTALLMENT', endDate: '2026-03-15' }
+      });
+
+      expect(result).toEqual(first);
+      expect(repository.createSeriesWithOccurrences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'INSTALLMENT',
+          totalOccurrences: 3,
+          occurrences: [
+            expect.objectContaining({ occurrenceNumber: 1, isPaid: true, isProjected: false }),
+            expect.objectContaining({ occurrenceNumber: 2, isPaid: false, isProjected: false }),
+            expect.objectContaining({ occurrenceNumber: 3, isPaid: false, isProjected: false })
+          ]
+        })
+      );
+      expect(accountsService.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('should create recurring series with projected future occurrences', async () => {
+      const first: Transaction = {
+        ...baseTransaction,
+        seriesId: '22222222-2222-2222-2222-222222222222',
+        occurrenceNumber: 1,
+        seriesType: 'RECURRING',
+        seriesTotalOccurrences: null,
+        isPaid: false,
+        isProjected: false
+      };
+      const seriesMaintenance = (
+        service as unknown as {
+          seriesMaintenance: {
+            buildInitialRecurringOccurrences: jest.Mock;
+          };
+        }
+      ).seriesMaintenance;
+
+      seriesMaintenance.buildInitialRecurringOccurrences.mockReturnValue([
+        { occurrenceNumber: 1, date: '2026-01-10', isPaid: false, isProjected: false },
+        { occurrenceNumber: 2, date: '2026-02-10', isPaid: false, isProjected: true }
+      ]);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.createSeriesWithOccurrences.mockResolvedValue({
+        seriesId: first.seriesId as string,
+        firstTransactionId: first.id
+      });
+      repository.findByIdAndUserId.mockResolvedValue(first);
+
+      const result = await service.create({
+        userId: first.userId,
+        accountId: first.accountId,
+        categoryId: first.categoryId,
+        type: TransactionType.EXPENSE,
+        amount: first.amount,
+        date: '2026-01-10',
+        isPaid: false,
+        schedule: { mode: 'RECURRING' }
+      });
+
+      expect(result).toEqual(first);
+      expect(repository.createSeriesWithOccurrences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'RECURRING',
+          totalOccurrences: null
+        })
+      );
     });
 
     it('should throw InvalidArgumentError when category type does not match transaction type', async () => {

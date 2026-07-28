@@ -22,11 +22,16 @@ describe('TransactionsController', () => {
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
     transferGroupId: null,
+    seriesId: null,
+    occurrenceNumber: null,
+    seriesType: null,
+    seriesTotalOccurrences: null,
     description: 'Market purchase',
     type: TransactionType.EXPENSE,
     amount: 2590,
     date: '2026-04-04T00:00:00.000Z',
     isPaid: false,
+    isProjected: false,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -141,7 +146,8 @@ describe('TransactionsController', () => {
         type: input.type,
         amount: input.amount,
         date: input.date,
-        isPaid: input.isPaid
+        isPaid: input.isPaid,
+        schedule: input.schedule
       });
     });
   });
@@ -175,7 +181,8 @@ describe('TransactionsController', () => {
         description: input.description,
         type: input.type,
         amount: input.amount,
-        date: input.date
+        date: input.date,
+        scope: input.scope
       });
     });
   });
@@ -212,10 +219,14 @@ describe('TransactionsController', () => {
     it('should call transactionsService.remove with transaction id and user id', async () => {
       service.remove.mockResolvedValue(undefined);
 
-      await controller.remove(baseTransaction.userId, { id: baseTransaction.id });
+      await controller.remove(baseTransaction.userId, { id: baseTransaction.id }, { scope: 'SINGLE' });
 
       expect(service.remove).toHaveBeenCalledTimes(1);
-      expect(service.remove).toHaveBeenCalledWith(baseTransaction.id, baseTransaction.userId);
+      expect(service.remove).toHaveBeenCalledWith(
+        baseTransaction.id,
+        baseTransaction.userId,
+        'SINGLE'
+      );
     });
   });
 });
