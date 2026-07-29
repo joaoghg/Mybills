@@ -20,6 +20,7 @@ import { useHttpClient } from '@/core/api/http-client-provider';
 import {
   canPayBillingCycle,
   getOpenBillingCycleRange,
+  resolveClosingDay,
   shiftBillingCycle
 } from '@/shared/lib/billing-cycle';
 import {
@@ -181,7 +182,7 @@ export function useInvoiceDetail(
 
   const openCycle = useMemo((): InvoiceCycleRange | null => {
     if (!card) return null;
-    return getOpenBillingCycleRange(card.closingDay, new Date());
+    return getOpenBillingCycleRange(resolveClosingDay(card), new Date());
   }, [card]);
 
   useEffect(() => {
@@ -282,7 +283,7 @@ export function useInvoiceDetail(
 
   const goToPreviousCycle = useCallback(() => {
     if (!card || !cycle) return;
-    setCycle(shiftBillingCycle(card.closingDay, cycle, -1));
+    setCycle(shiftBillingCycle(resolveClosingDay(card), cycle, -1));
     setPayError(null);
     setPaySuccess(false);
   }, [card, cycle]);
@@ -290,7 +291,7 @@ export function useInvoiceDetail(
   const goToNextCycle = useCallback(() => {
     if (!card || !cycle || !openCycle) return;
     if (compareYmd(cycle.end, openCycle.end) >= 0) return;
-    const next = shiftBillingCycle(card.closingDay, cycle, 1);
+    const next = shiftBillingCycle(resolveClosingDay(card), cycle, 1);
     if (compareYmd(next.end, openCycle.end) > 0) return;
     setCycle(next);
     setPayError(null);

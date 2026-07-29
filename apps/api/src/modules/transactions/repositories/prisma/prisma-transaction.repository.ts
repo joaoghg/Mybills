@@ -35,13 +35,14 @@ import {
 } from '../../lib/monthly-schedule';
 import {
   formatYearMonth,
-  getInvoicePaymentMonth
+  getInvoicePaymentMonth,
+  resolveClosingDay
 } from '../../../credit-cards/lib/billing-cycle';
 import { TransactionRepository } from '../transaction.repository';
 
 type PrismaTransactionWithSeries = PrismaTransaction & {
   series?: Pick<PrismaTransactionSeries, 'type' | 'totalOccurrences'> | null;
-  card?: { closingDay: number; dueDay: number } | null;
+  card?: { closingDay: number; closingOnLastDay: boolean; dueDay: number } | null;
 };
 
 const transactionDetailInclude = {
@@ -54,6 +55,7 @@ const transactionDetailInclude = {
   card: {
     select: {
       closingDay: true,
+      closingOnLastDay: true,
       dueDay: true
     }
   }
@@ -88,7 +90,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
       transaction.cardId && transaction.card
         ? formatYearMonth(
             getInvoicePaymentMonth(
-              transaction.card.closingDay,
+              resolveClosingDay(transaction.card),
               transaction.card.dueDay,
               dateYmd
             )

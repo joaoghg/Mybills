@@ -38,7 +38,8 @@
       "account_required": "É necessário informar uma conta para pagar esta fatura",
       "invalid_cycle_end": "Data de fim do ciclo inválida para este cartão",
       "invoice_not_closed": "Este ciclo de fatura ainda não está fechado",
-      "invoice_empty": "Não há compras em aberto neste ciclo de fatura"
+      "invoice_empty": "Não há compras em aberto neste ciclo de fatura",
+      "closing_day_required": "Informe o dia de fechamento quando a opção de último dia do mês estiver desligada"
     },
     "auth": {
       "invalid_credentials": "E-mail ou senha inválidos",

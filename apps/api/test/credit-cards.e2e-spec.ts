@@ -78,9 +78,33 @@ describe('CreditCards (e2e)', () => {
       name: 'Platinum Card',
       limit: 1000000,
       closingDay: 10,
+      closingOnLastDay: false,
       dueDay: 18,
       createdAt: expect.any(String),
       updatedAt: expect.any(String)
+    });
+  });
+
+  it('should create a credit card that closes on the last day of the month', async () => {
+    const accessToken = await authenticateUser('credit-cards-create-last-day@mybills.dev');
+
+    const response = await request(app.getHttpServer())
+      .post('/credit-cards')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        name: 'Last Day Card',
+        limit: 750000,
+        closingOnLastDay: true,
+        dueDay: 10
+      })
+      .expect(201);
+
+    expect(response.body).toMatchObject({
+      id: expect.any(String),
+      name: 'Last Day Card',
+      closingDay: 31,
+      closingOnLastDay: true,
+      dueDay: 10
     });
   });
 
@@ -105,6 +129,7 @@ describe('CreditCards (e2e)', () => {
       name: 'Standalone Card',
       limit: 500000,
       closingDay: 5,
+      closingOnLastDay: false,
       dueDay: 12,
       createdAt: expect.any(String),
       updatedAt: expect.any(String)
@@ -397,6 +422,43 @@ describe('CreditCards (e2e)', () => {
       expect(doublePay.body).toMatchObject({
         code: 'credit_cards.invoice_empty',
         error: 'invalid_argument'
+      });
+    });
+
+    it('should pay a February closed invoice when card closes on last day of month', async () => {
+      const accessToken = await authenticateUser('credit-cards-pay-last-day@mybills.dev');
+      const account = await createAccount(accessToken, 'Last Day Pay Account', 50000);
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId: account.id,
+          name: 'Last Day Pay Card',
+          limit: 100000,
+          closingOnLastDay: true,
+          dueDay: 10
+        })
+        .expect(201);
+
+      const cardId = cardResponse.body.id as string;
+
+      await createCardPurchase(accessToken, cardId, 8000, '2026-02-10');
+      await createCardPurchase(accessToken, cardId, 2000, '2026-02-20');
+
+      const payResponse = await request(app.getHttpServer())
+        .post(`/credit-cards/${cardId}/pay-invoice`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({ cycleEnd: '2026-02-27' })
+        .expect(201);
+
+      expect(payResponse.body).toMatchObject({
+        amount: 10000,
+        accountId: account.id,
+        paidCount: 2,
+        cycleStart: '2026-01-31',
+        cycleEnd: '2026-02-27',
+        paymentTransactionId: expect.any(String)
       });
     });
 

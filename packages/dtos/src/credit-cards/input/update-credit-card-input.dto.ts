@@ -6,6 +6,7 @@ export const updateCreditCardInputSchema = z
     name: z.string().trim().min(1).optional(),
     limit: z.int().optional(),
     closingDay: z.int().min(1).max(31).optional(),
+    closingOnLastDay: z.boolean().optional(),
     dueDay: z.int().min(1).max(31).optional()
   })
   .refine(
@@ -14,6 +15,7 @@ export const updateCreditCardInputSchema = z
       data.name !== undefined ||
       data.limit !== undefined ||
       data.closingDay !== undefined ||
+      data.closingOnLastDay !== undefined ||
       data.dueDay !== undefined
   );
 

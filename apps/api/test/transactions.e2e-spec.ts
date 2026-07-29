@@ -672,6 +672,53 @@ describe('Transactions (e2e)', () => {
       expect(augustSummary.cardInvoices[0]?.transactions).toHaveLength(1);
     });
 
+    it('should map February purchase to March payment month when card closes on last day', async () => {
+      const accessToken = await authenticateUser('transactions-summary-last-day@mybills.dev');
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          name: 'Last Day Summary Card',
+          limit: 500000,
+          closingOnLastDay: true,
+          dueDay: 10
+        })
+        .expect(201);
+
+      const cardId = cardResponse.body.id as string;
+
+      const cardPurchase = await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          cardId,
+          description: 'Feb purchase',
+          type: 'EXPENSE',
+          amount: 4200,
+          date: '2026-02-15',
+          isPaid: false
+        })
+        .expect(201);
+
+      expect(cardPurchase.body).toMatchObject({ invoicePaymentMonth: '2026-03' });
+
+      const march = await request(app.getHttpServer())
+        .get('/transactions/summary')
+        .query({ month: 3, year: 2026 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const marchSummary = monthlySummaryOutputSchema.parse(march.body as object);
+
+      expect(marchSummary.cardInvoices).toHaveLength(1);
+      expect(marchSummary.cardInvoices[0]).toMatchObject({
+        cardId,
+        paymentMonth: '2026-03',
+        total: 4200
+      });
+    });
+
     it('should reject month without year query params', async () => {
       const accessToken = await authenticateUser('transactions-summary-validation@mybills.dev');
 

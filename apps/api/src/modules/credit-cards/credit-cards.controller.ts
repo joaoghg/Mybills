@@ -99,6 +99,7 @@ export class CreditCardsController {
       name: data.name,
       limit: data.limit,
       closingDay: data.closingDay,
+      closingOnLastDay: data.closingOnLastDay,
       dueDay: data.dueDay
     });
   }

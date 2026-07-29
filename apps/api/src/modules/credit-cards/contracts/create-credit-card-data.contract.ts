@@ -3,6 +3,7 @@ export interface CreateCreditCardData {
   userId: string;
   name: string;
   limit: number;
-  closingDay: number;
+  closingDay?: number;
+  closingOnLastDay?: boolean;
   dueDay: number;
 }

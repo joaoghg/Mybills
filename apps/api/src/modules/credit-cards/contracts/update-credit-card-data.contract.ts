@@ -3,5 +3,6 @@ export interface UpdateCreditCardData {
   name?: string;
   limit?: number;
   closingDay?: number;
+  closingOnLastDay?: boolean;
   dueDay?: number;
 }

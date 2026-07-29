@@ -11,6 +11,7 @@ import { useHttpClient } from '@/core/api/http-client-provider';
 import {
   daysUntilNextDueDay,
   getOpenBillingCycleRange,
+  resolveClosingDay,
   ymdFromLocalDate
 } from '@/shared/lib/billing-cycle';
 import { sumUnpaidCardExpensesInRange } from '@/shared/lib/card-expenses';
@@ -71,7 +72,7 @@ export function useWalletDashboard(): {
 
   const openCycle = useMemo(() => {
     if (!selectedCard) return null;
-    return getOpenBillingCycleRange(selectedCard.closingDay, new Date());
+    return getOpenBillingCycleRange(resolveClosingDay(selectedCard), new Date());
   }, [selectedCard]);
 
   const invoiceTransactionsQuery = useQuery({

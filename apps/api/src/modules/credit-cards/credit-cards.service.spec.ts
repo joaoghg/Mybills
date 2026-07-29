@@ -18,6 +18,7 @@ describe('CreditCardsService', () => {
     name: 'Platinum',
     limit: 500000,
     closingDay: 10,
+    closingOnLastDay: false,
     dueDay: 18,
     usedAmount: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -116,6 +117,7 @@ describe('CreditCardsService', () => {
         name: creditCard.name,
         limit: creditCard.limit,
         closingDay: creditCard.closingDay,
+        closingOnLastDay: false,
         dueDay: creditCard.dueDay
       });
     });
@@ -139,8 +141,52 @@ describe('CreditCardsService', () => {
         name: creditCard.name,
         limit: creditCard.limit,
         closingDay: creditCard.closingDay,
+        closingOnLastDay: false,
         dueDay: creditCard.dueDay
       });
+    });
+
+    it('should create credit card with closingOnLastDay and persist closingDay 31', async () => {
+      const lastDayCard: CreditCard = {
+        ...creditCard,
+        closingDay: 31,
+        closingOnLastDay: true
+      };
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      repository.create.mockResolvedValue(lastDayCard);
+
+      const result = await service.create({
+        userId: creditCard.userId,
+        accountId: creditCard.accountId,
+        name: creditCard.name,
+        limit: creditCard.limit,
+        closingOnLastDay: true,
+        dueDay: creditCard.dueDay
+      });
+
+      expect(result).toEqual(lastDayCard);
+      expect(repository.create).toHaveBeenCalledWith({
+        userId: creditCard.userId,
+        accountId: creditCard.accountId,
+        name: creditCard.name,
+        limit: creditCard.limit,
+        closingDay: 31,
+        closingOnLastDay: true,
+        dueDay: creditCard.dueDay
+      });
+    });
+
+    it('should throw InvalidArgumentError when closing day is missing and closingOnLastDay is false', async () => {
+      await expect(
+        service.create({
+          userId: creditCard.userId,
+          accountId: creditCard.accountId,
+          name: creditCard.name,
+          limit: creditCard.limit,
+          closingOnLastDay: false,
+          dueDay: creditCard.dueDay
+        })
+      ).rejects.toThrow(InvalidArgumentError);
     });
 
     it('should throw NotFoundError when account does not belong to user', async () => {
@@ -184,7 +230,45 @@ describe('CreditCardsService', () => {
       });
 
       expect(result).toEqual(updatedCreditCard);
-      expect(repository.update).toHaveBeenCalledWith(creditCard.id, { name: 'Updated Name' });
+      expect(repository.update).toHaveBeenCalledWith(creditCard.id, {
+        accountId: undefined,
+        name: 'Updated Name',
+        limit: undefined,
+        closingDay: undefined,
+        closingOnLastDay: undefined,
+        dueDay: undefined
+      });
+    });
+
+    it('should normalize closingDay to 31 when enabling closingOnLastDay', async () => {
+      const updatedCreditCard: CreditCard = {
+        ...creditCard,
+        closingDay: 31,
+        closingOnLastDay: true
+      };
+
+      repository.findByIdAndUserId.mockResolvedValue(creditCard);
+      repository.update.mockResolvedValue(updatedCreditCard);
+
+      const result = await service.update(creditCard.id, creditCard.userId, {
+        closingOnLastDay: true
+      });
+
+      expect(result).toEqual(updatedCreditCard);
+      expect(repository.update).toHaveBeenCalledWith(creditCard.id, {
+        accountId: undefined,
+        name: undefined,
+        limit: undefined,
+        closingDay: 31,
+        closingOnLastDay: true,
+        dueDay: undefined
+      });
+    });
+
+    it('should throw InvalidArgumentError when disabling closingOnLastDay without closingDay', async () => {
+      await expect(
+        service.update(creditCard.id, creditCard.userId, { closingOnLastDay: false })
+      ).rejects.toThrow(InvalidArgumentError);
     });
 
     it('should throw InvalidArgumentError when no fields are provided', async () => {
@@ -290,6 +374,43 @@ describe('CreditCardsService', () => {
       await expect(
         service.payInvoice(creditCard.id, creditCard.userId, { cycleEnd }, now)
       ).rejects.toThrow(InvalidArgumentError);
+    });
+
+    it('should pay February closed invoice when card closes on last day of month', async () => {
+      const lastDayCard: CreditCard = {
+        ...creditCard,
+        closingDay: 31,
+        closingOnLastDay: true
+      };
+      const febCycleEnd = '2026-02-27';
+      const febPayResult = {
+        ...payResult,
+        cycleStart: '2026-01-31',
+        cycleEnd: febCycleEnd
+      };
+      const febNow = new Date(Date.UTC(2026, 2, 5));
+
+      repository.findByIdAndUserId.mockResolvedValue(lastDayCard);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      repository.payInvoice.mockResolvedValue(febPayResult);
+
+      const result = await service.payInvoice(
+        lastDayCard.id,
+        lastDayCard.userId,
+        { cycleEnd: febCycleEnd },
+        febNow
+      );
+
+      expect(result).toEqual(febPayResult);
+      expect(repository.payInvoice).toHaveBeenCalledWith({
+        userId: lastDayCard.userId,
+        creditCardId: lastDayCard.id,
+        accountId: lastDayCard.accountId,
+        cycleStart: '2026-01-31',
+        cycleEnd: febCycleEnd,
+        paymentDate: '2026-03-05',
+        description: 'Invoice payment'
+      });
     });
 
     it('should throw InvalidArgumentError on double pay when invoice is already empty', async () => {

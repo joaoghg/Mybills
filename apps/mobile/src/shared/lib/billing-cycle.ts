@@ -11,6 +11,16 @@
  * - canPay for cycle ending 03/Jun is true from 04/Jun onward
  */
 
+export const LAST_DAY_CLOSING_DAY = 31;
+
+/** Effective closing day; 31 is clamped to each month's last day by closingYmd. */
+export function resolveClosingDay(card: {
+  closingDay: number;
+  closingOnLastDay: boolean;
+}): number {
+  return card.closingOnLastDay ? LAST_DAY_CLOSING_DAY : card.closingDay;
+}
+
 function pad2(n: number): string {
   return String(n).padStart(2, '0');
 }

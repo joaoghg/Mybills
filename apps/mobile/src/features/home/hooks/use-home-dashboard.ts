@@ -18,6 +18,7 @@ import {
   daysUntilNextDueDay,
   formatDueDate,
   getOpenBillingCycleRange,
+  resolveClosingDay,
   ymdFromLocalDate
 } from '@/shared/lib/billing-cycle';
 import { sumUnpaidCardExpensesInRange } from '@/shared/lib/card-expenses';
@@ -98,7 +99,7 @@ export function useHomeDashboard(
 
   const openCycle = useMemo(() => {
     if (!selectedCard) return null;
-    return getOpenBillingCycleRange(selectedCard.closingDay, new Date());
+    return getOpenBillingCycleRange(resolveClosingDay(selectedCard), new Date());
   }, [selectedCard]);
 
   const invoiceQuery = useQuery({

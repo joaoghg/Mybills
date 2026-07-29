@@ -9,6 +9,8 @@ import { CreditCard } from './entities/credit-card.entity';
 import {
   canPayBillingCycle,
   getClosedBillingCycleRange,
+  LAST_DAY_CLOSING_DAY,
+  resolveClosingDay,
   utcTodayYmd
 } from './lib/billing-cycle';
 import { CreditCardRepository } from './repositories/credit-card.repository';
@@ -63,7 +65,16 @@ export class CreditCardsService {
       }
     }
 
-    return await this.repository.create(data);
+    const closingOnLastDay = data.closingOnLastDay ?? false;
+    const closingDay = closingOnLastDay
+      ? LAST_DAY_CLOSING_DAY
+      : (data.closingDay as number);
+
+    return await this.repository.create({
+      ...data,
+      closingDay,
+      closingOnLastDay
+    });
   }
 
   async update(
@@ -89,11 +100,18 @@ export class CreditCardsService {
       }
     }
 
+    const closingOnLastDay = data.closingOnLastDay;
+    const closingDay =
+      closingOnLastDay === true
+        ? LAST_DAY_CLOSING_DAY
+        : data.closingDay;
+
     return await this.repository.update(creditCardId, {
       accountId: data.accountId,
       name: data.name,
       limit: data.limit,
-      closingDay: data.closingDay,
+      closingDay,
+      closingOnLastDay,
       dueDay: data.dueDay
     });
   }
@@ -139,7 +157,7 @@ export class CreditCardsService {
       });
     }
 
-    const cycle = getClosedBillingCycleRange(creditCard.closingDay, input.cycleEnd);
+    const cycle = getClosedBillingCycleRange(resolveClosingDay(creditCard), input.cycleEnd);
 
     if (!cycle) {
       throw new InvalidArgumentError({
@@ -200,7 +218,19 @@ export class CreditCardsService {
       });
     }
 
-    if (!Number.isInteger(data.closingDay)) {
+    const closingOnLastDay = data.closingOnLastDay ?? false;
+
+    if (!closingOnLastDay && data.closingDay === undefined) {
+      throw new InvalidArgumentError({
+        code: 'credit_cards.closing_day_required',
+        i18nKey: 'errors.credit_cards.closing_day_required'
+      });
+    }
+
+    if (
+      data.closingDay !== undefined &&
+      !Number.isInteger(data.closingDay)
+    ) {
       throw new InvalidArgumentError({
         code: 'credit_cards.invalid_credit_card_closing_day',
         i18nKey: 'errors.validation.invalid_field',
@@ -223,6 +253,7 @@ export class CreditCardsService {
       data.name === undefined &&
       data.limit === undefined &&
       data.closingDay === undefined &&
+      data.closingOnLastDay === undefined &&
       data.dueDay === undefined
     ) {
       throw new InvalidArgumentError({
@@ -248,6 +279,13 @@ export class CreditCardsService {
         code: 'credit_cards.invalid_credit_card_limit',
         i18nKey: 'errors.validation.invalid_field',
         i18nArgs: { field: 'credit_card_limit' }
+      });
+    }
+
+    if (data.closingOnLastDay === false && data.closingDay === undefined) {
+      throw new InvalidArgumentError({
+        code: 'credit_cards.closing_day_required',
+        i18nKey: 'errors.credit_cards.closing_day_required'
       });
     }
 

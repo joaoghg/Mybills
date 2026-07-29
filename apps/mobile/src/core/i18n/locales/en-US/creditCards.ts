@@ -5,6 +5,8 @@ export const creditCards = {
   limitPlaceholder: '0.00',
   closingDayLabel: 'Closing day',
   closingDayPlaceholder: '1–31',
+  closingOnLastDayLabel: 'Close on last day of month',
+  closingOnLastDayHint: 'Uses 28, 29, 30, or 31 depending on the month.',
   dueDayLabel: 'Due day',
   dueDayPlaceholder: '1–31',
   accountLabel: 'Linked account',

@@ -22,6 +22,7 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
       name: creditCard.name,
       limit: creditCard.limit,
       closingDay: creditCard.closingDay,
+      closingOnLastDay: creditCard.closingOnLastDay,
       dueDay: creditCard.dueDay,
       usedAmount,
       createdAt: creditCard.createdAt.toISOString(),
@@ -117,7 +118,8 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
         accountId: data.accountId ?? null,
         name: data.name,
         limit: data.limit,
-        closingDay: data.closingDay,
+        closingDay: data.closingDay as number,
+        closingOnLastDay: data.closingOnLastDay ?? false,
         dueDay: data.dueDay
       }
     });
@@ -133,6 +135,7 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
         name: data.name,
         limit: data.limit,
         closingDay: data.closingDay,
+        closingOnLastDay: data.closingOnLastDay,
         dueDay: data.dueDay
       }
     });

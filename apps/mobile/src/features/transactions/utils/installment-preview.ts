@@ -3,6 +3,7 @@ import {
   formatYearMonthLabel,
   getInvoicePaymentMonth,
   parseYearMonth,
+  resolveClosingDay,
   type YearMonth
 } from '@/shared/lib/billing-cycle';
 
@@ -17,7 +18,7 @@ type BuildInstallmentPreviewParams = {
   installments: number | null;
   dateYmd: string;
   locale: string;
-  card: { closingDay: number; dueDay: number } | null;
+  card: { closingDay: number; closingOnLastDay: boolean; dueDay: number } | null;
 };
 
 /**
@@ -36,7 +37,7 @@ export function buildInstallmentPreview({
 
   const purchaseMonth = parseYearMonth(dateYmd);
   const firstMonth = card
-    ? getInvoicePaymentMonth(card.closingDay, card.dueDay, dateYmd)
+    ? getInvoicePaymentMonth(resolveClosingDay(card), card.dueDay, dateYmd)
     : purchaseMonth;
   const lastMonth = addMonthsToYearMonth(firstMonth, installments - 1);
 

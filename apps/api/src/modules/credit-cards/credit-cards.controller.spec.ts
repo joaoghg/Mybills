@@ -23,6 +23,7 @@ describe('CreditCardsController', () => {
     name: 'Platinum',
     limit: 500000,
     closingDay: 10,
+    closingOnLastDay: false,
     dueDay: 18,
     usedAmount: 0,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -83,6 +84,7 @@ describe('CreditCardsController', () => {
         name: 'Wallet Card',
         limit: 120000,
         closingDay: 12,
+        closingOnLastDay: false,
         dueDay: 20
       };
 
@@ -98,6 +100,7 @@ describe('CreditCardsController', () => {
         name: input.name,
         limit: input.limit,
         closingDay: input.closingDay,
+        closingOnLastDay: input.closingOnLastDay,
         dueDay: input.dueDay
       });
     });

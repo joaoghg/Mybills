@@ -7,6 +7,7 @@ export const creditCardOutputSchema = z.object({
   name: z.string(),
   limit: z.int(),
   closingDay: z.int(),
+  closingOnLastDay: z.boolean(),
   dueDay: z.int(),
   usedAmount: z.int(),
   createdAt: z.string(),

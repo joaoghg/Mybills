@@ -63,10 +63,11 @@ model CreditCard {
   accountId  String?  @map("account_id")
   name       String
   limit      Int // Valor em centavos
-  closingDay Int      @map("closing_day")
-  dueDay     Int      @map("due_day")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  closingDay       Int     @map("closing_day")
+  closingOnLastDay Boolean @default(false) @map("closing_on_last_day")
+  dueDay           Int     @map("due_day")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   account      Account?      @relation(fields: [accountId], references: [id], onDelete: Cascade)

@@ -8,6 +8,7 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   View
 } from 'react-native';
@@ -52,6 +53,7 @@ export function EditCreditCardScreen({ navigation, route }: Props) {
   const [name, setName] = useState('');
   const [limitCents, setLimitCents] = useState(0);
   const [closingDayText, setClosingDayText] = useState('');
+  const [closingOnLastDay, setClosingOnLastDay] = useState(false);
   const [dueDayText, setDueDayText] = useState('');
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
@@ -63,6 +65,7 @@ export function EditCreditCardScreen({ navigation, route }: Props) {
     setName(card.name);
     setLimitCents(card.limit);
     setClosingDayText(String(card.closingDay));
+    setClosingOnLastDay(card.closingOnLastDay);
     setDueDayText(String(card.dueDay));
     setSelectedAccountId(card.accountId);
   }, [card]);
@@ -84,7 +87,8 @@ export function EditCreditCardScreen({ navigation, route }: Props) {
       accountId: selectedAccountId,
       name,
       limit: limitCents,
-      closingDay: parseDayInput(closingDayText),
+      closingOnLastDay,
+      ...(closingOnLastDay ? {} : { closingDay: parseDayInput(closingDayText) }),
       dueDay: parseDayInput(dueDayText)
     };
 
@@ -172,14 +176,33 @@ export function EditCreditCardScreen({ navigation, route }: Props) {
           cents={limitCents}
           onChangeCents={setLimitCents}
         />
-        <InputField
-          theme={theme}
-          label={t('creditCards.closingDayLabel')}
-          placeholder={t('creditCards.closingDayPlaceholder')}
-          value={closingDayText}
-          onChangeText={setClosingDayText}
-          keyboardType="number-pad"
-        />
+        <View style={styles.paidRow}>
+          <View style={styles.paidCopy}>
+            <Text style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
+              {t('creditCards.closingOnLastDayLabel')}
+            </Text>
+            <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+              {t('creditCards.closingOnLastDayHint')}
+            </Text>
+          </View>
+          <Switch
+            accessibilityLabel={t('creditCards.closingOnLastDayLabel')}
+            value={closingOnLastDay}
+            onValueChange={setClosingOnLastDay}
+            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+            thumbColor={theme.colors.surface}
+          />
+        </View>
+        {!closingOnLastDay ? (
+          <InputField
+            theme={theme}
+            label={t('creditCards.closingDayLabel')}
+            placeholder={t('creditCards.closingDayPlaceholder')}
+            value={closingDayText}
+            onChangeText={setClosingDayText}
+            keyboardType="number-pad"
+          />
+        ) : null}
         <InputField
           theme={theme}
           label={t('creditCards.dueDayLabel')}
@@ -335,6 +358,16 @@ const styles = StyleSheet.create({
     lineHeight: 17,
     fontWeight: '500',
     marginTop: -6
+  },
+  paidRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16
+  },
+  paidCopy: {
+    flex: 1,
+    gap: 4
   },
   errorText: {
     fontSize: 14,
