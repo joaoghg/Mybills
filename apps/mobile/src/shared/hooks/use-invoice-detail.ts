@@ -109,6 +109,7 @@ function sumUnpaidCents(transactions: TransactionOutput[]): number {
   for (const tx of transactions) {
     if (tx.type !== 'EXPENSE') continue;
     if (tx.isPaid) continue;
+    if (tx.isProjected) continue;
     sum += tx.amount;
   }
   return sum;
@@ -203,7 +204,8 @@ export function useInvoiceDetail(
         cardId: cardId!,
         from: cycle!.start,
         to: cycle!.end,
-        type: 'EXPENSE'
+        type: 'EXPENSE',
+        isProjected: false
       }),
     staleTime: STALE_MS,
     enabled: enabled && Boolean(cardId) && Boolean(cycle)

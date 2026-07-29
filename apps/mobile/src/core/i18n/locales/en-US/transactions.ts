@@ -10,6 +10,37 @@ export const transactions = {
   descriptionLabel: 'Description',
   descriptionPlaceholder: 'Store or title',
   dateLabel: 'Date',
+  installmentCountLabel: 'Number of installments',
+  installmentCountPlaceholder: '2',
+  installmentCountSuffix: 'installments',
+  installmentCountDecrease: 'Decrease number of installments',
+  installmentCountIncrease: 'Increase number of installments',
+  scheduleLabel: 'Repeat',
+  scheduleModes: {
+    none: 'One-time',
+    installment: 'Installment',
+    recurring: 'Recurring'
+  },
+  scheduleInstallmentHint:
+    'Creates one installment per month starting on the purchase date. Amount is per installment.',
+  scheduleInstallmentCardHint:
+    'The purchase date stays the same. Installments follow the card invoice payment months.',
+  scheduleInstallmentCardSummary:
+    '{{count}} installments · 1st invoice in {{first}} · last in {{last}}',
+  scheduleRecurringHint: 'Repeats every month with no end date. Keeps the next 12 months generated.',
+  schedulePaidFirstOnlyHint: 'If marked as paid, only the first occurrence is paid.',
+  scheduleInstallmentSummary: '{{count}} installments · last in {{last}}',
+  scheduleRecurringSummary: '12 months ahead',
+  seriesInstallmentLabel: 'Installment {{current}} of {{total}}',
+  seriesRecurringLabel: 'Recurring',
+  projectedLabel: 'Projected',
+  invoicePaymentMonthLabel: 'Paid on the {{month}} invoice',
+  seriesScopeTitle: 'Apply to',
+  seriesScopeSingle: 'This only',
+  seriesScopeFuture: 'This and future',
+  seriesScopeCancel: 'Cancel',
+  seriesDeleteTitle: 'Delete series?',
+  seriesDeleteMessage: 'Choose whether to delete only this occurrence or this and future ones.',
   categoryLabel: 'Category',
   categoryNone: 'None',
   accountLabel: 'Account',
@@ -46,7 +77,11 @@ export const transactions = {
     destinationAccountRequired: 'Select the account to transfer to.',
     accountsMustDiffer: 'Source and destination accounts must be different.',
     categoryInvalid: 'Select a valid category.',
-    cardInvalid: 'Select a valid credit card.'
+    cardInvalid: 'Select a valid credit card.',
+    installmentCountRequired: 'Enter the number of installments.',
+    installmentMinCount: 'Installments must be at least {{min}}.',
+    installmentMaxCount: 'Installments must be at most {{max}}.',
+    installmentCountInvalid: 'Invalid number of installments.'
   },
   errors: {
     network: 'Could not reach the server. Check your connection and try again.',

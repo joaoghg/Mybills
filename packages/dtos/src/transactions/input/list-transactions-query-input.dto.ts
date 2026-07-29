@@ -25,6 +25,7 @@ export const listTransactionsQueryInputSchema = z
     cardId: z.uuid().optional(),
     type: z.enum(['INCOME', 'EXPENSE']).optional(),
     isPaid: z.preprocess(booleanQueryParam, z.boolean().optional()),
+    isProjected: z.preprocess(booleanQueryParam, z.boolean().optional()),
     includeTransfer: z.preprocess(booleanQueryParam, z.boolean().optional()),
     limit: z.coerce.number().int().min(1).max(100).optional()
   })

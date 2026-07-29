@@ -17,6 +17,7 @@ import type { TFunction } from 'i18next';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
+import { formatYearMonthLabel, parseYearMonth } from '@/shared/lib/billing-cycle';
 import type { RecentTimeLabels } from '@/shared/lib/recent-transactions';
 import {
   dedupeTransferTransactions,
@@ -48,6 +49,43 @@ function currentMonthYear(): { month: number; year: number } {
   return { month: now.getMonth() + 1, year: now.getFullYear() };
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
+function lastDayOfCalendarMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+function selectedYearMonth(year: number, month: number): string {
+  return `${year}-${pad2(month)}`;
+}
+
+function transactionDateYmd(tx: TransactionOutput): string {
+  return tx.date.split('T')[0] ?? tx.date;
+}
+
+function belongsToHistoryMonth(
+  tx: TransactionOutput,
+  selectedYear: number,
+  selectedMonth: number
+): boolean {
+  return transactionDateYmd(tx).startsWith(selectedYearMonth(selectedYear, selectedMonth));
+}
+
+/**
+ * Invoice month worth showing: only when the card invoice is paid in a month
+ * other than the one the purchase is listed under.
+ */
+function deferredInvoiceMonth(tx: TransactionOutput): string | null {
+  if (!tx.cardId || !tx.invoicePaymentMonth) {
+    return null;
+  }
+
+  const purchaseYearMonth = transactionDateYmd(tx).slice(0, 7);
+  return tx.invoicePaymentMonth === purchaseYearMonth ? null : tx.invoicePaymentMonth;
+}
+
 function formatTimeFromIso(iso: string, locale: string): string {
   const date = new Date(iso);
   try {
@@ -63,13 +101,15 @@ function formatTimeFromIso(iso: string, locale: string): string {
 function buildSubtitle(
   categoryName: string | undefined,
   createdAt: string,
-  locale: string
+  locale: string,
+  extras: string[] = []
 ): string {
   const time = formatTimeFromIso(createdAt, locale);
   const category = categoryName?.trim();
-  if (category && time) return `${category} • ${time}`;
-  if (category) return category;
-  return time;
+  const parts = [...extras];
+  if (category) parts.push(category);
+  if (time) parts.push(time);
+  return parts.join(' • ');
 }
 
 function toHistoryRow(
@@ -78,7 +118,8 @@ function toHistoryRow(
   categoryIcon: CategoryIcon | undefined,
   locale: string,
   timeLabels: RecentTimeLabels,
-  transferLabel: string
+  transferLabel: string,
+  t: TFunction
 ): HistoryTransactionRow {
   const base = mapTransactionToRecentRow(
     tx,
@@ -89,21 +130,51 @@ function toHistoryRow(
     transferLabel
   );
 
+  const extras: string[] = [];
+  if (tx.seriesType === 'INSTALLMENT' && tx.occurrenceNumber && tx.seriesTotalOccurrences) {
+    extras.push(
+      t('transactions.seriesInstallmentLabel', {
+        current: tx.occurrenceNumber,
+        total: tx.seriesTotalOccurrences
+      })
+    );
+  } else if (tx.seriesType === 'RECURRING') {
+    extras.push(t('transactions.seriesRecurringLabel'));
+  }
+  if (tx.isProjected) {
+    extras.push(t('transactions.projectedLabel'));
+  }
+  const invoiceMonth = deferredInvoiceMonth(tx);
+  if (invoiceMonth) {
+    const invoiceYearMonth = parseYearMonth(invoiceMonth);
+    extras.push(
+      t('transactions.invoicePaymentMonthLabel', {
+        month: formatYearMonthLabel(invoiceYearMonth, locale, {
+          withYear: invoiceYearMonth.year !== parseYearMonth(transactionDateYmd(tx)).year
+        })
+      })
+    );
+  }
+
   return {
     ...base,
-    dateYmd: tx.date.split('T')[0] ?? tx.date,
+    dateYmd: transactionDateYmd(tx),
     txType: tx.transferGroupId ? 'TRANSFER' : tx.type,
     amountCents: tx.amount,
     subtitle: tx.transferGroupId
       ? transferLabel
-      : buildSubtitle(categoryName, tx.createdAt, locale)
+      : buildSubtitle(categoryName, tx.createdAt, locale, extras)
   };
 }
 
 function buildApiQuery(filters: HistoryFilters, debouncedSearch: string): ListTransactionsQueryInput {
+  const from = `${filters.selectedYear}-${pad2(filters.selectedMonth)}-01`;
+  const toDay = lastDayOfCalendarMonth(filters.selectedYear, filters.selectedMonth);
+  const to = `${filters.selectedYear}-${pad2(filters.selectedMonth)}-${pad2(toDay)}`;
+
   return {
-    year: filters.selectedYear,
-    month: filters.selectedMonth,
+    from,
+    to,
     includeTransfer: filters.includeTransfer,
     ...(debouncedSearch ? { search: debouncedSearch } : {}),
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
@@ -127,7 +198,8 @@ function hasActiveAdvancedFilters(filters: HistoryFilters, debouncedSearch: stri
 export function useTransactionHistory(
   locale: string,
   timeLabels: RecentTimeLabels,
-  t: TFunction
+  t: TFunction,
+  options?: { enabled?: boolean }
 ): {
   filters: HistoryFilters;
   categories: CategoryOutput[];
@@ -152,6 +224,7 @@ export function useTransactionHistory(
   monthTitle: string;
 } {
   const client = useHttpClient();
+  const listEnabled = options?.enabled ?? true;
   const initial = currentMonthYear();
 
   const [filters, setFilters] = useState<HistoryFilters>({
@@ -174,7 +247,8 @@ export function useTransactionHistory(
   const transactionsQuery = useQuery({
     queryKey: ['transactions', 'history', apiQuery],
     queryFn: () => listTransactions(client, apiQuery),
-    staleTime: STALE_MS
+    staleTime: STALE_MS,
+    enabled: listEnabled
   });
 
   const categoriesQuery = useQuery({
@@ -196,29 +270,32 @@ export function useTransactionHistory(
   });
 
   const isLoading =
-    transactionsQuery.isPending ||
-    categoriesQuery.isPending ||
-    accountsQuery.isPending ||
-    creditCardsQuery.isPending;
+    listEnabled &&
+    (transactionsQuery.isPending ||
+      categoriesQuery.isPending ||
+      accountsQuery.isPending ||
+      creditCardsQuery.isPending);
   const isError =
-    transactionsQuery.isError ||
-    categoriesQuery.isError ||
-    accountsQuery.isError ||
-    creditCardsQuery.isError;
+    listEnabled &&
+    (transactionsQuery.isError ||
+      categoriesQuery.isError ||
+      accountsQuery.isError ||
+      creditCardsQuery.isError);
   const isRefetching =
-    transactionsQuery.isRefetching ||
-    categoriesQuery.isRefetching ||
-    accountsQuery.isRefetching ||
-    creditCardsQuery.isRefetching;
+    listEnabled &&
+    (transactionsQuery.isRefetching ||
+      categoriesQuery.isRefetching ||
+      accountsQuery.isRefetching ||
+      creditCardsQuery.isRefetching);
 
   const refetch = useCallback(async () => {
-    await Promise.all([
-      transactionsQuery.refetch(),
-      categoriesQuery.refetch(),
-      accountsQuery.refetch(),
-      creditCardsQuery.refetch()
-    ]);
-  }, [transactionsQuery, categoriesQuery, accountsQuery, creditCardsQuery]);
+    await categoriesQuery.refetch();
+    await accountsQuery.refetch();
+    await creditCardsQuery.refetch();
+    if (listEnabled) {
+      await transactionsQuery.refetch();
+    }
+  }, [listEnabled, transactionsQuery, categoriesQuery, accountsQuery, creditCardsQuery]);
 
   const categoryNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -239,14 +316,25 @@ export function useTransactionHistory(
   const rows = useMemo((): HistoryTransactionRow[] => {
     const txs = transactionsQuery.data ?? [];
     const transferLabel = t('transactions.types.transfer');
-    const displayTransactions = dedupeTransferTransactions(txs);
+    const displayTransactions = dedupeTransferTransactions(txs).filter((tx) =>
+      belongsToHistoryMonth(tx, filters.selectedYear, filters.selectedMonth)
+    );
 
     return displayTransactions.map((tx) => {
       const categoryName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
       const categoryIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
-      return toHistoryRow(tx, categoryName, categoryIcon, locale, timeLabels, transferLabel);
+      return toHistoryRow(tx, categoryName, categoryIcon, locale, timeLabels, transferLabel, t);
     });
-  }, [transactionsQuery.data, categoryNameById, categoryIconById, locale, timeLabels, t]);
+  }, [
+    transactionsQuery.data,
+    categoryNameById,
+    categoryIconById,
+    locale,
+    timeLabels,
+    t,
+    filters.selectedYear,
+    filters.selectedMonth
+  ]);
 
   const sections = useMemo(() => groupTransactionsByDate(rows, t), [rows, t]);
 

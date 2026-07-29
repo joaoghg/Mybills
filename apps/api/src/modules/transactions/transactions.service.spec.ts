@@ -6,8 +6,10 @@ import { Account } from '../accounts/entities/account.entity';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
 import { CreditCardsService } from '../credit-cards/credit-cards.service';
+import { CreditCard } from '../credit-cards/entities/credit-card.entity';
 import { Transaction } from './entities/transaction.entity';
 import { TransactionRepository } from './repositories/transaction.repository';
+import { TransactionSeriesMaintenanceService } from './transaction-series-maintenance.service';
 import { TransactionsService } from './transactions.service';
 
 describe('TransactionsService', () => {
@@ -24,11 +26,17 @@ describe('TransactionsService', () => {
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
     transferGroupId: null,
+    seriesId: null,
+    occurrenceNumber: null,
+    seriesType: null,
+    seriesTotalOccurrences: null,
     description: 'Market purchase',
     type: TransactionType.EXPENSE,
     amount: 2590,
     date: '2026-04-04T00:00:00.000Z',
     isPaid: false,
+    isProjected: false,
+    invoicePaymentMonth: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -68,7 +76,26 @@ describe('TransactionsService', () => {
             delete: jest.fn(),
             findByTransferGroupIdAndUserId: jest.fn(),
             updateTransferPair: jest.fn(),
-            deleteTransferPair: jest.fn()
+            deleteTransferPair: jest.fn(),
+            createSeriesWithOccurrences: jest.fn(),
+            promoteToSeries: jest.fn(),
+            convertSeriesToRecurring: jest.fn(),
+            convertSeriesToInstallment: jest.fn(),
+            updateManyFromOccurrence: jest.fn(),
+            findBySeriesFromOccurrence: jest.fn(),
+            deleteFromOccurrence: jest.fn(),
+            findSeriesById: jest.fn(),
+            findActiveRecurringSeries: jest.fn(),
+            appendSeriesOccurrences: jest.fn(),
+            activateDueProjected: jest.fn()
+          }
+        },
+        {
+          provide: TransactionSeriesMaintenanceService,
+          useValue: {
+            buildInitialRecurringOccurrences: jest.fn(),
+            runMaintenance: jest.fn(),
+            extendActiveRecurringSeries: jest.fn()
           }
         },
         {
@@ -89,6 +116,7 @@ describe('TransactionsService', () => {
         {
           provide: CreditCardsService,
           useValue: {
+            findAll: jest.fn(),
             findById: jest.fn()
           }
         }
@@ -153,6 +181,126 @@ describe('TransactionsService', () => {
 
     it('should throw InvalidArgumentError if user id is invalid', async () => {
       await expect(service.findAll('')).rejects.toThrow(InvalidArgumentError);
+    });
+  });
+
+  describe('getMonthlySummary', () => {
+    const cardId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+
+    const creditCard: CreditCard = {
+      id: cardId,
+      userId: baseTransaction.userId,
+      accountId: null,
+      name: 'Nubank',
+      limit: 500000,
+      closingDay: 4,
+      dueDay: 11,
+      usedAmount: 0,
+      createdAt: baseTransaction.createdAt,
+      updatedAt: baseTransaction.updatedAt
+    };
+
+    const salary: Transaction = {
+      ...baseTransaction,
+      id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f001',
+      type: TransactionType.INCOME,
+      amount: 900000,
+      date: '2026-07-05T00:00:00.000Z'
+    };
+
+    const groceries: Transaction = {
+      ...baseTransaction,
+      id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f002',
+      amount: 3000,
+      date: '2026-07-10T00:00:00.000Z'
+    };
+
+    const cardPurchase: Transaction = {
+      ...baseTransaction,
+      id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f003',
+      accountId: null,
+      cardId,
+      amount: 5000,
+      date: '2026-07-21T00:00:00.000Z',
+      invoicePaymentMonth: '2026-08'
+    };
+
+    it('should count only non-card transactions in the purchase month', async () => {
+      repository.findAllByUserId.mockResolvedValue([salary, groceries, cardPurchase]);
+
+      const result = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 7,
+        year: 2026
+      });
+
+      expect(result.month).toBe('2026-07');
+      expect(result.income).toEqual([salary]);
+      expect(result.expenses).toEqual([groceries]);
+      expect(result.cardInvoices).toEqual([]);
+      expect(result.incomeTotal).toBe(900000);
+      expect(result.expenseTotal).toBe(3000);
+      expect(result.netTotal).toBe(897000);
+      expect(repository.findAllByUserId).toHaveBeenCalledWith(baseTransaction.userId, {
+        from: '2026-05-01',
+        to: '2026-07-31',
+        includeTransfer: false
+      });
+    });
+
+    it('should count a card purchase in its invoice payment month grouped by card', async () => {
+      repository.findAllByUserId.mockResolvedValue([salary, groceries, cardPurchase]);
+      creditCardsService.findAll.mockResolvedValue([creditCard]);
+
+      const result = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
+
+      expect(result.month).toBe('2026-08');
+      expect(result.income).toEqual([]);
+      expect(result.expenses).toEqual([]);
+      expect(result.cardInvoices).toEqual([
+        {
+          cardId,
+          cardName: 'Nubank',
+          paymentMonth: '2026-08',
+          total: 5000,
+          isFullyPaid: false,
+          transactions: [cardPurchase]
+        }
+      ]);
+      expect(result.incomeTotal).toBe(0);
+      expect(result.expenseTotal).toBe(5000);
+      expect(result.netTotal).toBe(-5000);
+    });
+
+    it('should subtract card refunds from the invoice total', async () => {
+      const refund: Transaction = {
+        ...cardPurchase,
+        id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f004',
+        type: TransactionType.INCOME,
+        amount: 1500,
+        isPaid: true
+      };
+
+      repository.findAllByUserId.mockResolvedValue([cardPurchase, refund]);
+      creditCardsService.findAll.mockResolvedValue([creditCard]);
+
+      const result = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
+
+      expect(result.cardInvoices).toHaveLength(1);
+      expect(result.cardInvoices[0]?.total).toBe(3500);
+      expect(result.cardInvoices[0]?.isFullyPaid).toBe(false);
+      expect(result.expenseTotal).toBe(3500);
+    });
+
+    it('should throw InvalidArgumentError if user id is invalid', async () => {
+      await expect(service.getMonthlySummary('', { month: 8, year: 2026 })).rejects.toThrow(
+        InvalidArgumentError
+      );
     });
   });
 
@@ -231,6 +379,180 @@ describe('TransactionsService', () => {
 
       expect(result).toEqual(baseTransaction);
       expect(accountsService.update).not.toHaveBeenCalled();
+    });
+
+    it('should create installment series and pay only the first occurrence', async () => {
+      const first: Transaction = {
+        ...baseTransaction,
+        seriesId: '11111111-1111-1111-1111-111111111111',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3,
+        isPaid: true
+      };
+
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.createSeriesWithOccurrences.mockResolvedValue({
+        seriesId: first.seriesId as string,
+        firstTransactionId: first.id
+      });
+      repository.findByIdAndUserId.mockResolvedValue(first);
+      accountsService.findById.mockResolvedValue(account);
+      accountsService.update.mockResolvedValue({
+        ...account,
+        balance: account.balance - first.amount
+      });
+
+      const result = await service.create({
+        userId: first.userId,
+        accountId: first.accountId,
+        categoryId: first.categoryId,
+        type: TransactionType.EXPENSE,
+        amount: first.amount,
+        date: '2026-01-15',
+        isPaid: true,
+        schedule: { mode: 'INSTALLMENT', installments: 3 }
+      });
+
+      expect(result).toEqual(first);
+      expect(repository.createSeriesWithOccurrences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'INSTALLMENT',
+          totalOccurrences: 3,
+          occurrences: [
+            expect.objectContaining({ occurrenceNumber: 1, isPaid: true, isProjected: false }),
+            expect.objectContaining({ occurrenceNumber: 2, isPaid: false, isProjected: false }),
+            expect.objectContaining({ occurrenceNumber: 3, isPaid: false, isProjected: false })
+          ]
+        })
+      );
+      expect(accountsService.update).toHaveBeenCalledTimes(1);
+    });
+
+    it('should create card installment series with one occurrence per installment', async () => {
+      const cardId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+      const first: Transaction = {
+        ...baseTransaction,
+        cardId,
+        seriesId: '33333333-3333-3333-3333-333333333333',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 12,
+        date: '2026-07-21T00:00:00.000Z',
+        invoicePaymentMonth: '2026-08',
+        isPaid: false
+      };
+
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      creditCardsService.findById.mockResolvedValue({
+        id: cardId,
+        userId: first.userId,
+        accountId: first.accountId,
+        name: 'Nubank',
+        limit: 500000,
+        closingDay: 4,
+        dueDay: 11,
+        usedAmount: 0,
+        createdAt: first.createdAt,
+        updatedAt: first.updatedAt
+      });
+      repository.createSeriesWithOccurrences.mockResolvedValue({
+        seriesId: first.seriesId as string,
+        firstTransactionId: first.id
+      });
+      repository.findByIdAndUserId.mockResolvedValue(first);
+
+      const result = await service.create({
+        userId: first.userId,
+        accountId: first.accountId,
+        categoryId: first.categoryId,
+        cardId,
+        type: TransactionType.EXPENSE,
+        amount: first.amount,
+        date: '2026-07-21',
+        isPaid: false,
+        schedule: { mode: 'INSTALLMENT', installments: 12 }
+      });
+
+      expect(result).toEqual(first);
+      expect(repository.createSeriesWithOccurrences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'INSTALLMENT',
+          totalOccurrences: 12,
+          occurrences: expect.arrayContaining([
+            expect.objectContaining({ occurrenceNumber: 1, date: '2026-07-21' }),
+            expect.objectContaining({ occurrenceNumber: 12, date: '2027-06-21' })
+          ])
+        })
+      );
+      const call = repository.createSeriesWithOccurrences.mock.calls[0]?.[0];
+      expect(call?.occurrences).toHaveLength(12);
+    });
+
+    it('should throw InvalidArgumentError when installments is lower than two', async () => {
+      await expect(
+        service.create({
+          userId: baseTransaction.userId,
+          accountId: baseTransaction.accountId,
+          type: TransactionType.EXPENSE,
+          amount: baseTransaction.amount,
+          date: '2026-01-15',
+          isPaid: false,
+          schedule: { mode: 'INSTALLMENT', installments: 1 }
+        })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
+
+    it('should create recurring series with projected future occurrences', async () => {
+      const first: Transaction = {
+        ...baseTransaction,
+        seriesId: '22222222-2222-2222-2222-222222222222',
+        occurrenceNumber: 1,
+        seriesType: 'RECURRING',
+        seriesTotalOccurrences: null,
+        isPaid: false,
+        isProjected: false
+      };
+      const seriesMaintenance = (
+        service as unknown as {
+          seriesMaintenance: {
+            buildInitialRecurringOccurrences: jest.Mock;
+          };
+        }
+      ).seriesMaintenance;
+
+      seriesMaintenance.buildInitialRecurringOccurrences.mockReturnValue([
+        { occurrenceNumber: 1, date: '2026-01-10', isPaid: false, isProjected: false },
+        { occurrenceNumber: 2, date: '2026-02-10', isPaid: false, isProjected: true }
+      ]);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.createSeriesWithOccurrences.mockResolvedValue({
+        seriesId: first.seriesId as string,
+        firstTransactionId: first.id
+      });
+      repository.findByIdAndUserId.mockResolvedValue(first);
+
+      const result = await service.create({
+        userId: first.userId,
+        accountId: first.accountId,
+        categoryId: first.categoryId,
+        type: TransactionType.EXPENSE,
+        amount: first.amount,
+        date: '2026-01-10',
+        isPaid: false,
+        schedule: { mode: 'RECURRING' }
+      });
+
+      expect(result).toEqual(first);
+      expect(repository.createSeriesWithOccurrences).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'RECURRING',
+          totalOccurrences: null
+        })
+      );
     });
 
     it('should throw InvalidArgumentError when category type does not match transaction type', async () => {
@@ -323,6 +645,141 @@ describe('TransactionsService', () => {
 
       await expect(
         service.update(baseTransaction.id, baseTransaction.userId, { amount: 1000 })
+      ).rejects.toThrow(InvalidArgumentError);
+    });
+
+    it('should promote a standalone transaction to installment series', async () => {
+      const promoted: Transaction = {
+        ...baseTransaction,
+        seriesId: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3
+      };
+
+      repository.findByIdAndUserId
+        .mockResolvedValueOnce(baseTransaction)
+        .mockResolvedValueOnce(promoted);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.promoteToSeries.mockResolvedValue({
+        seriesId: promoted.seriesId as string,
+        firstTransactionId: promoted.id
+      });
+
+      const result = await service.update(baseTransaction.id, baseTransaction.userId, {
+        schedule: { mode: 'INSTALLMENT', installments: 3 }
+      });
+
+      expect(result).toEqual(promoted);
+      expect(repository.promoteToSeries).toHaveBeenCalledWith(
+        baseTransaction.id,
+        expect.objectContaining({
+          type: 'INSTALLMENT',
+          totalOccurrences: 3,
+          occurrences: expect.arrayContaining([
+            expect.objectContaining({ occurrenceNumber: 1, isPaid: false })
+          ])
+        })
+      );
+    });
+
+    it('should convert installment series to recurring', async () => {
+      const installment: Transaction = {
+        ...baseTransaction,
+        seriesId: 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3
+      };
+      const converted: Transaction = {
+        ...installment,
+        seriesType: 'RECURRING',
+        seriesTotalOccurrences: null
+      };
+      const seriesMaintenance = (
+        service as unknown as {
+          seriesMaintenance: {
+            extendActiveRecurringSeries: jest.Mock;
+          };
+        }
+      ).seriesMaintenance;
+
+      repository.findByIdAndUserId
+        .mockResolvedValueOnce(installment)
+        .mockResolvedValueOnce(converted);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.findBySeriesFromOccurrence.mockResolvedValue([installment]);
+      repository.convertSeriesToRecurring.mockResolvedValue(converted);
+      seriesMaintenance.extendActiveRecurringSeries.mockResolvedValue(2);
+
+      const result = await service.update(installment.id, installment.userId, {
+        schedule: { mode: 'RECURRING' }
+      });
+
+      expect(result).toEqual(converted);
+      expect(repository.convertSeriesToRecurring).toHaveBeenCalledWith(
+        expect.objectContaining({
+          seriesId: installment.seriesId,
+          fromOccurrenceNumber: 1
+        })
+      );
+      expect(seriesMaintenance.extendActiveRecurringSeries).toHaveBeenCalled();
+    });
+
+    it('should convert recurring series to installment', async () => {
+      const recurring: Transaction = {
+        ...baseTransaction,
+        seriesId: 'cccccccc-cccc-cccc-cccc-cccccccccccc',
+        occurrenceNumber: 1,
+        seriesType: 'RECURRING',
+        seriesTotalOccurrences: null
+      };
+      const converted: Transaction = {
+        ...recurring,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 3
+      };
+
+      repository.findByIdAndUserId
+        .mockResolvedValueOnce(recurring)
+        .mockResolvedValueOnce(converted);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+      repository.findBySeriesFromOccurrence.mockResolvedValue([recurring]);
+      repository.convertSeriesToInstallment.mockResolvedValue(converted);
+
+      const result = await service.update(recurring.id, recurring.userId, {
+        schedule: { mode: 'INSTALLMENT', installments: 3 }
+      });
+
+      expect(result).toEqual(converted);
+      expect(repository.convertSeriesToInstallment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          seriesId: recurring.seriesId,
+          startDate: '2026-04-04',
+          occurrenceCount: 3
+        })
+      );
+    });
+
+    it('should reject detaching a series back to NONE', async () => {
+      repository.findByIdAndUserId.mockResolvedValue({
+        ...baseTransaction,
+        seriesId: 'dddddddd-dddd-dddd-dddd-dddddddddddd',
+        occurrenceNumber: 1,
+        seriesType: 'INSTALLMENT',
+        seriesTotalOccurrences: 2
+      });
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      categoriesService.findById.mockResolvedValue(expenseCategory);
+
+      await expect(
+        service.update(baseTransaction.id, baseTransaction.userId, {
+          schedule: { mode: 'NONE' },
+          amount: 1000
+        })
       ).rejects.toThrow(InvalidArgumentError);
     });
   });

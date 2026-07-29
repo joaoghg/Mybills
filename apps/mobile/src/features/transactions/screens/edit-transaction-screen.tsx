@@ -1,4 +1,5 @@
-import { updateTransactionInputSchema, type UpdateTransactionInput } from '@mybills/dtos';
+import type { TransactionSeriesScope, UpdateTransactionInput } from '@mybills/dtos';
+import { updateTransactionInputSchema } from '@mybills/dtos';
 import { listAccounts, listCategories, listCreditCards } from '@mybills/api-client';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useEffect, useLayoutEffect, useMemo, useState } from 'react';
@@ -18,7 +19,9 @@ import { useQuery } from '@tanstack/react-query';
 import { useHttpClient } from '@/core/api/http-client-provider';
 import { useTheme } from '@/core/theme';
 import { CategorySelectPicker } from '@/features/transactions/components/category-select-picker';
+import { InstallmentCountField } from '@/features/transactions/components/installment-count-field';
 import { TransactionDateField } from '@/features/transactions/components/transaction-date-field';
+import { TransactionScheduleSegment } from '@/features/transactions/components/transaction-schedule-segment';
 import { TransactionTypeSegment } from '@/features/transactions/components/transaction-type-segment';
 import { useDeleteTransaction } from '@/features/transactions/hooks/use-delete-transaction';
 import { useTransaction } from '@/features/transactions/hooks/use-transaction';
@@ -26,13 +29,30 @@ import { useUpdateTransaction } from '@/features/transactions/hooks/use-update-t
 import { translateCreateTransactionError } from '@/features/transactions/utils/create-transaction-error';
 import {
   translateCreateTransactionZodError,
-  validateCreateTransactionClient
+  validateCreateTransactionClient,
+  type ScheduleMode
 } from '@/features/transactions/utils/create-transaction-validation';
+import {
+  buildInstallmentPreview,
+  MIN_INSTALLMENT_COUNT
+} from '@/features/transactions/utils/installment-preview';
 import type { RootStackParamList } from '@/navigation/types';
 import { InputField } from '@/shared/components/input-field';
 import { MoneyInputField } from '@/shared/components/money-input-field';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditTransaction'>;
+
+function seriesTypeToScheduleMode(
+  seriesType: 'INSTALLMENT' | 'RECURRING' | null | undefined
+): ScheduleMode {
+  if (seriesType === 'INSTALLMENT') {
+    return 'INSTALLMENT';
+  }
+  if (seriesType === 'RECURRING') {
+    return 'RECURRING';
+  }
+  return 'NONE';
+}
 
 export function EditTransactionScreen({ navigation, route }: Props) {
   const { transactionId } = route.params;
@@ -72,6 +92,8 @@ export function EditTransactionScreen({ navigation, route }: Props) {
   const [amountCents, setAmountCents] = useState(0);
   const [description, setDescription] = useState('');
   const [dateYmd, setDateYmd] = useState('');
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('NONE');
+  const [installments, setInstallments] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -88,6 +110,10 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     setAmountCents(transaction.amount);
     setDescription(transaction.description ?? '');
     setDateYmd(transaction.date.split('T')[0] ?? transaction.date);
+    setScheduleMode(seriesTypeToScheduleMode(transaction.seriesType));
+    setInstallments(
+      transaction.seriesType === 'INSTALLMENT' ? transaction.seriesTotalOccurrences : null
+    );
     setSelectedCategoryId(transaction.categoryId);
     setSelectedAccountId(transaction.accountId);
     setSelectedCardId(transaction.cardId);
@@ -107,6 +133,42 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     return categories.filter((category) => category.types.includes(type));
   }, [categories, type]);
 
+  const originalScheduleMode = seriesTypeToScheduleMode(transaction?.seriesType);
+  const scheduleChanged = scheduleMode !== originalScheduleMode;
+
+  const scheduleOptions = useMemo(() => {
+    if (transaction?.seriesId) {
+      return [
+        { value: 'INSTALLMENT' as const, label: t('transactions.scheduleModes.installment') },
+        { value: 'RECURRING' as const, label: t('transactions.scheduleModes.recurring') }
+      ];
+    }
+
+    return [
+      { value: 'NONE' as const, label: t('transactions.scheduleModes.none') },
+      { value: 'INSTALLMENT' as const, label: t('transactions.scheduleModes.installment') },
+      { value: 'RECURRING' as const, label: t('transactions.scheduleModes.recurring') }
+    ];
+  }, [t, transaction?.seriesId]);
+
+  const selectedCard = useMemo(
+    () => creditCards.find((card) => card.id === selectedCardId) ?? null,
+    [creditCards, selectedCardId]
+  );
+
+  const installmentPreview = useMemo(() => {
+    if (scheduleMode !== 'INSTALLMENT') {
+      return null;
+    }
+
+    return buildInstallmentPreview({
+      installments,
+      dateYmd,
+      locale: i18n.language,
+      card: selectedCard
+    });
+  }, [scheduleMode, installments, dateYmd, i18n.language, selectedCard]);
+
   const remoteMessage =
     isError && error ? translateCreateTransactionError(error, t) : null;
   const deleteRemoteMessage =
@@ -118,6 +180,10 @@ export function EditTransactionScreen({ navigation, route }: Props) {
 
     if (nextType === 'TRANSFER') {
       setSelectedCategoryId(null);
+      if (!transaction?.seriesId) {
+        setScheduleMode('NONE');
+        setInstallments(null);
+      }
       return;
     }
 
@@ -157,19 +223,47 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     }
   }
 
-  async function handleSubmit() {
+  function handleSelectSchedule(mode: ScheduleMode) {
+    setScheduleMode(mode);
+    if (mode !== 'INSTALLMENT') {
+      setInstallments(null);
+      return;
+    }
+    setInstallments(transaction?.seriesTotalOccurrences ?? MIN_INSTALLMENT_COUNT);
+  }
+
+  async function submitWithScope(scope: TransactionSeriesScope) {
     setLocalError(null);
 
-    const clientError = validateCreateTransactionClient(t, amountCents, isPaid, selectedAccountId);
+    const clientError = validateCreateTransactionClient(
+      t,
+      amountCents,
+      isPaid,
+      selectedAccountId,
+      scheduleChanged ? scheduleMode : 'NONE',
+      installments
+    );
     if (clientError) {
       setLocalError(clientError);
       return;
     }
 
+    const schedule = !scheduleChanged
+      ? undefined
+      : scheduleMode === 'INSTALLMENT' && installments !== null
+        ? { mode: 'INSTALLMENT' as const, installments }
+        : scheduleMode === 'RECURRING'
+          ? { mode: 'RECURRING' as const }
+          : scheduleMode === 'NONE'
+            ? { mode: 'NONE' as const }
+            : undefined;
+
     const payload = {
       type,
       amount: amountCents,
       date: dateYmd,
+      scope,
+      ...(schedule ? { schedule } : {}),
       ...(description.trim() ? { description: description.trim() } : { description: null }),
       ...(type !== 'TRANSFER' && selectedCategoryId
         ? { categoryId: selectedCategoryId }
@@ -198,20 +292,70 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     );
   }
 
+  async function handleSubmit() {
+    if (scheduleChanged) {
+      await submitWithScope('THIS_AND_FUTURE');
+      return;
+    }
+
+    if (transaction?.seriesId) {
+      Alert.alert(t('transactions.seriesScopeTitle'), undefined, [
+        { text: t('transactions.seriesScopeCancel'), style: 'cancel' },
+        {
+          text: t('transactions.seriesScopeSingle'),
+          onPress: () => {
+            void submitWithScope('SINGLE');
+          }
+        },
+        {
+          text: t('transactions.seriesScopeFuture'),
+          onPress: () => {
+            void submitWithScope('THIS_AND_FUTURE');
+          }
+        }
+      ]);
+      return;
+    }
+
+    await submitWithScope('SINGLE');
+  }
+
+  function deleteWithScope(scope: TransactionSeriesScope) {
+    setLocalError(null);
+    deleteTransaction(
+      { transactionId, scope },
+      {
+        onSuccess: () => {
+          navigation.goBack();
+        }
+      }
+    );
+  }
+
   function confirmDelete() {
+    if (transaction?.seriesId) {
+      Alert.alert(t('transactions.seriesDeleteTitle'), t('transactions.seriesDeleteMessage'), [
+        { text: t('transactions.seriesScopeCancel'), style: 'cancel' },
+        {
+          text: t('transactions.seriesScopeSingle'),
+          style: 'destructive',
+          onPress: () => deleteWithScope('SINGLE')
+        },
+        {
+          text: t('transactions.seriesScopeFuture'),
+          style: 'destructive',
+          onPress: () => deleteWithScope('THIS_AND_FUTURE')
+        }
+      ]);
+      return;
+    }
+
     Alert.alert(t('transactions.deleteConfirmTitle'), t('transactions.deleteConfirmMessage'), [
       { text: t('transactions.deleteCancel'), style: 'cancel' },
       {
         text: t('transactions.deleteConfirm'),
         style: 'destructive',
-        onPress: () => {
-          setLocalError(null);
-          deleteTransaction(transactionId, {
-            onSuccess: () => {
-              navigation.goBack();
-            }
-          });
-        }
+        onPress: () => deleteWithScope('SINGLE')
       }
     ]);
   }
@@ -272,6 +416,81 @@ export function EditTransactionScreen({ navigation, route }: Props) {
           locale={i18n.language}
           onChangeYmd={setDateYmd}
         />
+
+        {type !== 'TRANSFER' ? (
+          <>
+            <TransactionScheduleSegment
+              theme={theme}
+              selected={scheduleMode}
+              options={scheduleOptions}
+              onSelect={handleSelectSchedule}
+              label={t('transactions.scheduleLabel')}
+            />
+            {scheduleMode === 'INSTALLMENT' &&
+            (scheduleChanged || !transaction.seriesId) ? (
+              <>
+                <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                  {selectedCard
+                    ? t('transactions.scheduleInstallmentCardHint')
+                    : t('transactions.scheduleInstallmentHint')}
+                </Text>
+                <InstallmentCountField
+                  theme={theme}
+                  value={installments}
+                  label={t('transactions.installmentCountLabel')}
+                  placeholder={t('transactions.installmentCountPlaceholder')}
+                  suffix={t('transactions.installmentCountSuffix')}
+                  decrementLabel={t('transactions.installmentCountDecrease')}
+                  incrementLabel={t('transactions.installmentCountIncrease')}
+                  onChange={setInstallments}
+                />
+                {installmentPreview ? (
+                  <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                    {installmentPreview.kind === 'CARD'
+                      ? t('transactions.scheduleInstallmentCardSummary', {
+                          count: installmentPreview.count,
+                          first: installmentPreview.first,
+                          last: installmentPreview.last
+                        })
+                      : t('transactions.scheduleInstallmentSummary', {
+                          count: installmentPreview.count,
+                          last: installmentPreview.last
+                        })}
+                  </Text>
+                ) : null}
+              </>
+            ) : null}
+            {scheduleMode === 'RECURRING' && scheduleChanged ? (
+              <>
+                <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                  {t('transactions.scheduleRecurringHint')}
+                </Text>
+                <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                  {t('transactions.scheduleRecurringSummary')}
+                </Text>
+              </>
+            ) : null}
+            {scheduleChanged && !transaction.seriesId && scheduleMode !== 'NONE' ? (
+              <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+                {t('transactions.schedulePaidFirstOnlyHint')}
+              </Text>
+            ) : null}
+          </>
+        ) : null}
+
+        {transaction.seriesId ? (
+          <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
+            {transaction.seriesType === 'INSTALLMENT' &&
+            transaction.occurrenceNumber &&
+            transaction.seriesTotalOccurrences
+              ? t('transactions.seriesInstallmentLabel', {
+                  current: transaction.occurrenceNumber,
+                  total: transaction.seriesTotalOccurrences
+                })
+              : t('transactions.seriesRecurringLabel')}
+            {transaction.isProjected ? ` · ${t('transactions.projectedLabel')}` : ''}
+          </Text>
+        ) : null}
 
         {type !== 'TRANSFER' ? (
           <CategorySelectPicker

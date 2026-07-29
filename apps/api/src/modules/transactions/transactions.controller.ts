@@ -18,10 +18,16 @@ import {
   createTransferInputSchema,
   CreateTransferOutput,
   createTransferOutputSchema,
+  DeleteTransactionQueryInput,
+  deleteTransactionQueryInputSchema,
   ListTransactionsOutput,
   listTransactionsOutputSchema,
   ListTransactionsQueryInput,
   listTransactionsQueryInputSchema,
+  MonthlySummaryOutput,
+  monthlySummaryOutputSchema,
+  MonthlySummaryQueryInput,
+  monthlySummaryQueryInputSchema,
   TransactionOutput,
   transactionOutputSchema,
   TransferGroupIdParams,
@@ -86,6 +92,12 @@ export class TransactionsController {
     description: 'Filter by paid status'
   })
   @ApiQuery({
+    name: 'isProjected',
+    required: false,
+    type: Boolean,
+    description: 'Filter by projected (future recurring) status'
+  })
+  @ApiQuery({
     name: 'includeTransfer',
     required: false,
     type: Boolean,
@@ -108,6 +120,27 @@ export class TransactionsController {
     @Query(new ZodValidationPipe(listTransactionsQueryInputSchema)) query: ListTransactionsQueryInput
   ): Promise<ListTransactionsOutput> {
     return await this.transactionsService.findAll(userId, query);
+  }
+
+  @Get('summary')
+  @ApiOperation({
+    summary: 'Monthly summary',
+    description:
+      'Totals for a calendar month. Card purchases are counted in their invoice payment month and grouped by card; every other transaction is counted by its own date. Transfers are excluded.'
+  })
+  @ApiQuery({ name: 'month', required: true, type: Number, description: 'Calendar month (1-12)' })
+  @ApiQuery({ name: 'year', required: true, type: Number, description: 'Calendar year' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Monthly summary retrieved successfully.',
+    schema: toJSONSchema(monthlySummaryOutputSchema) as SchemaObject
+  })
+  @Serialize(monthlySummaryOutputSchema)
+  async getMonthlySummary(
+    @CurrentUser('sub') userId: string,
+    @Query(new ZodValidationPipe(monthlySummaryQueryInputSchema)) query: MonthlySummaryQueryInput
+  ): Promise<MonthlySummaryOutput> {
+    return await this.transactionsService.getMonthlySummary(userId, query);
   }
 
   @Post('transfer')
@@ -237,14 +270,16 @@ export class TransactionsController {
       type: data.type,
       amount: data.amount,
       date: data.date,
-      isPaid: data.isPaid
+      isPaid: data.isPaid,
+      schedule: data.schedule
     });
   }
 
   @Patch(':id')
   @ApiOperation({
     summary: 'Update transaction',
-    description: 'Updates an existing transaction from the user.'
+    description:
+      'Updates an existing transaction from the user. Supports schedule conversion (standalone to series, or INSTALLMENT↔RECURRING). For series field edits, scope SINGLE or THIS_AND_FUTURE.'
   })
   @ApiParam({ name: 'id', description: 'Transaction id' })
   @ApiBody({
@@ -269,7 +304,9 @@ export class TransactionsController {
       description: data.description,
       type: data.type,
       amount: data.amount,
-      date: data.date
+      date: data.date,
+      scope: data.scope,
+      schedule: data.schedule
     });
   }
 
@@ -302,17 +339,26 @@ export class TransactionsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({
     summary: 'Delete transaction',
-    description: 'Deletes a transaction from the authenticated user.'
+    description:
+      'Deletes a transaction from the authenticated user. For series, scope SINGLE or THIS_AND_FUTURE.'
   })
   @ApiParam({ name: 'id', description: 'Transaction id' })
+  @ApiQuery({
+    name: 'scope',
+    required: false,
+    enum: ['SINGLE', 'THIS_AND_FUTURE'],
+    description: 'Series delete scope (default SINGLE)'
+  })
   @ApiResponse({
     status: HttpStatus.NO_CONTENT,
     description: 'Transaction deleted successfully.'
   })
   async remove(
     @CurrentUser('sub') userId: string,
-    @Param(new ZodValidationPipe(transactionIdParamsSchema)) params: TransactionIdParams
+    @Param(new ZodValidationPipe(transactionIdParamsSchema)) params: TransactionIdParams,
+    @Query(new ZodValidationPipe(deleteTransactionQueryInputSchema))
+    query: DeleteTransactionQueryInput
   ): Promise<void> {
-    await this.transactionsService.remove(params.id, userId);
+    await this.transactionsService.remove(params.id, userId, query.scope);
   }
 }

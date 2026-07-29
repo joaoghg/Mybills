@@ -3,6 +3,7 @@ import {
   CreateTransactionInput,
   ListTransactionsOutput,
   ListTransactionsQueryInput,
+  MonthlySummaryOutput,
   TransactionOutput,
   UpdateTransactionInput,
   UpdateTransactionIsPaidInput
@@ -22,11 +23,17 @@ describe('TransactionsController', () => {
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
     transferGroupId: null,
+    seriesId: null,
+    occurrenceNumber: null,
+    seriesType: null,
+    seriesTotalOccurrences: null,
     description: 'Market purchase',
     type: TransactionType.EXPENSE,
     amount: 2590,
     date: '2026-04-04T00:00:00.000Z',
     isPaid: false,
+    isProjected: false,
+    invoicePaymentMonth: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -39,6 +46,7 @@ describe('TransactionsController', () => {
           provide: TransactionsService,
           useValue: {
             findAll: jest.fn(),
+            getMonthlySummary: jest.fn(),
             findById: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
@@ -101,6 +109,33 @@ describe('TransactionsController', () => {
     });
   });
 
+  describe('getMonthlySummary', () => {
+    it('should call transactionsService.getMonthlySummary with user id and query', async () => {
+      const output: MonthlySummaryOutput = {
+        month: '2026-08',
+        incomeTotal: 0,
+        expenseTotal: 2590,
+        netTotal: -2590,
+        income: [],
+        expenses: [baseTransaction],
+        cardInvoices: []
+      };
+
+      service.getMonthlySummary.mockResolvedValue(output);
+
+      const result = await controller.getMonthlySummary(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
+
+      expect(result).toEqual(output);
+      expect(service.getMonthlySummary).toHaveBeenCalledWith(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
+    });
+  });
+
   describe('findOne', () => {
     it('should call transactionsService.findById with transaction id and user id', async () => {
       service.findById.mockResolvedValue(baseTransaction);
@@ -123,7 +158,8 @@ describe('TransactionsController', () => {
         type: TransactionType.EXPENSE,
         amount: 2590,
         date: '2026-04-04',
-        isPaid: false
+        isPaid: false,
+        schedule: { mode: 'NONE' }
       };
 
       service.create.mockResolvedValue(baseTransaction);
@@ -141,7 +177,8 @@ describe('TransactionsController', () => {
         type: input.type,
         amount: input.amount,
         date: input.date,
-        isPaid: input.isPaid
+        isPaid: input.isPaid,
+        schedule: input.schedule
       });
     });
   });
@@ -150,7 +187,8 @@ describe('TransactionsController', () => {
     it('should call transactionsService.update with transaction id, user id and payload', async () => {
       const input: UpdateTransactionInput = {
         amount: 3000,
-        description: 'Updated description'
+        description: 'Updated description',
+        scope: 'SINGLE'
       };
       const output: TransactionOutput = {
         ...baseTransaction,
@@ -175,7 +213,9 @@ describe('TransactionsController', () => {
         description: input.description,
         type: input.type,
         amount: input.amount,
-        date: input.date
+        date: input.date,
+        scope: input.scope,
+        schedule: input.schedule
       });
     });
   });
@@ -212,10 +252,14 @@ describe('TransactionsController', () => {
     it('should call transactionsService.remove with transaction id and user id', async () => {
       service.remove.mockResolvedValue(undefined);
 
-      await controller.remove(baseTransaction.userId, { id: baseTransaction.id });
+      await controller.remove(baseTransaction.userId, { id: baseTransaction.id }, { scope: 'SINGLE' });
 
       expect(service.remove).toHaveBeenCalledTimes(1);
-      expect(service.remove).toHaveBeenCalledWith(baseTransaction.id, baseTransaction.userId);
+      expect(service.remove).toHaveBeenCalledWith(
+        baseTransaction.id,
+        baseTransaction.userId,
+        'SINGLE'
+      );
     });
   });
 });

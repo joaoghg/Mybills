@@ -20,6 +20,7 @@ export { listCreditCards } from './credit-cards/list-credit-cards.js';
 export { payCreditCardInvoice } from './credit-cards/pay-credit-card-invoice.js';
 export { updateCreditCard } from './credit-cards/update-credit-card.js';
 export { listTransactions } from './transactions/list-transactions.js';
+export { getMonthlySummary } from './transactions/get-monthly-summary.js';
 export { createTransaction } from './transactions/create-transaction.js';
 export { createTransfer } from './transactions/create-transfer.js';
 export { getTransaction } from './transactions/get-transaction.js';

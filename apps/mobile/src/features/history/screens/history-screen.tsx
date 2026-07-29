@@ -4,6 +4,7 @@ import {
   ActivityIndicator,
   Pressable,
   RefreshControl,
+  ScrollView,
   SectionList,
   StyleSheet,
   Text,
@@ -20,6 +21,12 @@ import { HistoryFiltersSheet } from '@/features/history/components/history-filte
 import { HistoryMonthNavigator } from '@/features/history/components/history-month-navigator';
 import { HistorySearchBar } from '@/features/history/components/history-search-bar';
 import { HistoryTypePickerSheet } from '@/features/history/components/history-type-picker-sheet';
+import {
+  HistoryViewToggle,
+  type HistoryViewMode
+} from '@/features/history/components/history-view-toggle';
+import { MonthlySummaryView } from '@/features/history/components/monthly-summary-view';
+import { useMonthlySummary, type SummaryTransactionRow } from '@/features/history/hooks/use-monthly-summary';
 import { useTransactionHistory } from '@/features/history/hooks/use-transaction-history';
 import type { TransactionDateSection } from '@/shared/lib/group-transactions-by-date';
 import { navigateRoot } from '@/navigation/root-navigation-ref';
@@ -34,6 +41,10 @@ export function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const locale = i18n.language;
 
+  const [viewMode, setViewMode] = useState<HistoryViewMode>('list');
+  const isListMode = viewMode === 'list';
+  const isSummaryMode = viewMode === 'summary';
+
   const timeLabels = useMemo(
     () => ({
       today: t('home.today'),
@@ -42,10 +53,20 @@ export function HistoryScreen() {
     [t]
   );
 
-  const history = useTransactionHistory(locale, timeLabels, t);
+  const history = useTransactionHistory(locale, timeLabels, t, {
+    enabled: isListMode
+  });
+  const summary = useMonthlySummary(
+    history.filters.selectedMonth,
+    history.filters.selectedYear,
+    locale,
+    timeLabels,
+    t,
+    { enabled: isSummaryMode }
+  );
   const formatMoney = (amount: number) => formatCurrencyValue(amount, locale);
 
-  function handleTransactionPress(row: RecentTransactionRow) {
+  function handleTransactionPress(row: RecentTransactionRow | SummaryTransactionRow) {
     if (row.transferGroupId) {
       navigateRoot('EditTransfer', { transferGroupId: row.transferGroupId });
       return;
@@ -99,35 +120,46 @@ export function HistoryScreen() {
         onNext={history.goToNextMonth}
         onSelectMonth={history.selectMonthYear}
       />
-      <HistorySearchBar
+      <HistoryViewToggle
         theme={theme}
-        value={history.filters.search}
-        placeholder={t('history.searchPlaceholder')}
-        onChangeText={history.setSearch}
+        viewMode={viewMode}
+        listLabel={t('history.viewList')}
+        summaryLabel={t('history.viewSummary')}
+        onChange={setViewMode}
       />
-      <HistoryFilterBar
-        theme={theme}
-        buttons={[
-          {
-            key: 'filters',
-            label: t('history.filters'),
-            active: history.hasActiveAdvancedFilters || history.filters.includeTransfer,
-            onPress: () => setFiltersSheetVisible(true)
-          },
-          {
-            key: 'category',
-            label: t('history.category'),
-            active: history.filters.categoryId !== null,
-            onPress: () => setCategorySheetVisible(true)
-          },
-          {
-            key: 'type',
-            label: t('history.type'),
-            active: history.filters.type !== null,
-            onPress: () => setTypeSheetVisible(true)
-          }
-        ]}
-      />
+      {isListMode ? (
+        <>
+          <HistorySearchBar
+            theme={theme}
+            value={history.filters.search}
+            placeholder={t('history.searchPlaceholder')}
+            onChangeText={history.setSearch}
+          />
+          <HistoryFilterBar
+            theme={theme}
+            buttons={[
+              {
+                key: 'filters',
+                label: t('history.filters'),
+                active: history.hasActiveAdvancedFilters || history.filters.includeTransfer,
+                onPress: () => setFiltersSheetVisible(true)
+              },
+              {
+                key: 'category',
+                label: t('history.category'),
+                active: history.filters.categoryId !== null,
+                onPress: () => setCategorySheetVisible(true)
+              },
+              {
+                key: 'type',
+                label: t('history.type'),
+                active: history.filters.type !== null,
+                onPress: () => setTypeSheetVisible(true)
+              }
+            ]}
+          />
+        </>
+      ) : null}
     </View>
   );
 
@@ -155,11 +187,17 @@ export function HistoryScreen() {
 
   const emptyMessage = history.hasActiveAdvancedFilters ? t('history.emptyFiltered') : t('history.empty');
 
-  if (history.isLoading) {
+  const isLoading = isListMode ? history.isLoading : summary.isLoading;
+  const isError = isListMode ? history.isError : summary.isError;
+  const isRefetching = isListMode ? history.isRefetching : summary.isRefetching;
+  const refetch = isListMode ? history.refetch : summary.refetch;
+
+  if (isLoading) {
     return (
       <View
         style={[
           styles.container,
+          styles.listContent,
           { backgroundColor: theme.colors.background, paddingTop: insets.top + 12 }
         ]}
       >
@@ -169,11 +207,12 @@ export function HistoryScreen() {
     );
   }
 
-  if (history.isError) {
+  if (isError) {
     return (
       <View
         style={[
           styles.container,
+          styles.listContent,
           {
             backgroundColor: theme.colors.background,
             paddingTop: insets.top + 12,
@@ -188,7 +227,7 @@ export function HistoryScreen() {
           </Text>
           <Pressable
             accessibilityRole="button"
-            onPress={() => void history.refetch()}
+            onPress={() => void refetch()}
             style={[styles.retryBtn, { backgroundColor: theme.colors.primary }]}
           >
             <Text style={[styles.retryLabel, { color: theme.colors.textOnPrimary }]}>
@@ -197,6 +236,54 @@ export function HistoryScreen() {
           </Pressable>
         </View>
       </View>
+    );
+  }
+
+  if (isSummaryMode) {
+    return (
+      <>
+        <ScrollView
+          style={[styles.container, { backgroundColor: theme.colors.background }]}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 32 }
+          ]}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={() => void refetch()}
+              tintColor={theme.colors.primary}
+            />
+          }
+        >
+          {listHeader}
+          {summary.summary ? (
+            <MonthlySummaryView
+              theme={theme}
+              incomeTotalMajor={summary.summary.incomeTotalMajor}
+              expenseTotalMajor={summary.summary.expenseTotalMajor}
+              netTotalMajor={summary.summary.netTotalMajor}
+              incomeLabel={t('history.summaryIncome')}
+              expensesLabel={t('history.summaryExpenses')}
+              netLabel={t('history.summaryNet')}
+              emptyLabel={t('history.summaryEmpty')}
+              invoiceHintLabel={t('history.summaryInvoiceHint')}
+              income={summary.summary.income}
+              expenses={summary.summary.expenses}
+              cardInvoices={summary.summary.cardInvoices}
+              isEmpty={summary.summary.isEmpty}
+              formatCurrency={formatMoney}
+              onTransactionPress={handleTransactionPress}
+            />
+          ) : (
+            <View style={styles.emptyBlock}>
+              <Text style={[styles.empty, { color: theme.colors.textSecondary }]}>
+                {t('history.summaryEmpty')}
+              </Text>
+            </View>
+          )}
+        </ScrollView>
+      </>
     );
   }
 
@@ -221,8 +308,8 @@ export function HistoryScreen() {
         stickySectionHeadersEnabled={false}
         refreshControl={
           <RefreshControl
-            refreshing={history.isRefetching}
-            onRefresh={() => void history.refetch()}
+            refreshing={isRefetching}
+            onRefresh={() => void refetch()}
             tintColor={theme.colors.primary}
           />
         }

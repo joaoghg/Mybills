@@ -9,6 +9,7 @@ import type { HttpClient } from '@mybills/api-client';
 import type {
   CreateTransactionInput,
   TransactionOutput,
+  TransactionSeriesScope,
   UpdateTransactionInput,
   UpdateTransactionIsPaidInput
 } from '@mybills/dtos';
@@ -43,6 +44,10 @@ export function updateUserTransactionIsPaid(
   return updateTransactionIsPaid(client, transactionId, input);
 }
 
-export function deleteUserTransaction(client: HttpClient, transactionId: string): Promise<void> {
-  return deleteTransaction(client, transactionId);
+export function deleteUserTransaction(
+  client: HttpClient,
+  transactionId: string,
+  scope: TransactionSeriesScope = 'SINGLE'
+): Promise<void> {
+  return deleteTransaction(client, transactionId, { scope });
 }

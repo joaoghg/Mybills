@@ -10,6 +10,37 @@ export const transactions = {
   descriptionLabel: 'Descrição',
   descriptionPlaceholder: 'Estabelecimento ou título',
   dateLabel: 'Data',
+  installmentCountLabel: 'Número de parcelas',
+  installmentCountPlaceholder: '2',
+  installmentCountSuffix: 'parcelas',
+  installmentCountDecrease: 'Diminuir número de parcelas',
+  installmentCountIncrease: 'Aumentar número de parcelas',
+  scheduleLabel: 'Repetição',
+  scheduleModes: {
+    none: 'Única',
+    installment: 'Parcelada',
+    recurring: 'Recorrente'
+  },
+  scheduleInstallmentHint:
+    'Cria uma parcela por mês a partir da data da compra. O valor é de cada parcela.',
+  scheduleInstallmentCardHint:
+    'A data da compra permanece. As parcelas seguem os meses de pagamento da fatura do cartão.',
+  scheduleInstallmentCardSummary:
+    '{{count}} parcelas · 1ª fatura em {{first}} · última em {{last}}',
+  scheduleRecurringHint: 'Repete todo mês sem data final. Mantém os próximos 12 meses gerados.',
+  schedulePaidFirstOnlyHint: 'Se marcado como pago, apenas a primeira ocorrência fica paga.',
+  scheduleInstallmentSummary: '{{count}} parcelas · última em {{last}}',
+  scheduleRecurringSummary: '12 meses à frente',
+  seriesInstallmentLabel: 'Parcela {{current}} de {{total}}',
+  seriesRecurringLabel: 'Recorrente',
+  projectedLabel: 'Prevista',
+  invoicePaymentMonthLabel: 'Paga na fatura de {{month}}',
+  seriesScopeTitle: 'Aplicar em',
+  seriesScopeSingle: 'Somente esta',
+  seriesScopeFuture: 'Esta e futuras',
+  seriesScopeCancel: 'Cancelar',
+  seriesDeleteTitle: 'Excluir série?',
+  seriesDeleteMessage: 'Escolha se deseja excluir só esta ocorrência ou esta e as futuras.',
   categoryLabel: 'Categoria',
   categoryNone: 'Nenhuma',
   accountLabel: 'Conta',
@@ -46,7 +77,11 @@ export const transactions = {
     destinationAccountRequired: 'Selecione a conta de entrada.',
     accountsMustDiffer: 'As contas de saída e entrada devem ser diferentes.',
     categoryInvalid: 'Selecione uma categoria válida.',
-    cardInvalid: 'Selecione um cartão de crédito válido.'
+    cardInvalid: 'Selecione um cartão de crédito válido.',
+    installmentCountRequired: 'Informe o número de parcelas.',
+    installmentMinCount: 'O parcelamento precisa ter pelo menos {{min}} parcelas.',
+    installmentMaxCount: 'O parcelamento aceita no máximo {{max}} parcelas.',
+    installmentCountInvalid: 'Número de parcelas inválido.'
   },
   errors: {
     network: 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
