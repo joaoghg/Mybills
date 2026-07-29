@@ -10,7 +10,7 @@ export const transactionScheduleNoneSchema = z.object({
 
 export const transactionScheduleInstallmentSchema = z.object({
   mode: z.literal('INSTALLMENT'),
-  endDate: z.iso.date()
+  installments: z.int().min(2).max(360)
 });
 
 export const transactionScheduleRecurringSchema = z.object({
@@ -36,18 +36,6 @@ export const createTransactionInputSchema = z
     schedule: transactionScheduleSchema.optional().default({ mode: 'NONE' })
   })
   .superRefine((data, ctx) => {
-    if (
-      data.schedule.mode === 'INSTALLMENT' &&
-      !data.cardId &&
-      data.schedule.endDate <= data.date
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['schedule', 'endDate'],
-        message: 'endDate must be after date'
-      });
-    }
-
     if (data.schedule.mode !== 'NONE' && data.type === 'TRANSFER') {
       ctx.addIssue({
         code: 'custom',

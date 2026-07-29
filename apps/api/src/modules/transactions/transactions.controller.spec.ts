@@ -3,6 +3,7 @@ import {
   CreateTransactionInput,
   ListTransactionsOutput,
   ListTransactionsQueryInput,
+  MonthlySummaryOutput,
   TransactionOutput,
   UpdateTransactionInput,
   UpdateTransactionIsPaidInput
@@ -45,6 +46,7 @@ describe('TransactionsController', () => {
           provide: TransactionsService,
           useValue: {
             findAll: jest.fn(),
+            getMonthlySummary: jest.fn(),
             findById: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
@@ -104,6 +106,33 @@ describe('TransactionsController', () => {
 
       expect(result).toEqual(output);
       expect(service.findAll).toHaveBeenCalledWith(baseTransaction.userId, query);
+    });
+  });
+
+  describe('getMonthlySummary', () => {
+    it('should call transactionsService.getMonthlySummary with user id and query', async () => {
+      const output: MonthlySummaryOutput = {
+        month: '2026-08',
+        incomeTotal: 0,
+        expenseTotal: 2590,
+        netTotal: -2590,
+        income: [],
+        expenses: [baseTransaction],
+        cardInvoices: []
+      };
+
+      service.getMonthlySummary.mockResolvedValue(output);
+
+      const result = await controller.getMonthlySummary(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
+
+      expect(result).toEqual(output);
+      expect(service.getMonthlySummary).toHaveBeenCalledWith(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
     });
   });
 

@@ -24,6 +24,10 @@ import {
   listTransactionsOutputSchema,
   ListTransactionsQueryInput,
   listTransactionsQueryInputSchema,
+  MonthlySummaryOutput,
+  monthlySummaryOutputSchema,
+  MonthlySummaryQueryInput,
+  monthlySummaryQueryInputSchema,
   TransactionOutput,
   transactionOutputSchema,
   TransferGroupIdParams,
@@ -116,6 +120,27 @@ export class TransactionsController {
     @Query(new ZodValidationPipe(listTransactionsQueryInputSchema)) query: ListTransactionsQueryInput
   ): Promise<ListTransactionsOutput> {
     return await this.transactionsService.findAll(userId, query);
+  }
+
+  @Get('summary')
+  @ApiOperation({
+    summary: 'Monthly summary',
+    description:
+      'Totals for a calendar month. Card purchases are counted in their invoice payment month and grouped by card; every other transaction is counted by its own date. Transfers are excluded.'
+  })
+  @ApiQuery({ name: 'month', required: true, type: Number, description: 'Calendar month (1-12)' })
+  @ApiQuery({ name: 'year', required: true, type: Number, description: 'Calendar year' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Monthly summary retrieved successfully.',
+    schema: toJSONSchema(monthlySummaryOutputSchema) as SchemaObject
+  })
+  @Serialize(monthlySummaryOutputSchema)
+  async getMonthlySummary(
+    @CurrentUser('sub') userId: string,
+    @Query(new ZodValidationPipe(monthlySummaryQueryInputSchema)) query: MonthlySummaryQueryInput
+  ): Promise<MonthlySummaryOutput> {
+    return await this.transactionsService.getMonthlySummary(userId, query);
   }
 
   @Post('transfer')

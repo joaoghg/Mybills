@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useHttpClient } from '@/core/api/http-client-provider';
 import { useTheme } from '@/core/theme';
 import { CategorySelectPicker } from '@/features/transactions/components/category-select-picker';
+import { InstallmentCountField } from '@/features/transactions/components/installment-count-field';
 import { TransactionDateField } from '@/features/transactions/components/transaction-date-field';
 import { TransactionScheduleSegment } from '@/features/transactions/components/transaction-schedule-segment';
 import { TransactionTypeSegment } from '@/features/transactions/components/transaction-type-segment';
@@ -31,25 +32,15 @@ import {
   validateCreateTransactionClient,
   type ScheduleMode
 } from '@/features/transactions/utils/create-transaction-validation';
+import {
+  buildInstallmentPreview,
+  MIN_INSTALLMENT_COUNT
+} from '@/features/transactions/utils/installment-preview';
 import type { RootStackParamList } from '@/navigation/types';
 import { InputField } from '@/shared/components/input-field';
 import { MoneyInputField } from '@/shared/components/money-input-field';
-import {
-  formatYearMonth,
-  getInvoicePaymentMonth,
-  inclusivePaymentMonthCount,
-  parseYearMonth
-} from '@/shared/lib/billing-cycle';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'EditTransaction'>;
-
-function monthSpanInclusive(startYmd: string, endYmd: string): number {
-  const start = startYmd.split('-').map(Number);
-  const end = endYmd.split('-').map(Number);
-  const startMonths = (start[0] ?? 0) * 12 + ((start[1] ?? 1) - 1);
-  const endMonths = (end[0] ?? 0) * 12 + ((end[1] ?? 1) - 1);
-  return endMonths - startMonths + 1;
-}
 
 function seriesTypeToScheduleMode(
   seriesType: 'INSTALLMENT' | 'RECURRING' | null | undefined
@@ -102,7 +93,7 @@ export function EditTransactionScreen({ navigation, route }: Props) {
   const [description, setDescription] = useState('');
   const [dateYmd, setDateYmd] = useState('');
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('NONE');
-  const [endDateYmd, setEndDateYmd] = useState<string | null>(null);
+  const [installments, setInstallments] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null);
@@ -120,7 +111,9 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     setDescription(transaction.description ?? '');
     setDateYmd(transaction.date.split('T')[0] ?? transaction.date);
     setScheduleMode(seriesTypeToScheduleMode(transaction.seriesType));
-    setEndDateYmd(null);
+    setInstallments(
+      transaction.seriesType === 'INSTALLMENT' ? transaction.seriesTotalOccurrences : null
+    );
     setSelectedCategoryId(transaction.categoryId);
     setSelectedAccountId(transaction.accountId);
     setSelectedCardId(transaction.cardId);
@@ -163,29 +156,18 @@ export function EditTransactionScreen({ navigation, route }: Props) {
     [creditCards, selectedCardId]
   );
 
-  const cardInstallmentSummary = useMemo(() => {
-    if (scheduleMode !== 'INSTALLMENT' || !endDateYmd || !selectedCard) {
+  const installmentPreview = useMemo(() => {
+    if (scheduleMode !== 'INSTALLMENT') {
       return null;
     }
 
-    const firstPay = getInvoicePaymentMonth(selectedCard.closingDay, selectedCard.dueDay, dateYmd);
-    const lastPay = parseYearMonth(endDateYmd);
-    const count = inclusivePaymentMonthCount(firstPay, lastPay);
-    if (count < 2) {
-      return null;
-    }
-
-    return {
-      count,
-      first: formatYearMonth(firstPay),
-      last: formatYearMonth(lastPay)
-    };
-  }, [scheduleMode, endDateYmd, selectedCard, dateYmd]);
-
-  const installmentCount =
-    scheduleMode === 'INSTALLMENT' && endDateYmd && !selectedCard
-      ? monthSpanInclusive(dateYmd, endDateYmd)
-      : cardInstallmentSummary?.count ?? null;
+    return buildInstallmentPreview({
+      installments,
+      dateYmd,
+      locale: i18n.language,
+      card: selectedCard
+    });
+  }, [scheduleMode, installments, dateYmd, i18n.language, selectedCard]);
 
   const remoteMessage =
     isError && error ? translateCreateTransactionError(error, t) : null;
@@ -200,7 +182,7 @@ export function EditTransactionScreen({ navigation, route }: Props) {
       setSelectedCategoryId(null);
       if (!transaction?.seriesId) {
         setScheduleMode('NONE');
-        setEndDateYmd(null);
+        setInstallments(null);
       }
       return;
     }
@@ -244,8 +226,10 @@ export function EditTransactionScreen({ navigation, route }: Props) {
   function handleSelectSchedule(mode: ScheduleMode) {
     setScheduleMode(mode);
     if (mode !== 'INSTALLMENT') {
-      setEndDateYmd(null);
+      setInstallments(null);
+      return;
     }
+    setInstallments(transaction?.seriesTotalOccurrences ?? MIN_INSTALLMENT_COUNT);
   }
 
   async function submitWithScope(scope: TransactionSeriesScope) {
@@ -257,10 +241,7 @@ export function EditTransactionScreen({ navigation, route }: Props) {
       isPaid,
       selectedAccountId,
       scheduleChanged ? scheduleMode : 'NONE',
-      dateYmd,
-      endDateYmd,
-      selectedCard?.closingDay,
-      selectedCard?.dueDay
+      installments
     );
     if (clientError) {
       setLocalError(clientError);
@@ -269,8 +250,8 @@ export function EditTransactionScreen({ navigation, route }: Props) {
 
     const schedule = !scheduleChanged
       ? undefined
-      : scheduleMode === 'INSTALLMENT' && endDateYmd
-        ? { mode: 'INSTALLMENT' as const, endDate: endDateYmd }
+      : scheduleMode === 'INSTALLMENT' && installments !== null
+        ? { mode: 'INSTALLMENT' as const, installments }
         : scheduleMode === 'RECURRING'
           ? { mode: 'RECURRING' as const }
           : scheduleMode === 'NONE'
@@ -453,30 +434,28 @@ export function EditTransactionScreen({ navigation, route }: Props) {
                     ? t('transactions.scheduleInstallmentCardHint')
                     : t('transactions.scheduleInstallmentHint')}
                 </Text>
-                <TransactionDateField
+                <InstallmentCountField
                   theme={theme}
-                  valueYmd={endDateYmd ?? dateYmd}
-                  locale={i18n.language}
-                  onChangeYmd={setEndDateYmd}
-                  label={t('transactions.installmentEndDateLabel')}
-                  minimumDateYmd={
-                    selectedCard
-                      ? `${formatYearMonth(getInvoicePaymentMonth(selectedCard.closingDay, selectedCard.dueDay, dateYmd))}-01`
-                      : dateYmd
-                  }
+                  value={installments}
+                  label={t('transactions.installmentCountLabel')}
+                  placeholder={t('transactions.installmentCountPlaceholder')}
+                  suffix={t('transactions.installmentCountSuffix')}
+                  decrementLabel={t('transactions.installmentCountDecrease')}
+                  incrementLabel={t('transactions.installmentCountIncrease')}
+                  onChange={setInstallments}
                 />
-                {cardInstallmentSummary ? (
+                {installmentPreview ? (
                   <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
-                    {t('transactions.scheduleInstallmentCardSummary', {
-                      count: cardInstallmentSummary.count,
-                      first: cardInstallmentSummary.first,
-                      last: cardInstallmentSummary.last
-                    })}
-                  </Text>
-                ) : null}
-                {!selectedCard && installmentCount !== null && installmentCount >= 2 ? (
-                  <Text style={[styles.fieldHint, { color: theme.colors.textSecondary }]}>
-                    {t('transactions.scheduleInstallmentSummary', { count: installmentCount })}
+                    {installmentPreview.kind === 'CARD'
+                      ? t('transactions.scheduleInstallmentCardSummary', {
+                          count: installmentPreview.count,
+                          first: installmentPreview.first,
+                          last: installmentPreview.last
+                        })
+                      : t('transactions.scheduleInstallmentSummary', {
+                          count: installmentPreview.count,
+                          last: installmentPreview.last
+                        })}
                   </Text>
                 ) : null}
               </>

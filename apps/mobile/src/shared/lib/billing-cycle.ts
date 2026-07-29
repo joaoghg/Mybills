@@ -88,8 +88,28 @@ export function paymentMonthIndex(ym: YearMonth): number {
   return ym.year * 12 + (ym.month - 1);
 }
 
-export function inclusivePaymentMonthCount(from: YearMonth, to: YearMonth): number {
-  return paymentMonthIndex(to) - paymentMonthIndex(from) + 1;
+export function addMonthsToYearMonth(ym: YearMonth, months: number): YearMonth {
+  const index = paymentMonthIndex(ym) + months;
+  return {
+    year: Math.floor(index / 12),
+    month: (index % 12) + 1
+  };
+}
+
+export function formatYearMonthLabel(
+  ym: YearMonth,
+  locale: string,
+  options: { withYear?: boolean } = {}
+): string {
+  const withYear = options.withYear ?? true;
+  try {
+    return new Intl.DateTimeFormat(locale, {
+      month: 'long',
+      ...(withYear ? { year: 'numeric' as const } : {})
+    }).format(new Date(ym.year, ym.month - 1, 1));
+  } catch {
+    return formatYearMonth(ym);
+  }
 }
 
 /**

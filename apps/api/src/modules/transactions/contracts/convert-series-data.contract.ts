@@ -11,8 +11,7 @@ export type ConvertSeriesToInstallmentData = {
   seriesId: string;
   fromOccurrenceNumber: number;
   startDate: string;
-  endDate: string;
-  /** When set (card invoice months), generate this many occurrences from startDate. */
-  occurrenceCount?: number;
+  /** Number of monthly occurrences to generate from startDate. */
+  occurrenceCount: number;
   fieldUpdates: UpdateTransactionData;
 };

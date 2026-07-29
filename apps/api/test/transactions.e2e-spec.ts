@@ -3,7 +3,12 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from 'src/modules/app.module';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { SignInInput, SignUpInput, signInOutputSchema } from '@mybills/dtos';
+import {
+  monthlySummaryOutputSchema,
+  SignInInput,
+  SignUpInput,
+  signInOutputSchema
+} from '@mybills/dtos';
 
 describe('Transactions (e2e)', () => {
   let app: INestApplication<App>;
@@ -502,7 +507,7 @@ describe('Transactions (e2e)', () => {
         amount: 1000,
         date: '2026-01-15',
         isPaid: true,
-        schedule: { mode: 'INSTALLMENT', endDate: '2026-03-15' }
+        schedule: { mode: 'INSTALLMENT', installments: 3 }
       })
       .expect(201);
 
@@ -544,6 +549,141 @@ describe('Transactions (e2e)', () => {
 
     const balance = await getAccountBalance(accessToken, accountId);
     expect(balance).toBe(19000);
+  });
+
+  it('should reject an installment schedule with less than two installments', async () => {
+    const accessToken = await authenticateUser('transactions-installment-invalid@mybills.dev');
+    const accountId = await createAccount(accessToken, 'Invalid Installment Account', 20000);
+
+    const response = await request(app.getHttpServer())
+      .post('/transactions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        accountId,
+        description: 'Single installment',
+        type: 'EXPENSE',
+        amount: 1000,
+        date: '2026-01-15',
+        isPaid: false,
+        schedule: { mode: 'INSTALLMENT', installments: 1 }
+      })
+      .expect(400);
+
+    expect(response.body.message).toEqual(expect.any(String));
+    expect(response.body.errors).toBeDefined();
+  });
+
+  describe('GET /transactions/summary', () => {
+    async function createCreditCard(accessToken: string, name: string): Promise<string> {
+      const response = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          name,
+          limit: 500000,
+          closingDay: 4,
+          dueDay: 11
+        })
+        .expect(201);
+
+      return response.body.id as string;
+    }
+
+    it('should count card purchases in the invoice payment month and others by date', async () => {
+      const accessToken = await authenticateUser('transactions-summary@mybills.dev');
+      const accountId = await createAccount(accessToken, 'Summary Account', 100000);
+      const cardId = await createCreditCard(accessToken, 'Summary Card');
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId,
+          description: 'Salary',
+          type: 'INCOME',
+          amount: 900000,
+          date: '2026-07-05',
+          isPaid: true
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId,
+          description: 'Groceries',
+          type: 'EXPENSE',
+          amount: 3000,
+          date: '2026-07-10',
+          isPaid: false
+        })
+        .expect(201);
+
+      const cardPurchase = await request(app.getHttpServer())
+        .post('/transactions')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          cardId,
+          description: 'Card purchase',
+          type: 'EXPENSE',
+          amount: 5000,
+          date: '2026-07-21',
+          isPaid: false
+        })
+        .expect(201);
+
+      expect(cardPurchase.body).toMatchObject({ invoicePaymentMonth: '2026-08' });
+
+      const july = await request(app.getHttpServer())
+        .get('/transactions/summary')
+        .query({ month: 7, year: 2026 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const julySummary = monthlySummaryOutputSchema.parse(july.body as object);
+
+      expect(julySummary.month).toBe('2026-07');
+      expect(julySummary.incomeTotal).toBe(900000);
+      expect(julySummary.expenseTotal).toBe(3000);
+      expect(julySummary.netTotal).toBe(897000);
+      expect(julySummary.cardInvoices).toHaveLength(0);
+
+      const august = await request(app.getHttpServer())
+        .get('/transactions/summary')
+        .query({ month: 8, year: 2026 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const augustSummary = monthlySummaryOutputSchema.parse(august.body as object);
+
+      expect(augustSummary.month).toBe('2026-08');
+      expect(augustSummary.incomeTotal).toBe(0);
+      expect(augustSummary.expenseTotal).toBe(5000);
+      expect(augustSummary.netTotal).toBe(-5000);
+      expect(augustSummary.cardInvoices).toHaveLength(1);
+      expect(augustSummary.cardInvoices[0]).toMatchObject({
+        cardId,
+        cardName: 'Summary Card',
+        paymentMonth: '2026-08',
+        total: 5000,
+        isFullyPaid: false
+      });
+      expect(augustSummary.cardInvoices[0]?.transactions).toHaveLength(1);
+    });
+
+    it('should reject month without year query params', async () => {
+      const accessToken = await authenticateUser('transactions-summary-validation@mybills.dev');
+
+      const response = await request(app.getHttpServer())
+        .get('/transactions/summary')
+        .query({ month: 7 })
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(400);
+
+      expect(response.body.message).toEqual(expect.any(String));
+      expect(response.body.errors).toBeDefined();
+    });
   });
 
   it('should create recurring series with projected future rows and delete this-and-future', async () => {

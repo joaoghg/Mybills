@@ -1,10 +1,8 @@
 import {
   addMonthsPreserveDay,
   compareYmd,
-  generateInstallmentOccurrences,
   generateInstallmentOccurrencesByCount,
   generateRecurringOccurrences,
-  inclusiveMonthCount,
   utcTodayYmd
 } from './monthly-schedule';
 
@@ -22,9 +20,16 @@ describe('monthly-schedule', () => {
     });
   });
 
-  describe('generateInstallmentOccurrences', () => {
-    it('uses start and end dates with middle months clamped', () => {
-      const occurrences = generateInstallmentOccurrences('2026-01-31', '2026-04-30');
+  describe('generateInstallmentOccurrencesByCount', () => {
+    it('should generate 12 months from Jul 21 ending Jun 21 next year', () => {
+      const occurrences = generateInstallmentOccurrencesByCount('2026-07-21', 12);
+      expect(occurrences).toHaveLength(12);
+      expect(occurrences[0]).toEqual({ occurrenceNumber: 1, date: '2026-07-21' });
+      expect(occurrences[11]).toEqual({ occurrenceNumber: 12, date: '2027-06-21' });
+    });
+
+    it('should clamp end-of-month days across shorter months', () => {
+      const occurrences = generateInstallmentOccurrencesByCount('2026-01-31', 4);
       expect(occurrences).toEqual([
         { occurrenceNumber: 1, date: '2026-01-31' },
         { occurrenceNumber: 2, date: '2026-02-28' },
@@ -33,21 +38,8 @@ describe('monthly-schedule', () => {
       ]);
     });
 
-    it('requires at least two months', () => {
-      expect(() => generateInstallmentOccurrences('2026-01-10', '2026-01-20')).toThrow();
-    });
-
-    it('counts months inclusively', () => {
-      expect(inclusiveMonthCount('2026-01-15', '2026-04-15')).toBe(4);
-    });
-  });
-
-  describe('generateInstallmentOccurrencesByCount', () => {
-    it('should generate 12 months from Jul 21 ending Jun 21 next year', () => {
-      const occurrences = generateInstallmentOccurrencesByCount('2026-07-21', 12);
-      expect(occurrences).toHaveLength(12);
-      expect(occurrences[0]).toEqual({ occurrenceNumber: 1, date: '2026-07-21' });
-      expect(occurrences[11]).toEqual({ occurrenceNumber: 12, date: '2027-06-21' });
+    it('should throw if count is lower than two', () => {
+      expect(() => generateInstallmentOccurrencesByCount('2026-01-10', 1)).toThrow();
     });
   });
 

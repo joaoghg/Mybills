@@ -30,7 +30,7 @@
       "transfer_paid_status_not_allowed": "Transfer paid status cannot be changed",
       "schedule_not_allowed_for_transfer": "Installments and recurrence are not allowed on transfers",
       "installment_requires_two_months": "Installments require at least two months",
-      "invalid_installment_end_date": "Invalid installment end date",
+      "invalid_installment_count": "Invalid installment count",
       "schedule_detach_not_allowed": "A series cannot be converted back to a single transaction",
       "invalid_series_conversion": "This series type conversion is not allowed"
     },

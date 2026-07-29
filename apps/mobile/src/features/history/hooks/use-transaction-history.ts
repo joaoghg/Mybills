@@ -17,6 +17,7 @@ import type { TFunction } from 'i18next';
 import { useCallback, useDeferredValue, useMemo, useState } from 'react';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
+import { formatYearMonthLabel, parseYearMonth } from '@/shared/lib/billing-cycle';
 import type { RecentTimeLabels } from '@/shared/lib/recent-transactions';
 import {
   dedupeTransferTransactions,
@@ -60,30 +61,29 @@ function selectedYearMonth(year: number, month: number): string {
   return `${year}-${pad2(month)}`;
 }
 
+function transactionDateYmd(tx: TransactionOutput): string {
+  return tx.date.split('T')[0] ?? tx.date;
+}
+
 function belongsToHistoryMonth(
   tx: TransactionOutput,
   selectedYear: number,
   selectedMonth: number
 ): boolean {
-  const selectedYm = selectedYearMonth(selectedYear, selectedMonth);
-  if (tx.cardId && tx.invoicePaymentMonth) {
-    return tx.invoicePaymentMonth === selectedYm;
-  }
-  const dateYmd = tx.date.split('T')[0] ?? tx.date;
-  return dateYmd.startsWith(selectedYm);
+  return transactionDateYmd(tx).startsWith(selectedYearMonth(selectedYear, selectedMonth));
 }
 
-function formatInvoiceMonthLabel(invoicePaymentMonth: string, locale: string): string {
-  const [yearPart, monthPart] = invoicePaymentMonth.split('-').map(Number);
-  const year = yearPart ?? 1970;
-  const month = monthPart ?? 1;
-  try {
-    return new Intl.DateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(
-      new Date(year, month - 1, 1)
-    );
-  } catch {
-    return invoicePaymentMonth;
+/**
+ * Invoice month worth showing: only when the card invoice is paid in a month
+ * other than the one the purchase is listed under.
+ */
+function deferredInvoiceMonth(tx: TransactionOutput): string | null {
+  if (!tx.cardId || !tx.invoicePaymentMonth) {
+    return null;
   }
+
+  const purchaseYearMonth = transactionDateYmd(tx).slice(0, 7);
+  return tx.invoicePaymentMonth === purchaseYearMonth ? null : tx.invoicePaymentMonth;
 }
 
 function formatTimeFromIso(iso: string, locale: string): string {
@@ -144,17 +144,21 @@ function toHistoryRow(
   if (tx.isProjected) {
     extras.push(t('transactions.projectedLabel'));
   }
-  if (tx.cardId && tx.invoicePaymentMonth) {
+  const invoiceMonth = deferredInvoiceMonth(tx);
+  if (invoiceMonth) {
+    const invoiceYearMonth = parseYearMonth(invoiceMonth);
     extras.push(
       t('transactions.invoicePaymentMonthLabel', {
-        month: formatInvoiceMonthLabel(tx.invoicePaymentMonth, locale)
+        month: formatYearMonthLabel(invoiceYearMonth, locale, {
+          withYear: invoiceYearMonth.year !== parseYearMonth(transactionDateYmd(tx)).year
+        })
       })
     );
   }
 
   return {
     ...base,
-    dateYmd: tx.date.split('T')[0] ?? tx.date,
+    dateYmd: transactionDateYmd(tx),
     txType: tx.transferGroupId ? 'TRANSFER' : tx.type,
     amountCents: tx.amount,
     subtitle: tx.transferGroupId
@@ -164,14 +168,7 @@ function toHistoryRow(
 }
 
 function buildApiQuery(filters: HistoryFilters, debouncedSearch: string): ListTransactionsQueryInput {
-  let fromYear = filters.selectedYear;
-  let fromMonth = filters.selectedMonth - 1;
-  if (fromMonth < 1) {
-    fromMonth = 12;
-    fromYear -= 1;
-  }
-
-  const from = `${fromYear}-${pad2(fromMonth)}-01`;
+  const from = `${filters.selectedYear}-${pad2(filters.selectedMonth)}-01`;
   const toDay = lastDayOfCalendarMonth(filters.selectedYear, filters.selectedMonth);
   const to = `${filters.selectedYear}-${pad2(filters.selectedMonth)}-${pad2(toDay)}`;
 
@@ -201,7 +198,8 @@ function hasActiveAdvancedFilters(filters: HistoryFilters, debouncedSearch: stri
 export function useTransactionHistory(
   locale: string,
   timeLabels: RecentTimeLabels,
-  t: TFunction
+  t: TFunction,
+  options?: { enabled?: boolean }
 ): {
   filters: HistoryFilters;
   categories: CategoryOutput[];
@@ -226,6 +224,7 @@ export function useTransactionHistory(
   monthTitle: string;
 } {
   const client = useHttpClient();
+  const listEnabled = options?.enabled ?? true;
   const initial = currentMonthYear();
 
   const [filters, setFilters] = useState<HistoryFilters>({
@@ -248,7 +247,8 @@ export function useTransactionHistory(
   const transactionsQuery = useQuery({
     queryKey: ['transactions', 'history', apiQuery],
     queryFn: () => listTransactions(client, apiQuery),
-    staleTime: STALE_MS
+    staleTime: STALE_MS,
+    enabled: listEnabled
   });
 
   const categoriesQuery = useQuery({
@@ -270,29 +270,32 @@ export function useTransactionHistory(
   });
 
   const isLoading =
-    transactionsQuery.isPending ||
-    categoriesQuery.isPending ||
-    accountsQuery.isPending ||
-    creditCardsQuery.isPending;
+    listEnabled &&
+    (transactionsQuery.isPending ||
+      categoriesQuery.isPending ||
+      accountsQuery.isPending ||
+      creditCardsQuery.isPending);
   const isError =
-    transactionsQuery.isError ||
-    categoriesQuery.isError ||
-    accountsQuery.isError ||
-    creditCardsQuery.isError;
+    listEnabled &&
+    (transactionsQuery.isError ||
+      categoriesQuery.isError ||
+      accountsQuery.isError ||
+      creditCardsQuery.isError);
   const isRefetching =
-    transactionsQuery.isRefetching ||
-    categoriesQuery.isRefetching ||
-    accountsQuery.isRefetching ||
-    creditCardsQuery.isRefetching;
+    listEnabled &&
+    (transactionsQuery.isRefetching ||
+      categoriesQuery.isRefetching ||
+      accountsQuery.isRefetching ||
+      creditCardsQuery.isRefetching);
 
   const refetch = useCallback(async () => {
-    await Promise.all([
-      transactionsQuery.refetch(),
-      categoriesQuery.refetch(),
-      accountsQuery.refetch(),
-      creditCardsQuery.refetch()
-    ]);
-  }, [transactionsQuery, categoriesQuery, accountsQuery, creditCardsQuery]);
+    await categoriesQuery.refetch();
+    await accountsQuery.refetch();
+    await creditCardsQuery.refetch();
+    if (listEnabled) {
+      await transactionsQuery.refetch();
+    }
+  }, [listEnabled, transactionsQuery, categoriesQuery, accountsQuery, creditCardsQuery]);
 
   const categoryNameById = useMemo(() => {
     const map = new Map<string, string>();

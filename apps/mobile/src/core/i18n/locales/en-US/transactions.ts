@@ -10,26 +10,31 @@ export const transactions = {
   descriptionLabel: 'Description',
   descriptionPlaceholder: 'Store or title',
   dateLabel: 'Date',
-  installmentEndDateLabel: 'Last installment date',
+  installmentCountLabel: 'Number of installments',
+  installmentCountPlaceholder: '2',
+  installmentCountSuffix: 'installments',
+  installmentCountDecrease: 'Decrease number of installments',
+  installmentCountIncrease: 'Increase number of installments',
   scheduleLabel: 'Repeat',
   scheduleModes: {
     none: 'One-time',
     installment: 'Installment',
     recurring: 'Recurring'
   },
-  scheduleInstallmentHint: 'Creates one installment per month until the end date. Amount is per installment.',
+  scheduleInstallmentHint:
+    'Creates one installment per month starting on the purchase date. Amount is per installment.',
   scheduleInstallmentCardHint:
     'The purchase date stays the same. Installments follow the card invoice payment months.',
   scheduleInstallmentCardSummary:
-    '{{count}} installments · 1st invoice {{first}} · last {{last}}',
+    '{{count}} installments · 1st invoice in {{first}} · last in {{last}}',
   scheduleRecurringHint: 'Repeats every month with no end date. Keeps the next 12 months generated.',
   schedulePaidFirstOnlyHint: 'If marked as paid, only the first occurrence is paid.',
-  scheduleInstallmentSummary: '{{count}} installments',
+  scheduleInstallmentSummary: '{{count}} installments · last in {{last}}',
   scheduleRecurringSummary: '12 months ahead',
   seriesInstallmentLabel: 'Installment {{current}} of {{total}}',
   seriesRecurringLabel: 'Recurring',
   projectedLabel: 'Projected',
-  invoicePaymentMonthLabel: 'Invoice {{month}}',
+  invoicePaymentMonthLabel: 'Paid on the {{month}} invoice',
   seriesScopeTitle: 'Apply to',
   seriesScopeSingle: 'This only',
   seriesScopeFuture: 'This and future',
@@ -73,9 +78,10 @@ export const transactions = {
     accountsMustDiffer: 'Source and destination accounts must be different.',
     categoryInvalid: 'Select a valid category.',
     cardInvalid: 'Select a valid credit card.',
-    installmentEndDateRequired: 'Enter the last installment date.',
-    installmentEndDateInvalid: 'Last installment date must be after the start date.',
-    installmentMinMonths: 'Installments must cover at least two months.'
+    installmentCountRequired: 'Enter the number of installments.',
+    installmentMinCount: 'Installments must be at least {{min}}.',
+    installmentMaxCount: 'Installments must be at most {{max}}.',
+    installmentCountInvalid: 'Invalid number of installments.'
   },
   errors: {
     network: 'Could not reach the server. Check your connection and try again.',

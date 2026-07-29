@@ -2,10 +2,9 @@ import type { TFunction } from 'i18next';
 import type { ZodError } from 'zod';
 
 import {
-  getInvoicePaymentMonth,
-  inclusivePaymentMonthCount,
-  parseYearMonth
-} from '@/shared/lib/billing-cycle';
+  MAX_INSTALLMENT_COUNT,
+  MIN_INSTALLMENT_COUNT
+} from '@/features/transactions/utils/installment-preview';
 
 function messageForIssue(issue: ZodError['issues'][number], t: TFunction): string | null {
   const field = issue.path[0];
@@ -28,7 +27,7 @@ function messageForIssue(issue: ZodError['issues'][number], t: TFunction): strin
     return t('transactions.validation.cardInvalid');
   }
   if (field === 'schedule') {
-    return t('transactions.validation.installmentEndDateInvalid');
+    return t('transactions.validation.installmentCountInvalid');
   }
   return null;
 }
@@ -41,10 +40,7 @@ export function validateCreateTransactionClient(
   isPaid: boolean,
   accountId: string | null,
   scheduleMode: ScheduleMode = 'NONE',
-  dateYmd?: string,
-  endDateYmd?: string | null,
-  cardClosingDay?: number | null,
-  cardDueDay?: number | null
+  installments?: number | null
 ): string | null {
   if (amountCents <= 0) {
     return t('transactions.validation.amountRequired');
@@ -53,29 +49,14 @@ export function validateCreateTransactionClient(
     return t('transactions.validation.paidRequiresAccount');
   }
   if (scheduleMode === 'INSTALLMENT') {
-    if (!endDateYmd) {
-      return t('transactions.validation.installmentEndDateRequired');
+    if (installments == null) {
+      return t('transactions.validation.installmentCountRequired');
     }
-    if (cardClosingDay != null && cardDueDay != null && dateYmd) {
-      const firstPay = getInvoicePaymentMonth(cardClosingDay, cardDueDay, dateYmd);
-      const lastPay = parseYearMonth(endDateYmd);
-      const count = inclusivePaymentMonthCount(firstPay, lastPay);
-      if (count < 2) {
-        return t('transactions.validation.installmentMinMonths');
-      }
-      return null;
+    if (!Number.isInteger(installments) || installments < MIN_INSTALLMENT_COUNT) {
+      return t('transactions.validation.installmentMinCount', { min: MIN_INSTALLMENT_COUNT });
     }
-    if (dateYmd && endDateYmd <= dateYmd) {
-      return t('transactions.validation.installmentEndDateInvalid');
-    }
-    if (dateYmd && endDateYmd) {
-      const start = dateYmd.split('-').map(Number);
-      const end = endDateYmd.split('-').map(Number);
-      const startMonths = (start[0] ?? 0) * 12 + ((start[1] ?? 1) - 1);
-      const endMonths = (end[0] ?? 0) * 12 + ((end[1] ?? 1) - 1);
-      if (endMonths - startMonths + 1 < 2) {
-        return t('transactions.validation.installmentMinMonths');
-      }
+    if (installments > MAX_INSTALLMENT_COUNT) {
+      return t('transactions.validation.installmentMaxCount', { max: MAX_INSTALLMENT_COUNT });
     }
   }
   return null;

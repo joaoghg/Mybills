@@ -36,16 +36,6 @@ export const updateTransactionInputSchema = z
       });
     }
 
-    if (data.schedule?.mode === 'INSTALLMENT' && data.date !== undefined && !data.cardId) {
-      if (data.schedule.endDate <= data.date) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['schedule', 'endDate'],
-          message: 'endDate must be after date'
-        });
-      }
-    }
-
     if (data.schedule?.mode !== undefined && data.schedule.mode !== 'NONE' && data.type === 'TRANSFER') {
       ctx.addIssue({
         code: 'custom',

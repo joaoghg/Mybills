@@ -4,7 +4,7 @@ export type TransactionSeriesScope = 'SINGLE' | 'THIS_AND_FUTURE';
 
 export type UpdateTransactionSchedule =
   | { mode: 'NONE' }
-  | { mode: 'INSTALLMENT'; endDate: string }
+  | { mode: 'INSTALLMENT'; installments: number }
   | { mode: 'RECURRING' };
 
 export interface UpdateTransactionData {

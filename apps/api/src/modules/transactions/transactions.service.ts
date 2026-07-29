@@ -1,5 +1,10 @@
 import { randomUUID } from 'crypto';
-import type { ListTransactionsQueryInput } from '@mybills/dtos';
+import type {
+  ListTransactionsQueryInput,
+  MonthlySummaryCardInvoice,
+  MonthlySummaryOutput,
+  MonthlySummaryQueryInput
+} from '@mybills/dtos';
 import { Inject, Injectable } from '@nestjs/common';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
 import { NotFoundError } from 'src/common/errors/not-found.error';
@@ -14,19 +19,17 @@ import { UpdateTransferData } from './contracts/update-transfer-data.contract';
 import { UpdateTransactionData } from './contracts/update-transaction-data.contract';
 import { Transaction } from './entities/transaction.entity';
 import {
-  generateInstallmentOccurrences,
   generateInstallmentOccurrencesByCount,
-  inclusiveMonthCount,
+  OccurrenceDraft,
   parseYmd,
   utcTodayYmd
 } from './lib/monthly-schedule';
-import {
-  getInvoicePaymentMonth,
-  inclusivePaymentMonthCount,
-  parseYearMonth
-} from '../credit-cards/lib/billing-cycle';
+import { formatYearMonth } from '../credit-cards/lib/billing-cycle';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { TransactionSeriesMaintenanceService } from './transaction-series-maintenance.service';
+
+/** Widest gap between a card purchase date and its invoice payment month. */
+const SUMMARY_LOOKBACK_MONTHS = 2;
 
 @Injectable()
 export class TransactionsService {
@@ -46,6 +49,127 @@ export class TransactionsService {
     }
 
     return await this.repository.findAllByUserId(userId, filters);
+  }
+
+  async getMonthlySummary(
+    userId: string,
+    query: MonthlySummaryQueryInput
+  ): Promise<MonthlySummaryOutput> {
+    this.validateUserId(userId);
+
+    const month = formatYearMonth({ year: query.year, month: query.month });
+    const { from, to } = this.buildSummaryWindow(query.year, query.month);
+
+    const transactions = await this.repository.findAllByUserId(userId, {
+      from,
+      to,
+      includeTransfer: false
+    });
+
+    const income: Transaction[] = [];
+    const expenses: Transaction[] = [];
+    const cardTransactions: Transaction[] = [];
+
+    for (const transaction of transactions) {
+      if (transaction.cardId) {
+        if (transaction.invoicePaymentMonth === month) {
+          cardTransactions.push(transaction);
+        }
+        continue;
+      }
+
+      if (transaction.date.slice(0, 7) !== month) {
+        continue;
+      }
+
+      if (transaction.type === TransactionType.INCOME) {
+        income.push(transaction);
+      } else if (transaction.type === TransactionType.EXPENSE) {
+        expenses.push(transaction);
+      }
+    }
+
+    const cardInvoices = await this.buildCardInvoices(userId, month, cardTransactions);
+
+    const incomeTotal = income.reduce((total, transaction) => total + transaction.amount, 0);
+    const expenseTotal =
+      expenses.reduce((total, transaction) => total + transaction.amount, 0) +
+      cardInvoices.reduce((total, invoice) => total + invoice.total, 0);
+
+    return {
+      month,
+      incomeTotal,
+      expenseTotal,
+      netTotal: incomeTotal - expenseTotal,
+      income,
+      expenses,
+      cardInvoices
+    };
+  }
+
+  private buildSummaryWindow(year: number, month: number): { from: string; to: string } {
+    const startIndex = year * 12 + (month - 1) - SUMMARY_LOOKBACK_MONTHS;
+    const startYear = Math.floor(startIndex / 12);
+    const startMonth = (startIndex % 12) + 1;
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+
+    return {
+      from: `${formatYearMonth({ year: startYear, month: startMonth })}-01`,
+      to: `${formatYearMonth({ year, month })}-${String(lastDay).padStart(2, '0')}`
+    };
+  }
+
+  private async buildCardInvoices(
+    userId: string,
+    paymentMonth: string,
+    cardTransactions: Transaction[]
+  ): Promise<MonthlySummaryCardInvoice[]> {
+    if (cardTransactions.length === 0) {
+      return [];
+    }
+
+    const cards = await this.creditCardsService.findAll(userId);
+    const cardNameById = new Map(cards.map((card) => [card.id, card.name]));
+    const grouped = new Map<string, Transaction[]>();
+
+    for (const transaction of cardTransactions) {
+      const cardId = transaction.cardId;
+
+      if (!cardId) {
+        continue;
+      }
+
+      const group = grouped.get(cardId);
+
+      if (group) {
+        group.push(transaction);
+      } else {
+        grouped.set(cardId, [transaction]);
+      }
+    }
+
+    const invoices: MonthlySummaryCardInvoice[] = [];
+
+    for (const [cardId, group] of grouped) {
+      const total = group.reduce(
+        (sum, transaction) =>
+          transaction.type === TransactionType.INCOME
+            ? sum - transaction.amount
+            : sum + transaction.amount,
+        0
+      );
+
+      invoices.push({
+        cardId,
+        cardName: cardNameById.get(cardId) ?? '',
+        paymentMonth,
+        total,
+        isFullyPaid: group.every((transaction) => transaction.isPaid),
+        transactions: group
+      });
+    }
+
+    return invoices.sort((a, b) => a.cardName.localeCompare(b.cardName));
   }
 
   async findById(transactionId: string, userId: string): Promise<Transaction> {
@@ -102,12 +226,7 @@ export class TransactionsService {
     const anchorDay = parseYmd(data.date).day;
 
     if (schedule.mode === 'INSTALLMENT') {
-      const drafts = await this.resolveInstallmentDrafts(
-        data.userId,
-        data.date,
-        schedule.endDate,
-        data.cardId
-      );
+      const drafts = this.buildInstallmentDrafts(data.date, schedule.installments);
 
       const occurrences = drafts.map((draft, index) => ({
         occurrenceNumber: draft.occurrenceNumber,
@@ -411,7 +530,7 @@ export class TransactionsService {
               date: data.date
             },
             nextDate,
-            schedule.endDate
+            schedule.installments
           );
         }
       }
@@ -493,7 +612,7 @@ export class TransactionsService {
       type: TransactionType;
       amount: number;
       date: string;
-      schedule: { mode: 'INSTALLMENT'; endDate: string } | { mode: 'RECURRING' };
+      schedule: { mode: 'INSTALLMENT'; installments: number } | { mode: 'RECURRING' };
     }
   ): Promise<Transaction> {
     const anchorDay = parseYmd(merged.date).day;
@@ -502,12 +621,7 @@ export class TransactionsService {
     let totalOccurrences: number | null;
 
     if (merged.schedule.mode === 'INSTALLMENT') {
-      const drafts = await this.resolveInstallmentDrafts(
-        current.userId,
-        merged.date,
-        merged.schedule.endDate,
-        merged.cardId
-      );
+      const drafts = this.buildInstallmentDrafts(merged.date, merged.schedule.installments);
 
       occurrences = drafts.map((draft, index) => ({
         occurrenceNumber: draft.occurrenceNumber,
@@ -609,7 +723,7 @@ export class TransactionsService {
     current: Transaction,
     fieldUpdates: UpdateTransactionData,
     nextDate: string,
-    endDate: string
+    installments: number
   ): Promise<Transaction> {
     if (!current.seriesId || current.occurrenceNumber === null) {
       throw new InvalidArgumentError({
@@ -618,14 +732,7 @@ export class TransactionsService {
       });
     }
 
-    const nextCardId =
-      fieldUpdates.cardId !== undefined ? fieldUpdates.cardId : current.cardId;
-    const drafts = await this.resolveInstallmentDrafts(
-      current.userId,
-      nextDate,
-      endDate,
-      nextCardId
-    );
+    const drafts = this.buildInstallmentDrafts(nextDate, installments);
 
     const affected = await this.repository.findBySeriesFromOccurrence(
       current.seriesId,
@@ -642,7 +749,6 @@ export class TransactionsService {
       seriesId: current.seriesId,
       fromOccurrenceNumber: current.occurrenceNumber,
       startDate: nextDate,
-      endDate,
       occurrenceCount: drafts.length,
       fieldUpdates: {
         ...fieldUpdates,
@@ -762,51 +868,15 @@ export class TransactionsService {
     await this.repository.delete(transactionId);
   }
 
-  private async resolveInstallmentDrafts(
-    userId: string,
-    startYmd: string,
-    endDate: string,
-    cardId?: string | null
-  ) {
-    if (cardId) {
-      const card = await this.creditCardsService.findById(cardId, userId);
-      const firstPay = getInvoicePaymentMonth(card.closingDay, card.dueDay, startYmd);
-      const lastPay = parseYearMonth(endDate);
-      const count = inclusivePaymentMonthCount(firstPay, lastPay);
-
-      if (count < 2) {
-        throw new InvalidArgumentError({
-          code: 'transactions.installment_requires_two_months',
-          i18nKey: 'errors.transactions.installment_requires_two_months'
-        });
-      }
-
-      try {
-        return generateInstallmentOccurrencesByCount(startYmd, count);
-      } catch {
-        throw new InvalidArgumentError({
-          code: 'transactions.invalid_installment_end_date',
-          i18nKey: 'errors.transactions.invalid_installment_end_date'
-        });
-      }
-    }
-
-    const monthCount = inclusiveMonthCount(startYmd, endDate);
-    if (monthCount < 2) {
+  private buildInstallmentDrafts(startYmd: string, installments: number): OccurrenceDraft[] {
+    if (installments < 2) {
       throw new InvalidArgumentError({
         code: 'transactions.installment_requires_two_months',
         i18nKey: 'errors.transactions.installment_requires_two_months'
       });
     }
 
-    try {
-      return generateInstallmentOccurrences(startYmd, endDate);
-    } catch {
-      throw new InvalidArgumentError({
-        code: 'transactions.invalid_installment_end_date',
-        i18nKey: 'errors.transactions.invalid_installment_end_date'
-      });
-    }
+    return generateInstallmentOccurrencesByCount(startYmd, installments);
   }
 
   private async validateRelations(
@@ -977,19 +1047,16 @@ export class TransactionsService {
 
     const schedule = data.schedule ?? { mode: 'NONE' as const };
     if (schedule.mode === 'INSTALLMENT') {
-      if (!schedule.endDate || Number.isNaN(new Date(schedule.endDate).getTime())) {
-        throw new InvalidArgumentError({
-          code: 'transactions.invalid_installment_end_date',
-          i18nKey: 'errors.transactions.invalid_installment_end_date'
-        });
-      }
+      this.validateInstallmentCount(schedule.installments);
+    }
+  }
 
-      if (!data.cardId && schedule.endDate <= data.date) {
-        throw new InvalidArgumentError({
-          code: 'transactions.invalid_installment_end_date',
-          i18nKey: 'errors.transactions.invalid_installment_end_date'
-        });
-      }
+  private validateInstallmentCount(installments: number): void {
+    if (!Number.isInteger(installments) || installments < 2 || installments > 360) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_installment_count',
+        i18nKey: 'errors.transactions.invalid_installment_count'
+      });
     }
   }
 
@@ -1059,23 +1126,7 @@ export class TransactionsService {
     }
 
     if (data.schedule?.mode === 'INSTALLMENT') {
-      if (!data.schedule.endDate || Number.isNaN(new Date(data.schedule.endDate).getTime())) {
-        throw new InvalidArgumentError({
-          code: 'transactions.invalid_installment_end_date',
-          i18nKey: 'errors.transactions.invalid_installment_end_date'
-        });
-      }
-
-      if (
-        data.cardId === undefined &&
-        data.date !== undefined &&
-        data.schedule.endDate <= data.date
-      ) {
-        throw new InvalidArgumentError({
-          code: 'transactions.invalid_installment_end_date',
-          i18nKey: 'errors.transactions.invalid_installment_end_date'
-        });
-      }
+      this.validateInstallmentCount(data.schedule.installments);
     }
   }
 

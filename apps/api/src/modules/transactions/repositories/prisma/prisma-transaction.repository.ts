@@ -30,7 +30,6 @@ import { Transaction } from '../../entities/transaction.entity';
 import {
   addMonthsPreserveDay,
   compareYmd,
-  generateInstallmentOccurrences,
   generateInstallmentOccurrencesByCount,
   parseYmd
 } from '../../lib/monthly-schedule';
@@ -549,10 +548,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
         throw new Error('Series not found');
       }
 
-      const drafts =
-        data.occurrenceCount !== undefined
-          ? generateInstallmentOccurrencesByCount(data.startDate, data.occurrenceCount)
-          : generateInstallmentOccurrences(data.startDate, data.endDate);
+      const drafts = generateInstallmentOccurrencesByCount(data.startDate, data.occurrenceCount);
       const fieldUpdates = data.fieldUpdates;
 
       const toDelete = await tx.transaction.findMany({

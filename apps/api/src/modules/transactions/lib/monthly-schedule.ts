@@ -49,48 +49,10 @@ export function utcTodayYmd(now: Date = new Date()): string {
   return formatYmd(now.getUTCFullYear(), now.getUTCMonth() + 1, now.getUTCDate());
 }
 
-export function monthIndex(ymd: string): number {
-  const { year, month } = parseYmd(ymd);
-  return year * 12 + (month - 1);
-}
-
-/** Inclusive month span between two dates (same month = 1). */
-export function inclusiveMonthCount(startYmd: string, endYmd: string): number {
-  return monthIndex(endYmd) - monthIndex(startYmd) + 1;
-}
-
 export type OccurrenceDraft = {
   occurrenceNumber: number;
   date: string;
 };
-
-/**
- * Installment dates: first = start, last = end, middle preserve anchor day.
- * Requires end after start and at least 2 months.
- */
-export function generateInstallmentOccurrences(startYmd: string, endYmd: string): OccurrenceDraft[] {
-  if (compareYmd(endYmd, startYmd) <= 0) {
-    throw new Error('endDate must be after startDate');
-  }
-
-  const total = inclusiveMonthCount(startYmd, endYmd);
-  if (total < 2) {
-    throw new Error('installment requires at least 2 months');
-  }
-
-  const anchorDay = parseYmd(startYmd).day;
-  const occurrences: OccurrenceDraft[] = [{ occurrenceNumber: 1, date: startYmd }];
-
-  for (let index = 1; index < total - 1; index += 1) {
-    occurrences.push({
-      occurrenceNumber: index + 1,
-      date: addMonthsPreserveDay(startYmd, index, anchorDay)
-    });
-  }
-
-  occurrences.push({ occurrenceNumber: total, date: endYmd });
-  return occurrences;
-}
 
 /**
  * Installment dates from start for exactly `count` months (1st = startYmd).
