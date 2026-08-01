@@ -15,3 +15,7 @@ services:
 
 volumes:
   mybills-db-data:
+
+networks:
+  proxy_network:
+    external: true
