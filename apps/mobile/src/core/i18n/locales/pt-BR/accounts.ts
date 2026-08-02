@@ -1,0 +1,31 @@
+export const accounts = {
+  nameLabel: 'Nome da conta',
+  namePlaceholder: 'ex.: Corrente, Poupança',
+  balanceLabel: 'Saldo inicial',
+  balanceEditLabel: 'Saldo',
+  balancePlaceholder: '0,00',
+  balanceHint:
+    'Opcional. Digite só números.',
+  submit: 'Criar conta',
+  submitLoading: 'Criando…',
+  editTitle: 'Editar conta',
+  updateSubmit: 'Salvar alterações',
+  updateLoading: 'Salvando…',
+  notFound: 'Conta não encontrada.',
+  deleteAction: 'Excluir conta',
+  deleteConfirmTitle: 'Excluir conta?',
+  deleteConfirmMessage:
+    '“{{name}}” será removida permanentemente. Cartões vinculados também serão excluídos.',
+  deleteCancel: 'Cancelar',
+  deleteConfirm: 'Excluir',
+  deleteLoading: 'Excluindo…',
+  errors: {
+    network: 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
+    validation: 'Verifique os campos e tente novamente.',
+    generic: 'Algo deu errado. Tente novamente.'
+  },
+  validation: {
+    nameRequired: 'Informe o nome da conta.',
+    balanceInvalid: 'Informe um valor válido (ex.: 100,00).'
+  }
+} as const;

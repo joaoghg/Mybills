@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { UsersService } from '../user/users.service';
+import { CategoriesService } from '../categories/categories.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { InvalidArgumentError } from 'src/common/errors/invalid-argument.error';
@@ -22,6 +23,7 @@ function hashRefreshToken(token: string): string {
 describe('AuthService', () => {
   let authService: AuthService;
   let usersService: jest.Mocked<UsersService>;
+  let categoriesService: jest.Mocked<CategoriesService>;
   let jwtService: jest.Mocked<JwtService>;
 
   const mockUser: User = {
@@ -30,8 +32,8 @@ describe('AuthService', () => {
     email: 'joao@example.com',
     password: 'hashed-password',
     refreshToken: 'stored-refresh-token-hash',
-    createdAt: new Date(),
-    updatedAt: new Date()
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
 
   beforeEach(async () => {
@@ -42,8 +44,15 @@ describe('AuthService', () => {
           provide: UsersService,
           useValue: {
             findByEmail: jest.fn(),
+            findById: jest.fn(),
             updateRefreshToken: jest.fn(),
             create: jest.fn()
+          }
+        },
+        {
+          provide: CategoriesService,
+          useValue: {
+            ensureDefaultTransferCategory: jest.fn()
           }
         },
         {
@@ -64,6 +73,7 @@ describe('AuthService', () => {
 
     authService = module.get<AuthService>(AuthService);
     usersService = module.get(UsersService) as jest.Mocked<UsersService>;
+    categoriesService = module.get(CategoriesService) as jest.Mocked<CategoriesService>;
     jwtService = module.get(JwtService) as jest.Mocked<JwtService>;
 
     jest.clearAllMocks();
@@ -73,6 +83,15 @@ describe('AuthService', () => {
     it('should successfully sign up a new user and return tokens', async () => {
       usersService.findByEmail.mockResolvedValue(null);
       usersService.create.mockResolvedValue(mockUser);
+      categoriesService.ensureDefaultTransferCategory.mockResolvedValue({
+        id: 'category-1',
+        userId: mockUser.id,
+        name: 'Transferência',
+        icon: 'swap-horizontal-outline',
+        isSystem: true,
+        createdAt: mockUser.createdAt,
+        updatedAt: mockUser.updatedAt
+      });
       jwtService.signAsync
         .mockResolvedValueOnce('access-token')
         .mockResolvedValueOnce('refresh-token');
@@ -245,6 +264,23 @@ describe('AuthService', () => {
       await authService.logout('user-123');
 
       expect(usersService.updateRefreshToken).toHaveBeenCalledWith('user-123', null);
+    });
+  });
+
+  describe('getMe', () => {
+    it('should return the authenticated user profile', async () => {
+      usersService.findById.mockResolvedValue(mockUser);
+
+      const result = await authService.getMe('user-123');
+
+      expect(result).toEqual({
+        id: mockUser.id,
+        name: mockUser.name,
+        email: mockUser.email,
+        createdAt: mockUser.createdAt,
+        updatedAt: mockUser.updatedAt
+      });
+      expect(usersService.findById).toHaveBeenCalledWith('user-123');
     });
   });
 });

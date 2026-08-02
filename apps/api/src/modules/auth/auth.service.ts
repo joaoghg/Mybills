@@ -11,13 +11,16 @@ import { SignInData } from './contracts/sign-in-data.contract';
 import { NotFoundError } from 'src/common/errors/not-found.error';
 import { JwtPayload } from './contracts/jwt-payload.contract';
 import { UsersService } from '../user/users.service';
+import { CategoriesService } from '../categories/categories.service';
 import { RefreshTokenData } from './contracts/refresh-token-data.contract';
 import { UnauthorizedError } from 'src/common/errors/unauthorized.error';
+import type { UserOutput } from '@mybills/dtos';
 
 @Injectable()
 export class AuthService {
   constructor(
     private readonly usersService: UsersService,
+    private readonly categoriesService: CategoriesService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<Env>
   ) {}
@@ -47,18 +50,34 @@ export class AuthService {
 
   async signUp(data: SignUpData) {
     if (!data.email || typeof data.email !== 'string') {
-      throw new InvalidArgumentError('Invalid email');
+      throw new InvalidArgumentError({
+        code: 'auth.invalid_email',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'email' }
+      });
     }
     if (!data.name || typeof data.name !== 'string') {
-      throw new InvalidArgumentError('Invalid name');
+      throw new InvalidArgumentError({
+        code: 'auth.invalid_name',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'name' }
+      });
     }
     if (!data.password || typeof data.password !== 'string') {
-      throw new InvalidArgumentError('Invalid password');
+      throw new InvalidArgumentError({
+        code: 'auth.invalid_password',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'password' }
+      });
     }
 
     const user = await this.usersService.findByEmail(data.email);
     if (user) {
-      throw new AlreadyExistsError('Email already registered');
+      throw new AlreadyExistsError({
+        code: 'auth.email_already_registered',
+        i18nKey: 'errors.conflict.already_exists_field',
+        i18nArgs: { field: 'email' }
+      });
     }
 
     const hashedPassword = await argon2.hash(data.password);
@@ -69,6 +88,8 @@ export class AuthService {
       hashedPassword
     });
 
+    await this.categoriesService.ensureDefaultTransferCategory(createdUser.id);
+
     const tokens = await this.getTokens(createdUser.id, createdUser.email);
 
     await this.updateRefreshToken(createdUser.id, tokens.refreshToken);
@@ -78,20 +99,28 @@ export class AuthService {
 
   async signIn(data: SignInData) {
     if (!data.email || typeof data.email !== 'string') {
-      throw new InvalidArgumentError('Invalid email');
+      throw new InvalidArgumentError({
+        code: 'auth.invalid_email',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'email' }
+      });
     }
     if (!data.password || typeof data.password !== 'string') {
-      throw new InvalidArgumentError('Invalid password');
+      throw new InvalidArgumentError({
+        code: 'auth.invalid_password',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'password' }
+      });
     }
 
     const user = await this.usersService.findByEmail(data.email);
     if (!user) {
-      throw new NotFoundError('Invalid email or password');
+      throw new NotFoundError({ code: 'auth.invalid_credentials', i18nKey: 'errors.auth.invalid_credentials' });
     }
 
     const isPasswordValid = await argon2.verify(user.password, data.password);
     if (!isPasswordValid) {
-      throw new NotFoundError('Invalid email or password');
+      throw new NotFoundError({ code: 'auth.invalid_credentials', i18nKey: 'errors.auth.invalid_credentials' });
     }
 
     const tokens = await this.getTokens(user.id, user.email);
@@ -102,7 +131,10 @@ export class AuthService {
 
   async refreshTokens(data: RefreshTokenData) {
     if (!data.refreshToken || typeof data.refreshToken !== 'string') {
-      throw new InvalidArgumentError('Invalid refresh token');
+      throw new InvalidArgumentError({
+        code: 'auth.invalid_refresh_token',
+        i18nKey: 'errors.auth.invalid_refresh_token'
+      });
     }
 
     let payload: JwtPayload;
@@ -112,20 +144,20 @@ export class AuthService {
         secret: this.configService.get('REFRESH_TOKEN_SECRET')
       });
     } catch {
-      throw new UnauthorizedError('Invalid refresh token');
+      throw new UnauthorizedError({ code: 'auth.invalid_refresh_token', i18nKey: 'errors.auth.invalid_refresh_token' });
     }
 
     const user = await this.usersService.findByEmail(payload.email);
 
     if (!user) {
-      throw new UnauthorizedError('Invalid refresh token');
+      throw new UnauthorizedError({ code: 'auth.invalid_refresh_token', i18nKey: 'errors.auth.invalid_refresh_token' });
     }
 
     const hashedRefreshToken = createHash('sha256').update(data.refreshToken).digest('hex');
     const isRefreshTokenValid = hashedRefreshToken === user.refreshToken;
 
     if (!isRefreshTokenValid) {
-      throw new UnauthorizedError('Invalid refresh token');
+      throw new UnauthorizedError({ code: 'auth.invalid_refresh_token', i18nKey: 'errors.auth.invalid_refresh_token' });
     }
 
     const tokens = await this.getTokens(user.id, user.email);
@@ -137,5 +169,17 @@ export class AuthService {
 
   async logout(userId: string) {
     await this.usersService.updateRefreshToken(userId, null);
+  }
+
+  async getMe(userId: string): Promise<UserOutput> {
+    const user = await this.usersService.findById(userId);
+
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
   }
 }

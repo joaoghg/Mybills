@@ -3,6 +3,8 @@ import { PrismaService } from 'src/modules/database/prisma/prisma.service';
 import { UserRepository } from '../user.repository';
 import { User } from '../../entities/user.entity';
 import { User as PrismaUser } from 'src/generated/prisma/client';
+import { CreateUserData } from '../../contracts/create-user-data.contract';
+import { UpdateUserData } from '../../contracts/update-user-data.contract';
 
 @Injectable()
 export class PrismaUserRepository implements UserRepository {
@@ -15,9 +17,29 @@ export class PrismaUserRepository implements UserRepository {
       email: user.email,
       password: user.password,
       refreshToken: user.refreshToken,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString()
     };
+  }
+
+  async findAll(): Promise<User[]> {
+    const users = await this.prisma.user.findMany({
+      orderBy: { createdAt: 'desc' }
+    });
+
+    return users.map((user) => this.mapToEntity(user));
+  }
+
+  async findById(userId: string): Promise<User | null> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      return null;
+    }
+
+    return this.mapToEntity(user);
   }
 
   async findByEmail(email: string): Promise<User | null> {
@@ -39,7 +61,7 @@ export class PrismaUserRepository implements UserRepository {
     });
   }
 
-  async create(data: { name: string; email: string; hashedPassword: string }): Promise<User> {
+  async create(data: CreateUserData): Promise<User> {
     const user = await this.prisma.user.create({
       data: {
         name: data.name,
@@ -49,5 +71,23 @@ export class PrismaUserRepository implements UserRepository {
     });
 
     return this.mapToEntity(user);
+  }
+
+  async update(userId: string, data: UpdateUserData): Promise<User> {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        name: data.name,
+        email: data.email
+      }
+    });
+
+    return this.mapToEntity(user);
+  }
+
+  async delete(userId: string): Promise<void> {
+    await this.prisma.user.delete({
+      where: { id: userId }
+    });
   }
 }

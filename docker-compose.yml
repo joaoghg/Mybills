@@ -2,16 +2,44 @@ name: 'MyBills'
 
 services:
   db:
-    container_name: db
+    container_name: mybills-db
+    restart: unless-stopped
     image: postgres:18
     ports:
-      - '5432:5432'
+      - '${DB_PORT-5432}:5432'
     volumes:
       - mybills-db-data:/var/lib/postgresql
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
       - POSTGRES_DB=${DB_NAME}
+    networks:
+      - mybills-network
+
+  api:
+    container_name: mybills-api
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - '127.0.0.1:${API_PORT:-3000}:3000'
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@mybills-db:5432/${DB_NAME}
+      - ACCESS_TOKEN_SECRET=${ACCESS_TOKEN_SECRET}
+      - REFRESH_TOKEN_SECRET=${REFRESH_TOKEN_SECRET}
+    depends_on:
+      - db
+    networks:
+      - mybills-network
 
 volumes:
   mybills-db-data:
+
+networks:
+  mybills-network:
+    driver: bridge
+  proxy_network:
+    external: true

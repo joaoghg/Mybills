@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { UserModule } from '../user/users.module';
+import { CategoriesModule } from '../categories/categories.module';
 import { JwtModule } from '@nestjs/jwt';
 import { DatabaseModule } from 'src/modules/database/database.module';
 import { AuthService } from './auth.service';
@@ -9,7 +10,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AuthGuard } from './guards/auth.guard';
 
 @Module({
-  imports: [ConfigModule, UserModule, DatabaseModule, JwtModule.register({})],
+  imports: [ConfigModule, UserModule, CategoriesModule, DatabaseModule, JwtModule.register({})],
   controllers: [AuthController],
   providers: [
     {

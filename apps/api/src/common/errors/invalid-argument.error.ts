@@ -1,6 +1,7 @@
-export class InvalidArgumentError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'invalid_argument';
+import { DomainError, DomainErrorParams } from './domain-error';
+
+export class InvalidArgumentError extends DomainError {
+  constructor(params?: DomainErrorParams | string) {
+    super('invalid_argument', params);
   }
 }

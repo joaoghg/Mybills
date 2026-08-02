@@ -1,0 +1,57 @@
+{
+  "common": {
+    "internal_server_error": "Internal server error"
+  },
+  "errors": {
+    "database": {
+      "generic": "Database error",
+      "conflict": "Data conflict: the record already exists (field(s): {fields})",
+      "record_not_found": "Record not found in database.",
+      "foreign_key_constraint": "Foreign key constraint failure on field: {field}",
+      "with_code": "Database error (Code: {code})"
+    },
+    "not_found": {
+      "resource": "Resource not found: {resource}"
+    },
+    "accounts": {
+      "insufficient_balance": "Insufficient account balance",
+      "transfer_failed": "Transfer could not be completed"
+    },
+    "categories": {
+      "category_already_exists": "Category already exists",
+      "system_category_cannot_be_updated": "System categories cannot be updated",
+      "system_category_cannot_be_deleted": "System categories cannot be deleted"
+    },
+    "transactions": {
+      "category_not_allowed_for_transfer": "Categories are not allowed on transfers",
+      "category_type_mismatch": "The selected category is not compatible with the transaction type",
+      "transfer_failed": "Transfer could not be completed",
+      "transfer_edit_not_allowed": "Transfers must be updated through the transfer endpoint",
+      "transfer_paid_status_not_allowed": "Transfer paid status cannot be changed",
+      "schedule_not_allowed_for_transfer": "Installments and recurrence are not allowed on transfers",
+      "installment_requires_two_months": "Installments require at least two months",
+      "invalid_installment_count": "Invalid installment count",
+      "schedule_detach_not_allowed": "A series cannot be converted back to a single transaction",
+      "invalid_series_conversion": "This series type conversion is not allowed"
+    },
+    "credit_cards": {
+      "account_required": "An account is required to pay this invoice",
+      "invalid_cycle_end": "Invalid invoice cycle end date for this card",
+      "invoice_not_closed": "This invoice cycle is not closed yet",
+      "invoice_empty": "There are no unpaid purchases in this invoice cycle",
+      "closing_day_required": "Closing day is required when closing on last day of month is disabled"
+    },
+    "auth": {
+      "invalid_credentials": "Invalid email or password",
+      "invalid_refresh_token": "Invalid refresh token"
+    },
+    "validation": {
+      "invalid_field": "Invalid field: {field}",
+      "at_least_one_field_required": "At least one field must be provided",
+      "source_and_destination_must_differ": "Source and destination accounts must be different"
+    },
+    "conflict": {
+      "already_exists_field": "A record already exists for field: {field}"
+    }
+  }
+}

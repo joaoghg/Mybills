@@ -1,0 +1,83 @@
+---
+description: Rules for creating or refactoring Jest unit and e2e tests in the API
+globs: apps/api/**/*.spec.ts,apps/api/test/**/*.ts
+alwaysApply: false
+---
+
+# MyBills Test Rules
+
+## Scope
+
+- Applies to Jest unit tests and e2e tests for the API app.
+- Prefer aligning tests with module boundaries under `apps/api/src/modules/*`.
+
+## Scenario Naming
+
+- Use behavior-focused names in English with `should ...`.
+- Name suites by unit under test (`describe('AuthService')`, `describe('Auth (e2e)')`).
+- Keep scenario titles explicit about expected behavior and conditions.
+- Prefer patterns like:
+  - `should return ... when ...`
+  - `should throw ... if ...`
+  - `should call ... with ...`
+
+## Dependency Inversion in Tests
+
+- Preserve DIP in tests exactly as in application code.
+- Unit tests must mock/stub dependencies injected by NestJS DI.
+- Test services against repository/service abstractions, not concrete infrastructure.
+- Do not bypass service boundaries to assert business rules.
+
+## Prisma Rule (Hard)
+
+- Never use Prisma directly in unit tests.
+- Do not instantiate Prisma client in unit tests.
+- For persistence behavior in unit tests, mock repository contracts.
+- In e2e tests, interact through HTTP endpoints and service APIs used by the app.
+
+## Strong Typing in Tests (Hard)
+
+- Keep strong typing in test code; avoid `any` in handwritten tests.
+- Reuse real application types, contracts, and DTO inferred types whenever possible.
+- Type mocked return values with module entity/contracts used in production code.
+- Type parsed HTTP responses with DTO output schemas (`zod.parse`) and inferred types.
+- DTOs are found in `@mybills/dtos` and module-local `contracts/` directories.
+
+## Assertions and Structure
+
+- Assert observable behavior first (return value, thrown domain error, side effect).
+- Verify dependency interaction only when relevant to behavior.
+- Keep one primary behavior per test case.
+- Keep setup minimal and explicit.
+
+## Command Hints
+
+- Focused unit run (from `apps/api`):
+  - `pnpm test`
+  - Filter: `pnpm test -- --testPathPatterns=<pattern>`
+- Focused e2e run (from `apps/api`):
+  - `pnpm test:e2e`
+  - Filter: `pnpm test:e2e -- --testPathPatterns=<pattern>`
+- From monorepo root, use `pnpm --filter api <script>` (e.g. `pnpm --filter api test:e2e`).
+
+## E2E database setup (Hard)
+
+Before running or debugging e2e tests, assume the **test PostgreSQL** is required. Config lives in [`apps/api/.env.test`](apps/api/.env.test) (typically `localhost:5433`, database `mybills_test`). E2e loads it via [`apps/api/test/reset-database.ts`](apps/api/test/reset-database.ts) (`setup-e2e.ts` truncates tables before the suite).
+
+If e2e fails with **500 on `/auth/register`** or Prisma errors about unknown/missing columns, do **not** assume the database is down. Run this checklist from `apps/api` **in order**:
+
+1. **Apply pending migrations to the test DB**
+   - `pnpm prisma:migrate:test`
+   - Uses `.env.test` (`dotenv -e .env.test prisma migrate dev`).
+2. **Regenerate Prisma Client** when `schema.prisma` changed (especially new columns/enums):
+   - `pnpm prisma:generate`
+   - Without this, runtime errors like `Unknown argument 'types'` are common even after migrations succeed.
+3. **Re-run e2e**
+   - `pnpm test:e2e`
+
+Development DB scripts (not for e2e unless explicitly needed):
+
+- `pnpm prisma:migrate` — migrations against `.env.development`
+- `pnpm prisma:seed` — seed development data
+
+When adding e2e helpers that create categories or other entities, match current DTO/schema requirements (e.g. categories require `types` after the `add_category_types` migration).

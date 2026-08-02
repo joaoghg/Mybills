@@ -1,0 +1,42 @@
+export const categories = {
+  nameLabel: 'Nome da categoria',
+  namePlaceholder: 'ex.: Alimentação, Transporte',
+  iconSectionTitle: 'Ícone',
+  iconAccessibility: 'Selecionar ícone {{icon}}',
+  typesLabel: 'Tipos de transação',
+  typeExpense: 'Despesa',
+  typeIncome: 'Receita',
+  typeBoth: 'Despesa e receita',
+  submit: 'Criar categoria',
+  submitLoading: 'Criando…',
+  updateSubmit: 'Salvar alterações',
+  updateLoading: 'Salvando…',
+  editTitle: 'Editar categoria',
+  manageTitle: 'Categorias',
+  manageEyebrow: 'Catálogo',
+  manageHeadline: 'Suas categorias',
+  manageSubtitle: 'Organize como você acompanha cada despesa e receita.',
+  manageCountLabel: 'total',
+  addNew: 'Nova categoria',
+  editAction: 'Editar categoria',
+  deleteAction: 'Excluir categoria',
+  deleteConfirmTitle: 'Excluir categoria?',
+  deleteConfirmMessage: '“{{name}}” será removida permanentemente.',
+  deleteCancel: 'Cancelar',
+  deleteConfirm: 'Excluir',
+  emptyTitle: 'Nenhuma categoria ainda',
+  emptySubtitle: 'Crie sua primeira categoria para classificar transações.',
+  notFound: 'Categoria não encontrada.',
+  retry: 'Tentar novamente',
+  errors: {
+    network: 'Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.',
+    validation: 'Verifique os campos e tente novamente.',
+    generic: 'Algo deu errado. Tente novamente.',
+    alreadyExists: 'Você já tem uma categoria com este nome.'
+  },
+  validation: {
+    nameRequired: 'Informe o nome da categoria.',
+    iconRequired: 'Selecione um ícone para a categoria.',
+    typesRequired: 'Selecione ao menos um tipo: despesa ou receita.'
+  }
+} as const;

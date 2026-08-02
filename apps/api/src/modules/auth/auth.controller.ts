@@ -1,4 +1,4 @@
-import { Body, Controller, Post, UsePipes, HttpCode, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Get, Post, UsePipes, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { ZodValidationPipe } from 'src/common/pipes/zod-validation.pipe';
@@ -16,7 +16,9 @@ import {
   refreshTokenInputSchema,
   refreshTokenOutputSchema,
   RefreshTokenInput,
-  RefreshTokenOutput
+  RefreshTokenOutput,
+  UserOutput,
+  userOutputSchema
 } from '@mybills/dtos';
 import { toJSONSchema } from 'zod';
 import { SchemaObject } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
@@ -87,6 +89,21 @@ export class AuthController {
   @UsePipes(new ZodValidationPipe(refreshTokenInputSchema))
   async refresh(@Body() data: RefreshTokenInput): Promise<RefreshTokenOutput> {
     return this.authService.refreshTokens(data);
+  }
+
+  @Get('me')
+  @ApiOperation({
+    summary: 'Get current user',
+    description: 'Returns the authenticated user profile.'
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Current user retrieved successfully.',
+    schema: toJSONSchema(userOutputSchema) as SchemaObject
+  })
+  @Serialize(userOutputSchema)
+  async me(@CurrentUser('sub') userId: string): Promise<UserOutput> {
+    return this.authService.getMe(userId);
   }
 
   @Post('logout')
