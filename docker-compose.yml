@@ -34,6 +34,7 @@ services:
       - db
     networks:
       - mybills-network
+      - proxy_network
 
 volumes:
   mybills-db-data:
