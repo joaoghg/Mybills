@@ -19,10 +19,8 @@
     "android": {
       "package": "com.mybills.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "foregroundImage": "./assets/icon.png",
+        "backgroundColor": "#215841"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -43,7 +41,7 @@
         "expo-notifications",
         {
           "icon": "./assets/icon.png",
-          "color": "#E6F4FE",
+          "color": "#215841",
           "defaultChannel": "default"
         }
       ],

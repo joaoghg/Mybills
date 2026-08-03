@@ -20,7 +20,14 @@
       }
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://mybills-api.joaogarnica.com.br"
+      }
     }
   },
   "submit": {
