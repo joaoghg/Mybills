@@ -1,0 +1,116 @@
+schema: spec-driven
+
+# Injected into every artifact / apply / archive instruction.
+# Keep dense: this is prompt context, not documentation.
+context: |
+  # Product
+  MyBills is a personal-finance app: accounts, categories, credit cards,
+  transactions (income/expense/transfer), installments/recurring series,
+  monthly cash-flow summaries, and JWT auth.
+  Primary users manage money on mobile; API is the source of truth.
+  Default locale is pt-BR; also support en / en-US.
+  Monetary amounts are stored in integer cents.
+
+  # Monorepo
+  pnpm workspaces + Turborepo. Node >= 18. Package manager: pnpm@10.
+  Apps:
+    - apps/api — NestJS 11 REST API, Prisma 7 + PostgreSQL, Swagger at /docs, global prefix /api
+    - apps/mobile — Expo ~55 / React Native / React 19, React Navigation, TanStack Query, i18next
+  Packages:
+    - packages/dtos — Zod 4 schemas + inferred types shared by API and clients
+    - packages/api-client — typed HTTP client (auth headers, refresh mutex, typed errors)
+    - packages/theme — shared light/dark tokens (emerald primary)
+    - packages/eslint-config, packages/typescript-config — tooling
+  There is no packages/utils today; do not invent one unless the change explicitly adds it.
+
+  # Domain (Prisma: apps/api/prisma/schema.prisma)
+  User owns Account, CreditCard, Category, Transaction, TransactionSeries.
+  TransactionType: INCOME | EXPENSE | TRANSFER
+  CategoryTransactionType: INCOME | EXPENSE
+  TransactionSeriesType: INSTALLMENT | RECURRING
+  Transfers use transferGroupId; scheduled items use seriesId + occurrenceNumber.
+  Credit-card purchases attribute to the invoice payment month in cash-flow summaries.
+  Series maintenance runs at API startup and daily (01:00 UTC).
+
+  # API modules (apps/api/src/modules/*)
+  Auth, Users, Accounts, Categories, CreditCards, Transactions, Database.
+  Layering: Controller (HTTP only) → Service (business rules) → Repository interface
+  → Prisma repo under repositories/prisma/. Module-local contracts/ for boundaries.
+  Domain errors from apps/api/src/common/errors (InvalidArgument, AlreadyExists,
+  NotFound, Unauthorized) — never replace with bare Error when a domain error fits.
+  Validate with ZodValidationPipe + @mybills/dtos; serialize with @Serialize(schema).
+  Import Prisma from src/generated/prisma/client — never @prisma/client directly.
+  API i18n: nestjs-i18n; domain errors expose code + i18nKey/i18nArgs; mirror keys in
+  apps/api/src/i18n/pt-BR and apps/api/src/i18n/en. Prefer z.locales for Zod messages.
+
+  # Mobile (apps/mobile/src)
+  Feature-first: features/*, shared/*, core/*, navigation/*.
+  Features must not import other features; lift shared code to shared/ or packages/.
+  Screens orchestrate; presentational components are dumb (props in, callbacks out).
+  Server state: React Query only. Client/UI state: Zustand (feature-local stores).
+  All user-facing copy via i18n (useTranslation); no hardcoded UI strings.
+  Platform-agnostic logic belongs in packages/* (no react-native/DOM there).
+
+  # Quality & workflow
+  Strict TypeScript (noUncheckedIndexedAccess); avoid handwritten any.
+  Conventional Commits (feat|fix|chore|refactor)(scope): subject.
+  Preserve existing naming and module boundaries unless the change requires a refactor.
+  Cursor rules live in .cursor/rules/ (base, api, mobile, testing) — follow them when applying.
+  Prefer extending existing patterns over introducing new frameworks or layers.
+
+  # Capability map (prefer these OpenSpec capability ids for main/delta specs)
+  auth, accounts, categories, credit-cards, transactions, transaction-series,
+  cash-flow, users, mobile-onboarding, mobile-settings, shared-contracts
+
+rules:
+  proposal:
+    - 'State the user/problem outcome first; keep under ~500 words unless the change is cross-cutting.'
+    - 'Always include a Non-goals section.'
+    - 'Call out Impact by surface: api / mobile / packages/dtos / packages/api-client / packages/theme / prisma.'
+    - 'Note breaking API or DTO contract changes explicitly.'
+    - 'If authz/ownership is involved (especially Users), call out current-user scoping risks.'
+    - 'Prefer kebab-case change names aligned to the capability map in context.'
+
+  specs:
+    - 'Write requirement deltas against capabilities (auth, accounts, categories, credit-cards, transactions, transaction-series, cash-flow, users, mobile-*, shared-contracts). Create a new capability only when none fit.'
+    - 'Use SHALL / MUST language; scenarios in Given/When/Then.'
+    - 'Specs describe observable behavior (HTTP status, response shape, persisted state, UI outcomes) — not Nest modules or React components.'
+    - 'Cover money-in-cents, ownership (user-scoped resources), and i18n/error-code expectations when relevant.'
+    - 'For API changes, specify request/response contracts at the DTO level; for mobile, specify user-visible behavior and localization.'
+    - 'Reference existing behavior before inventing new rules; mark ADDED / MODIFIED / REMOVED clearly in deltas.'
+
+  design:
+    - 'Map work to concrete paths: apps/api/src/modules/*, apps/mobile/src/features/*, packages/dtos, packages/api-client.'
+    - 'Preserve layering: thin controllers, services for rules, repository interfaces + Prisma implementations.'
+    - 'Call out Prisma schema/migration needs, DTO schema changes, and i18n key additions (pt-BR + en) together.'
+    - 'Document sequence or state flow for multi-step money flows (transfers, installments, invoice pay, series projection).'
+    - 'Prefer existing patterns (Zod pipes, domain errors, React Query hooks, feature stores) over new abstractions.'
+    - 'Include Decision / Alternatives / Risks for non-obvious choices; skip ceremony for trivial CRUD.'
+
+  tasks:
+    - 'Order tasks: shared contracts/DTOs → Prisma/API → api-client → mobile → i18n → tests.'
+    - 'Keep tasks checkbox-sized (roughly ≤2 hours); one primary deliverable each.'
+    - 'Explicitly include unit tests under apps/api/src/modules/*/test/ and e2e under apps/api/test/e2e/ when API behavior changes.'
+    - 'Explicitly include mirroring i18n keys (API and/or mobile) when adding user-facing or error messages.'
+    - 'Name files/modules to touch when known; avoid vague implement-feature tasks.'
+    - 'Do not put investigation spikes and implementation in the same task.'
+
+operations:
+  apply:
+    guidance:
+      - 'Follow .cursor/rules (base, api, mobile, testing) for the surfaces you touch; do not invent parallel architecture.'
+      - 'Implement tasks in order; mark checkboxes in tasks.md as you complete them.'
+      - 'When changing API contracts, update packages/dtos first, then API, then packages/api-client, then mobile consumers.'
+      - 'After API behavior changes, add/update Jest unit tests (mock repositories, not Prisma) and e2e as needed.'
+      - 'Before debugging e2e failures around schema/columns: from apps/api run prisma:migrate:test then prisma:generate, then test:e2e.'
+      - 'Keep controllers thin; put rules in services; Prisma only inside repositories/prisma.'
+      - 'Localize all new user-facing strings (mobile i18n + API i18n keys mirrored pt-BR/en).'
+      - 'Prefer focused test commands (pnpm --filter api test -- --testPathPatterns=...) before full suites.'
+      - 'Do not commit unless the user asks; do not expand scope beyond the change tasks.'
+
+  archive:
+    guidance:
+      - 'Sync delta specs into openspec/specs using the capability ids from context; do not invent parallel capability names for the same domain.'
+      - 'Summarize what shipped vs what was deferred; keep the archive summary concise.'
+      - 'Confirm tasks.md checkboxes reflect final reality before archiving.'
+      - 'If implementation diverged from design/specs, update specs to match shipped behavior before merge into main specs.'
