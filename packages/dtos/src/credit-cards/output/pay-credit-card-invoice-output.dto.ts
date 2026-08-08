@@ -5,6 +5,7 @@ export const payCreditCardInvoiceOutputSchema = z.object({
   accountId: z.uuid(),
   paymentTransactionId: z.uuid(),
   paidCount: z.int(),
+  invoiceId: z.uuid(),
   cycleStart: z.iso.date(),
   cycleEnd: z.iso.date()
 });

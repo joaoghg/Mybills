@@ -39,6 +39,7 @@
       "invalid_cycle_end": "Invalid invoice cycle end date for this card",
       "invoice_not_closed": "This invoice cycle is not closed yet",
       "invoice_empty": "There are no unpaid purchases in this invoice cycle",
+      "invoice_already_paid": "This invoice has already been paid",
       "closing_day_required": "Closing day is required when closing on last day of month is disabled"
     },
     "auth": {

@@ -39,6 +39,7 @@
       "invalid_cycle_end": "Data de fim do ciclo inválida para este cartão",
       "invoice_not_closed": "Este ciclo de fatura ainda não está fechado",
       "invoice_empty": "Não há compras em aberto neste ciclo de fatura",
+      "invoice_already_paid": "Esta fatura já foi paga",
       "closing_day_required": "Informe o dia de fechamento quando a opção de último dia do mês estiver desligada"
     },
     "auth": {

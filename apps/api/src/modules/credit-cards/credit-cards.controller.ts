@@ -7,7 +7,8 @@ import {
   HttpStatus,
   Param,
   Patch,
-  Post
+  Post,
+  Query
 } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { SchemaObject } from '@nestjs/swagger/dist/interfaces/open-api-spec.interface';
@@ -17,8 +18,14 @@ import {
   createCreditCardInputSchema,
   CreditCardOutput,
   creditCardOutputSchema,
+  InvoiceOutput,
+  invoiceOutputSchema,
   ListCreditCardsOutput,
   listCreditCardsOutputSchema,
+  ListInvoicesOutput,
+  listInvoicesOutputSchema,
+  ListInvoicesQueryInput,
+  listInvoicesQueryInputSchema,
   PayCreditCardInvoiceInput,
   payCreditCardInvoiceInputSchema,
   PayCreditCardInvoiceOutput,
@@ -34,6 +41,10 @@ import {
   CreditCardIdParams,
   creditCardIdParamsSchema
 } from './contracts/credit-card-id-params.contract';
+import {
+  CreditCardInvoiceIdParams,
+  creditCardInvoiceIdParamsSchema
+} from './contracts/credit-card-invoice-id-params.contract';
 
 @ApiTags('CreditCards')
 @Controller('credit-cards')
@@ -53,6 +64,47 @@ export class CreditCardsController {
   @Serialize(listCreditCardsOutputSchema)
   async findAll(@CurrentUser('sub') userId: string): Promise<ListCreditCardsOutput> {
     return await this.creditCardsService.findAll(userId);
+  }
+
+  @Get(':id/invoices')
+  @ApiOperation({
+    summary: 'List credit card invoices',
+    description: 'Lists invoices for a credit card, newest cycle first.'
+  })
+  @ApiParam({ name: 'id', description: 'Credit card id' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Invoices listed successfully.',
+    schema: toJSONSchema(listInvoicesOutputSchema) as SchemaObject
+  })
+  @Serialize(listInvoicesOutputSchema)
+  async listInvoices(
+    @CurrentUser('sub') userId: string,
+    @Param(new ZodValidationPipe(creditCardIdParamsSchema)) params: CreditCardIdParams,
+    @Query(new ZodValidationPipe(listInvoicesQueryInputSchema)) query: ListInvoicesQueryInput
+  ): Promise<ListInvoicesOutput> {
+    return await this.creditCardsService.listInvoices(params.id, userId, query);
+  }
+
+  @Get(':id/invoices/:invoiceId')
+  @ApiOperation({
+    summary: 'Get credit card invoice',
+    description: 'Returns one invoice for a credit card.'
+  })
+  @ApiParam({ name: 'id', description: 'Credit card id' })
+  @ApiParam({ name: 'invoiceId', description: 'Invoice id' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Invoice retrieved successfully.',
+    schema: toJSONSchema(invoiceOutputSchema) as SchemaObject
+  })
+  @Serialize(invoiceOutputSchema)
+  async getInvoice(
+    @CurrentUser('sub') userId: string,
+    @Param(new ZodValidationPipe(creditCardInvoiceIdParamsSchema))
+    params: CreditCardInvoiceIdParams
+  ): Promise<InvoiceOutput> {
+    return await this.creditCardsService.getInvoice(params.id, params.invoiceId, userId);
   }
 
   @Get(':id')
@@ -108,7 +160,7 @@ export class CreditCardsController {
   @ApiOperation({
     summary: 'Pay credit card invoice',
     description:
-      'Pays a closed billing cycle: creates one account EXPENSE and marks card purchases as paid without double debit.'
+      'Pays a closed invoice: creates one account EXPENSE and marks card purchases as paid without double debit.'
   })
   @ApiParam({ name: 'id', description: 'Credit card id' })
   @ApiBody({

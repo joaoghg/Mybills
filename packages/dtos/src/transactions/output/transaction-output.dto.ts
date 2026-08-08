@@ -9,6 +9,7 @@ export const transactionOutputSchema = z.object({
   accountId: z.uuid().nullable(),
   categoryId: z.uuid().nullable(),
   cardId: z.uuid().nullable(),
+  invoiceId: z.uuid().nullable(),
   transferGroupId: z.uuid().nullable(),
   seriesId: z.uuid().nullable(),
   occurrenceNumber: z.int().positive().nullable(),

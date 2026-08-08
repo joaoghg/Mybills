@@ -25,6 +25,7 @@ describe('TransactionsService', () => {
     accountId: '4f2f72e9-517c-4f6e-83f6-c9a9df15ddef',
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
+    invoiceId: null,
     transferGroupId: null,
     seriesId: null,
     occurrenceNumber: null,
@@ -197,6 +198,7 @@ describe('TransactionsService', () => {
       closingOnLastDay: false,
       dueDay: 11,
       usedAmount: 0,
+      openInvoice: null,
       createdAt: baseTransaction.createdAt,
       updatedAt: baseTransaction.updatedAt
     };
@@ -456,8 +458,9 @@ describe('TransactionsService', () => {
         closingDay: 4,
         closingOnLastDay: false,
         dueDay: 11,
-        usedAmount: 0,
-        createdAt: first.createdAt,
+      usedAmount: 0,
+      openInvoice: null,
+      createdAt: first.createdAt,
         updatedAt: first.updatedAt
       });
       repository.createSeriesWithOccurrences.mockResolvedValue({

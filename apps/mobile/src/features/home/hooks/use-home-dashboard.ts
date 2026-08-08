@@ -14,14 +14,7 @@ import {
   dedupeTransferTransactions,
   mapTransactionToRecentRow
 } from '@/shared/lib/recent-transactions';
-import {
-  daysUntilNextDueDay,
-  formatDueDate,
-  getOpenBillingCycleRange,
-  resolveClosingDay,
-  ymdFromLocalDate
-} from '@/shared/lib/billing-cycle';
-import { sumUnpaidCardExpensesInRange } from '@/shared/lib/card-expenses';
+import { daysUntilNextDueDay, formatDueDate } from '@/shared/lib/billing-cycle';
 import type { RecentTransactionRow } from '@/shared/types/recent-transaction';
 import { centsToMajor } from '@/shared/utils/cents-to-major';
 
@@ -97,30 +90,6 @@ export function useHomeDashboard(
     return cards.find((c) => c.id === selectedCardId) ?? null;
   }, [cards, selectedCardId]);
 
-  const openCycle = useMemo(() => {
-    if (!selectedCard) return null;
-    return getOpenBillingCycleRange(resolveClosingDay(selectedCard), new Date());
-  }, [selectedCard]);
-
-  const invoiceQuery = useQuery({
-    queryKey: [
-      'transactions',
-      'invoice',
-      selectedCardId,
-      openCycle?.start ?? null,
-      openCycle?.end ?? null
-    ],
-    queryFn: () =>
-      listTransactions(client, {
-        cardId: selectedCardId!,
-        from: openCycle!.start,
-        to: openCycle!.end,
-        isProjected: false
-      }),
-    enabled: selectedCardId !== null && openCycle !== null,
-    staleTime: STALE_MS
-  });
-
   const recentTransactionsQuery = useQuery({
     queryKey: ['transactions', 'recent', RECENT_LIMIT],
     queryFn: () => listTransactions(client, { limit: RECENT_LIMIT, isProjected: false }),
@@ -136,14 +105,12 @@ export function useHomeDashboard(
   const isLoading =
     accountsQuery.isPending ||
     creditCardsQuery.isPending ||
-    (selectedCardId !== null && invoiceQuery.isPending) ||
     recentTransactionsQuery.isPending ||
     categoriesQuery.isPending;
 
   const isError =
     accountsQuery.isError ||
     creditCardsQuery.isError ||
-    invoiceQuery.isError ||
     recentTransactionsQuery.isError ||
     categoriesQuery.isError;
 
@@ -151,17 +118,10 @@ export function useHomeDashboard(
     await Promise.all([
       accountsQuery.refetch(),
       creditCardsQuery.refetch(),
-      invoiceQuery.refetch(),
       recentTransactionsQuery.refetch(),
       categoriesQuery.refetch()
     ]);
-  }, [
-    accountsQuery,
-    creditCardsQuery,
-    invoiceQuery,
-    recentTransactionsQuery,
-    categoriesQuery
-  ]);
+  }, [accountsQuery, creditCardsQuery, recentTransactionsQuery, categoriesQuery]);
 
   const categoryNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -196,18 +156,10 @@ export function useHomeDashboard(
   }, [cards, selectedCardId]);
 
   const creditCard = useMemo((): HomeCreditCardSummary | null => {
-    if (!selectedCard || !openCycle) return null;
+    if (!selectedCard) return null;
 
     const today = new Date();
-    const todayYmd = ymdFromLocalDate(today);
-    const invoiceTxs = invoiceQuery.data ?? [];
-    const invoiceCents = sumUnpaidCardExpensesInRange(
-      invoiceTxs,
-      selectedCard.id,
-      openCycle.start,
-      openCycle.end,
-      todayYmd
-    );
+    const invoiceCents = selectedCard.openInvoice?.amount ?? 0;
     const usedCents = selectedCard.usedAmount;
     const limitMajor = centsToMajor(selectedCard.limit);
     const usedMajor = centsToMajor(usedCents);
@@ -223,9 +175,9 @@ export function useHomeDashboard(
       usedMajor,
       availableMajor,
       usageRatio,
-      isOpen: invoiceCents > 0
+      isOpen: selectedCard.openInvoice?.status === 'OPEN' || invoiceCents > 0
     };
-  }, [selectedCard, openCycle, invoiceQuery.data, locale]);
+  }, [selectedCard, locale]);
 
   const recent = useMemo((): RecentTransactionRow[] => {
     const txs = recentTransactionsQuery.data ?? [];

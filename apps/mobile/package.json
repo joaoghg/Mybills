@@ -11,13 +11,14 @@
     "build:prod": "eas build --profile production --platform android",
     "update:dev": "eas update --channel development",
     "update:prod": "eas update --channel production",
-    "eas-build-post-install": "pnpm --filter @mybills/dtos --filter @mybills/theme --filter @mybills/api-client run build"
+    "eas-build-post-install": "pnpm --filter @mybills/dtos --filter @mybills/theme --filter @mybills/utils --filter @mybills/api-client run build"
   },
   "dependencies": {
     "@expo/vector-icons": "^15.0.3",
     "@mybills/api-client": "workspace:*",
     "@mybills/dtos": "workspace:*",
     "@mybills/theme": "workspace:*",
+    "@mybills/utils": "workspace:*",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@react-native-community/datetimepicker": "8.6.0",
     "@react-navigation/bottom-tabs": "^7.9.1",

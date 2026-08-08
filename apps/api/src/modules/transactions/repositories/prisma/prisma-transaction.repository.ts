@@ -38,6 +38,13 @@ import {
   getInvoicePaymentMonth,
   resolveClosingDay
 } from '../../../credit-cards/lib/billing-cycle';
+import {
+  assignCardExpenseToInvoice,
+  detachTransactionFromInvoice,
+  ensureInvoicesForDates,
+  type InvoiceCardRef,
+  ymdFromUtcDate
+} from '../../../credit-cards/lib/invoice-assignment';
 import { TransactionRepository } from '../transaction.repository';
 
 type PrismaTransactionWithSeries = PrismaTransaction & {
@@ -103,6 +110,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
       accountId: transaction.accountId,
       categoryId: transaction.categoryId,
       cardId: transaction.cardId,
+      invoiceId: transaction.invoiceId,
       transferGroupId: transaction.transferGroupId,
       seriesId: transaction.seriesId,
       occurrenceNumber: transaction.occurrenceNumber,
@@ -118,6 +126,71 @@ export class PrismaTransactionRepository implements TransactionRepository {
       createdAt: transaction.createdAt.toISOString(),
       updatedAt: transaction.updatedAt.toISOString()
     };
+  }
+
+  private async loadInvoiceCard(
+    tx: Prisma.TransactionClient | PrismaService,
+    cardId: string | null | undefined
+  ): Promise<InvoiceCardRef | null> {
+    if (!cardId) {
+      return null;
+    }
+    const card = await tx.creditCard.findUnique({
+      where: { id: cardId },
+      select: {
+        id: true,
+        userId: true,
+        closingDay: true,
+        closingOnLastDay: true,
+        dueDay: true
+      }
+    });
+    return card;
+  }
+
+  private async attachInvoiceOnCreate(
+    tx: Prisma.TransactionClient,
+    params: {
+      cardId: string | null | undefined;
+      type: TransactionType;
+      dateYmd: string;
+      amount: number;
+    }
+  ): Promise<string | null> {
+    const card = await this.loadInvoiceCard(tx, params.cardId);
+    return assignCardExpenseToInvoice(tx, {
+      card,
+      type: params.type,
+      dateYmd: params.dateYmd,
+      amount: params.amount
+    });
+  }
+
+  private async reassignInvoiceForExisting(
+    tx: Prisma.TransactionClient,
+    row: {
+      invoiceId: string | null;
+      amount: number;
+      cardId: string | null;
+      type: TransactionType;
+      date: Date;
+    },
+    next: {
+      cardId: string | null;
+      type: TransactionType;
+      amount: number;
+      dateYmd: string;
+    }
+  ): Promise<string | null> {
+    const card = await this.loadInvoiceCard(tx, next.cardId);
+    return assignCardExpenseToInvoice(tx, {
+      card,
+      type: next.type,
+      dateYmd: next.dateYmd,
+      amount: next.amount,
+      previousInvoiceId: row.invoiceId,
+      previousAmount: row.amount
+    });
   }
 
   private utcDayStart(ymd: string): Date {
@@ -168,6 +241,10 @@ export class PrismaTransactionRepository implements TransactionRepository {
 
     if (filters.cardId !== undefined) {
       where.cardId = filters.cardId;
+    }
+
+    if (filters.invoiceId !== undefined) {
+      where.invoiceId = filters.invoiceId;
     }
 
     if (filters.isPaid !== undefined) {
@@ -245,23 +322,34 @@ export class PrismaTransactionRepository implements TransactionRepository {
   }
 
   async create(data: CreateTransactionData): Promise<Transaction> {
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        userId: data.userId,
-        accountId: data.accountId,
-        categoryId: data.categoryId,
+    return await this.prisma.$transaction(async (tx) => {
+      const dateYmd = data.date.slice(0, 10);
+      const invoiceId = await this.attachInvoiceOnCreate(tx, {
         cardId: data.cardId,
-        description: data.description,
         type: data.type,
-        amount: data.amount,
-        date: new Date(data.date),
-        isPaid: data.isPaid,
-        isProjected: false
-      },
-      include: transactionDetailInclude
-    });
+        dateYmd,
+        amount: data.amount
+      });
 
-    return this.mapToEntity(transaction);
+      const transaction = await tx.transaction.create({
+        data: {
+          userId: data.userId,
+          accountId: data.accountId,
+          categoryId: data.categoryId,
+          cardId: data.cardId,
+          invoiceId,
+          description: data.description,
+          type: data.type,
+          amount: data.amount,
+          date: this.utcDayStart(dateYmd),
+          isPaid: data.isPaid,
+          isProjected: false
+        },
+        include: transactionDetailInclude
+      });
+
+      return this.mapToEntity(transaction);
+    });
   }
 
   async createSeriesWithOccurrences(
@@ -286,14 +374,33 @@ export class PrismaTransactionRepository implements TransactionRepository {
         }
       });
 
+      const card = await this.loadInvoiceCard(tx, data.cardId);
+      const dateToInvoiceId =
+        card && data.transactionType === TransactionType.EXPENSE
+          ? await ensureInvoicesForDates(
+              tx,
+              card,
+              data.occurrences.map((occurrence) => occurrence.date)
+            )
+          : new Map<string, string>();
+
+      const amountByInvoice = new Map<string, number>();
+
       const created = await Promise.all(
-        data.occurrences.map((occurrence) =>
-          tx.transaction.create({
+        data.occurrences.map(async (occurrence) => {
+          const dateYmd = occurrence.date.slice(0, 10);
+          const invoiceId = dateToInvoiceId.get(dateYmd) ?? null;
+          if (invoiceId) {
+            amountByInvoice.set(invoiceId, (amountByInvoice.get(invoiceId) ?? 0) + data.amount);
+          }
+
+          return tx.transaction.create({
             data: {
               userId: data.userId,
               accountId: data.accountId ?? null,
               categoryId: data.categoryId ?? null,
               cardId: data.cardId ?? null,
+              invoiceId,
               description: data.description ?? null,
               type: data.transactionType,
               amount: data.amount,
@@ -303,9 +410,16 @@ export class PrismaTransactionRepository implements TransactionRepository {
               seriesId: series.id,
               occurrenceNumber: occurrence.occurrenceNumber
             }
-          })
-        )
+          });
+        })
       );
+
+      for (const [invoiceId, amount] of amountByInvoice) {
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: { amount: { increment: amount } }
+        });
+      }
 
       const first = created.find((item) => item.occurrenceNumber === 1) ?? created[0];
 
@@ -362,12 +476,31 @@ export class PrismaTransactionRepository implements TransactionRepository {
         }
       });
 
+      const card = await this.loadInvoiceCard(tx, data.cardId);
+      const allDates = data.occurrences.map((occurrence) => occurrence.date);
+      const dateToInvoiceId =
+        card && data.transactionType === TransactionType.EXPENSE
+          ? await ensureInvoicesForDates(tx, card, allDates)
+          : new Map<string, string>();
+
+      const firstDateYmd = firstOccurrence.date.slice(0, 10);
+      const firstInvoiceId = dateToInvoiceId.get(firstDateYmd) ?? null;
+
+      await detachTransactionFromInvoice(tx, existing.invoiceId, existing.amount);
+      if (firstInvoiceId) {
+        await tx.invoice.update({
+          where: { id: firstInvoiceId },
+          data: { amount: { increment: data.amount } }
+        });
+      }
+
       await tx.transaction.update({
         where: { id: existingTransactionId },
         data: {
           accountId: data.accountId ?? null,
           categoryId: data.categoryId ?? null,
           cardId: data.cardId ?? null,
+          invoiceId: firstInvoiceId,
           description: data.description ?? null,
           type: data.transactionType,
           amount: data.amount,
@@ -378,14 +511,23 @@ export class PrismaTransactionRepository implements TransactionRepository {
         }
       });
 
+      const amountByInvoice = new Map<string, number>();
+
       await Promise.all(
-        remaining.map((occurrence) =>
-          tx.transaction.create({
+        remaining.map(async (occurrence) => {
+          const dateYmd = occurrence.date.slice(0, 10);
+          const invoiceId = dateToInvoiceId.get(dateYmd) ?? null;
+          if (invoiceId) {
+            amountByInvoice.set(invoiceId, (amountByInvoice.get(invoiceId) ?? 0) + data.amount);
+          }
+
+          return tx.transaction.create({
             data: {
               userId: data.userId,
               accountId: data.accountId ?? null,
               categoryId: data.categoryId ?? null,
               cardId: data.cardId ?? null,
+              invoiceId,
               description: data.description ?? null,
               type: data.transactionType,
               amount: data.amount,
@@ -395,9 +537,16 @@ export class PrismaTransactionRepository implements TransactionRepository {
               seriesId: series.id,
               occurrenceNumber: occurrence.occurrenceNumber
             }
-          })
-        )
+          });
+        })
       );
+
+      for (const [invoiceId, amount] of amountByInvoice) {
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: { amount: { increment: amount } }
+        });
+      }
 
       return {
         seriesId: series.id,
@@ -447,6 +596,22 @@ export class PrismaTransactionRepository implements TransactionRepository {
 
         const dateYmd = nextDate.toISOString().slice(0, 10);
         const isProjected = compareYmd(dateYmd, data.todayYmd) > 0;
+        const nextCardId =
+          fieldUpdates.cardId !== undefined ? fieldUpdates.cardId : target.cardId;
+        const nextType = fieldUpdates.type !== undefined ? fieldUpdates.type : target.type;
+        const nextAmount =
+          fieldUpdates.amount !== undefined ? fieldUpdates.amount : target.amount;
+
+        const invoiceId = await this.reassignInvoiceForExisting(
+          tx,
+          target,
+          {
+            cardId: nextCardId,
+            type: nextType,
+            amount: nextAmount,
+            dateYmd
+          }
+        );
 
         const row = await tx.transaction.update({
           where: { id: target.id },
@@ -462,7 +627,8 @@ export class PrismaTransactionRepository implements TransactionRepository {
             ...(fieldUpdates.type !== undefined ? { type: fieldUpdates.type } : {}),
             ...(fieldUpdates.amount !== undefined ? { amount: fieldUpdates.amount } : {}),
             date: nextDate,
-            isProjected
+            isProjected,
+            invoiceId
           }
         });
 
@@ -567,6 +733,13 @@ export class PrismaTransactionRepository implements TransactionRepository {
         throw new Error('Starting occurrence not found');
       }
 
+      for (const row of toDelete) {
+        if (row.occurrenceNumber === data.fromOccurrenceNumber) {
+          continue;
+        }
+        await detachTransactionFromInvoice(tx, row.invoiceId, row.amount);
+      }
+
       await tx.transaction.deleteMany({
         where: {
           seriesId: data.seriesId,
@@ -578,6 +751,28 @@ export class PrismaTransactionRepository implements TransactionRepository {
       if (!firstDraft) {
         throw new Error('Installment requires occurrences');
       }
+
+      const accountId =
+        fieldUpdates.accountId !== undefined ? fieldUpdates.accountId : series.accountId;
+      const categoryId =
+        fieldUpdates.categoryId !== undefined ? fieldUpdates.categoryId : series.categoryId;
+      const cardId = fieldUpdates.cardId !== undefined ? fieldUpdates.cardId : series.cardId;
+      const description =
+        fieldUpdates.description !== undefined ? fieldUpdates.description : series.description;
+      const transactionType =
+        fieldUpdates.type !== undefined ? fieldUpdates.type : series.transactionType;
+      const amount = fieldUpdates.amount !== undefined ? fieldUpdates.amount : series.amount;
+
+      const keepInvoiceId = await this.reassignInvoiceForExisting(
+        tx,
+        keepFirst,
+        {
+          cardId,
+          type: transactionType,
+          amount,
+          dateYmd: firstDraft.date.slice(0, 10)
+        }
+      );
 
       await tx.transaction.update({
         where: { id: keepFirst.id },
@@ -594,25 +789,29 @@ export class PrismaTransactionRepository implements TransactionRepository {
           ...(fieldUpdates.amount !== undefined ? { amount: fieldUpdates.amount } : {}),
           date: this.utcDayStart(firstDraft.date),
           isProjected: false,
-          occurrenceNumber: data.fromOccurrenceNumber
+          occurrenceNumber: data.fromOccurrenceNumber,
+          invoiceId: keepInvoiceId
         }
       });
 
-      const accountId =
-        fieldUpdates.accountId !== undefined ? fieldUpdates.accountId : series.accountId;
-      const categoryId =
-        fieldUpdates.categoryId !== undefined ? fieldUpdates.categoryId : series.categoryId;
-      const cardId = fieldUpdates.cardId !== undefined ? fieldUpdates.cardId : series.cardId;
-      const description =
-        fieldUpdates.description !== undefined ? fieldUpdates.description : series.description;
-      const transactionType =
-        fieldUpdates.type !== undefined ? fieldUpdates.type : series.transactionType;
-      const amount = fieldUpdates.amount !== undefined ? fieldUpdates.amount : series.amount;
+      const card = await this.loadInvoiceCard(tx, cardId);
+      const laterDates = drafts.slice(1).map((draft) => draft.date);
+      const dateToInvoiceId =
+        card && transactionType === TransactionType.EXPENSE
+          ? await ensureInvoicesForDates(tx, card, laterDates)
+          : new Map<string, string>();
+      const amountByInvoice = new Map<string, number>();
 
       for (let index = 1; index < drafts.length; index += 1) {
         const draft = drafts[index];
         if (!draft) {
           continue;
+        }
+
+        const dateYmd = draft.date.slice(0, 10);
+        const invoiceId = dateToInvoiceId.get(dateYmd) ?? null;
+        if (invoiceId) {
+          amountByInvoice.set(invoiceId, (amountByInvoice.get(invoiceId) ?? 0) + amount);
         }
 
         await tx.transaction.create({
@@ -621,6 +820,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
             accountId,
             categoryId,
             cardId,
+            invoiceId,
             description,
             type: transactionType,
             amount,
@@ -630,6 +830,13 @@ export class PrismaTransactionRepository implements TransactionRepository {
             seriesId: series.id,
             occurrenceNumber: data.fromOccurrenceNumber + index
           }
+        });
+      }
+
+      for (const [invoiceId, delta] of amountByInvoice) {
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: { amount: { increment: delta } }
         });
       }
 
@@ -818,21 +1025,46 @@ export class PrismaTransactionRepository implements TransactionRepository {
   }
 
   async update(transactionId: string, data: UpdateTransactionData): Promise<Transaction> {
-    const transaction = await this.prisma.transaction.update({
-      where: { id: transactionId },
-      data: {
-        accountId: data.accountId,
-        categoryId: data.categoryId,
-        cardId: data.cardId,
-        description: data.description,
-        type: data.type,
-        amount: data.amount,
-        date: data.date ? this.utcDayStart(data.date) : undefined
-      },
-      include: transactionDetailInclude
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.transaction.findUniqueOrThrow({
+        where: { id: transactionId }
+      });
 
-    return this.mapToEntity(transaction);
+      const nextCardId = data.cardId !== undefined ? data.cardId : existing.cardId;
+      const nextType = data.type !== undefined ? data.type : existing.type;
+      const nextAmount = data.amount !== undefined ? data.amount : existing.amount;
+      const nextDateYmd = data.date
+        ? data.date.slice(0, 10)
+        : ymdFromUtcDate(existing.date);
+
+      const invoiceId = await this.reassignInvoiceForExisting(
+        tx,
+        existing,
+        {
+          cardId: nextCardId,
+          type: nextType,
+          amount: nextAmount,
+          dateYmd: nextDateYmd
+        }
+      );
+
+      const transaction = await tx.transaction.update({
+        where: { id: transactionId },
+        data: {
+          accountId: data.accountId,
+          categoryId: data.categoryId,
+          cardId: data.cardId,
+          invoiceId,
+          description: data.description,
+          type: data.type,
+          amount: data.amount,
+          date: data.date ? this.utcDayStart(data.date) : undefined
+        },
+        include: transactionDetailInclude
+      });
+
+      return this.mapToEntity(transaction);
+    });
   }
 
   async findBySeriesFromOccurrence(
@@ -856,78 +1088,97 @@ export class PrismaTransactionRepository implements TransactionRepository {
     fromOccurrenceNumber: number,
     data: UpdateTransactionData
   ): Promise<Transaction[]> {
-    const targets = await this.prisma.transaction.findMany({
-      where: {
-        seriesId,
-        occurrenceNumber: { gte: fromOccurrenceNumber }
-      },
-      orderBy: { occurrenceNumber: 'asc' }
-    });
+    return await this.prisma.$transaction(async (tx) => {
+      const targets = await tx.transaction.findMany({
+        where: {
+          seriesId,
+          occurrenceNumber: { gte: fromOccurrenceNumber }
+        },
+        orderBy: { occurrenceNumber: 'asc' }
+      });
 
-    const updated: Transaction[] = [];
+      const updated: Transaction[] = [];
 
-    for (const target of targets) {
-      const offset =
-        target.occurrenceNumber !== null && data.date !== undefined
-          ? target.occurrenceNumber - fromOccurrenceNumber
-          : 0;
+      for (const target of targets) {
+        const offset =
+          target.occurrenceNumber !== null && data.date !== undefined
+            ? target.occurrenceNumber - fromOccurrenceNumber
+            : 0;
 
-      let nextDate: Date | undefined;
-      if (data.date !== undefined) {
-        if (offset === 0) {
-          nextDate = this.utcDayStart(data.date);
-        } else {
-          const anchorDay = parseYmd(data.date).day;
-          nextDate = this.utcDayStart(addMonthsPreserveDay(data.date, offset, anchorDay));
+        let nextDate: Date = target.date;
+        if (data.date !== undefined) {
+          if (offset === 0) {
+            nextDate = this.utcDayStart(data.date);
+          } else {
+            const anchorDay = parseYmd(data.date).day;
+            nextDate = this.utcDayStart(addMonthsPreserveDay(data.date, offset, anchorDay));
+          }
         }
+
+        const nextCardId = data.cardId !== undefined ? data.cardId : target.cardId;
+        const nextType = data.type !== undefined ? data.type : target.type;
+        const nextAmount = data.amount !== undefined ? data.amount : target.amount;
+        const nextDateYmd = ymdFromUtcDate(nextDate);
+
+        const invoiceId = await this.reassignInvoiceForExisting(
+          tx,
+          target,
+          {
+            cardId: nextCardId,
+            type: nextType,
+            amount: nextAmount,
+            dateYmd: nextDateYmd
+          }
+        );
+
+        const row = await tx.transaction.update({
+          where: { id: target.id },
+          data: {
+            accountId: data.accountId,
+            categoryId: data.categoryId,
+            cardId: data.cardId,
+            invoiceId,
+            description: data.description,
+            type: data.type,
+            amount: data.amount,
+            date: nextDate
+          },
+          include: transactionDetailInclude
+        });
+
+        updated.push(this.mapToEntity(row));
       }
 
-      const row = await this.prisma.transaction.update({
-        where: { id: target.id },
-        data: {
-          accountId: data.accountId,
-          categoryId: data.categoryId,
-          cardId: data.cardId,
-          description: data.description,
-          type: data.type,
-          amount: data.amount,
-          date: nextDate
-        },
-        include: transactionDetailInclude
-      });
+      if (
+        data.accountId !== undefined ||
+        data.categoryId !== undefined ||
+        data.cardId !== undefined ||
+        data.description !== undefined ||
+        data.type !== undefined ||
+        data.amount !== undefined ||
+        (data.date !== undefined && fromOccurrenceNumber === 1)
+      ) {
+        await tx.transactionSeries.update({
+          where: { id: seriesId },
+          data: {
+            ...(data.accountId !== undefined ? { accountId: data.accountId } : {}),
+            ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
+            ...(data.cardId !== undefined ? { cardId: data.cardId } : {}),
+            ...(data.description !== undefined ? { description: data.description } : {}),
+            ...(data.type !== undefined ? { transactionType: data.type } : {}),
+            ...(data.amount !== undefined ? { amount: data.amount } : {}),
+            ...(data.date !== undefined && fromOccurrenceNumber === 1
+              ? {
+                  anchorDate: this.utcDayStart(data.date),
+                  anchorDay: Number(data.date.split('-')[2] ?? 1)
+                }
+              : {})
+          }
+        });
+      }
 
-      updated.push(this.mapToEntity(row));
-    }
-
-    if (
-      data.accountId !== undefined ||
-      data.categoryId !== undefined ||
-      data.cardId !== undefined ||
-      data.description !== undefined ||
-      data.type !== undefined ||
-      data.amount !== undefined ||
-      (data.date !== undefined && fromOccurrenceNumber === 1)
-    ) {
-      await this.prisma.transactionSeries.update({
-        where: { id: seriesId },
-        data: {
-          ...(data.accountId !== undefined ? { accountId: data.accountId } : {}),
-          ...(data.categoryId !== undefined ? { categoryId: data.categoryId } : {}),
-          ...(data.cardId !== undefined ? { cardId: data.cardId } : {}),
-          ...(data.description !== undefined ? { description: data.description } : {}),
-          ...(data.type !== undefined ? { transactionType: data.type } : {}),
-          ...(data.amount !== undefined ? { amount: data.amount } : {}),
-          ...(data.date !== undefined && fromOccurrenceNumber === 1
-            ? {
-                anchorDate: this.utcDayStart(data.date),
-                anchorDay: Number(data.date.split('-')[2] ?? 1)
-              }
-            : {})
-        }
-      });
-    }
-
-    return updated;
+      return updated;
+    });
   }
 
   async updateIsPaid(transactionId: string, isPaid: boolean): Promise<Transaction> {
@@ -941,8 +1192,17 @@ export class PrismaTransactionRepository implements TransactionRepository {
   }
 
   async delete(transactionId: string): Promise<void> {
-    await this.prisma.transaction.delete({
-      where: { id: transactionId }
+    await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.transaction.findUnique({
+        where: { id: transactionId }
+      });
+      if (!existing) {
+        return;
+      }
+      await detachTransactionFromInvoice(tx, existing.invoiceId, existing.amount);
+      await tx.transaction.delete({
+        where: { id: transactionId }
+      });
     });
   }
 
@@ -960,6 +1220,10 @@ export class PrismaTransactionRepository implements TransactionRepository {
       });
 
       const deleted = targets.map((item) => this.mapToEntity(item));
+
+      for (const target of targets) {
+        await detachTransactionFromInvoice(tx, target.invoiceId, target.amount);
+      }
 
       await tx.transaction.deleteMany({
         where: {
@@ -1066,14 +1330,29 @@ export class PrismaTransactionRepository implements TransactionRepository {
     let createdCount = 0;
 
     await this.prisma.$transaction(async (tx) => {
+      const card = await this.loadInvoiceCard(tx, series.cardId);
+      const dateToInvoiceId =
+        card && series.transactionType === TransactionType.EXPENSE
+          ? await ensureInvoicesForDates(
+              tx,
+              card,
+              occurrences.map((occurrence) => occurrence.date)
+            )
+          : new Map<string, string>();
+      const amountByInvoice = new Map<string, number>();
+
       for (const occurrence of occurrences) {
         try {
+          const dateYmd = occurrence.date.slice(0, 10);
+          const invoiceId = dateToInvoiceId.get(dateYmd) ?? null;
+
           await tx.transaction.create({
             data: {
               userId: series.userId,
               accountId: series.accountId,
               categoryId: series.categoryId,
               cardId: series.cardId,
+              invoiceId,
               description: series.description,
               type: series.transactionType,
               amount: series.amount,
@@ -1085,6 +1364,12 @@ export class PrismaTransactionRepository implements TransactionRepository {
             }
           });
           createdCount += 1;
+          if (invoiceId) {
+            amountByInvoice.set(
+              invoiceId,
+              (amountByInvoice.get(invoiceId) ?? 0) + series.amount
+            );
+          }
         } catch (error) {
           if (
             error instanceof Prisma.PrismaClientKnownRequestError &&
@@ -1094,6 +1379,13 @@ export class PrismaTransactionRepository implements TransactionRepository {
           }
           throw error;
         }
+      }
+
+      for (const [invoiceId, amount] of amountByInvoice) {
+        await tx.invoice.update({
+          where: { id: invoiceId },
+          data: { amount: { increment: amount } }
+        });
       }
 
       await tx.transactionSeries.update({

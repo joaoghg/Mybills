@@ -1,20 +1,71 @@
 import { Injectable } from '@nestjs/common';
+import {
+  canPayBillingCycle,
+  getCycleContainingDate,
+  getInvoiceDueYmd,
+  resolveClosingDay,
+  utcTodayYmd
+} from '@mybills/utils';
+import {
+  Invoice as PrismaInvoice,
+  InvoiceStatus,
+  CreditCard as PrismaCreditCard,
+  TransactionType
+} from 'src/generated/prisma/client';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
-import { CreditCardRepository } from '../credit-card.repository';
-import { CreditCard } from '../../entities/credit-card.entity';
-import { CreditCard as PrismaCreditCard, TransactionType } from 'src/generated/prisma/client';
 import { CreateCreditCardData } from '../../contracts/create-credit-card-data.contract';
 import {
   PayInvoiceData,
   PayInvoiceResult
 } from '../../contracts/pay-invoice-data.contract';
 import { UpdateCreditCardData } from '../../contracts/update-credit-card-data.contract';
+import { CreditCard, OpenInvoiceSummary } from '../../entities/credit-card.entity';
+import { InvoiceRecord } from '../../entities/invoice.entity';
+import { utcDateFromYmd, ymdFromUtcDate } from '../../lib/invoice-assignment';
+import { CreditCardRepository } from '../credit-card.repository';
 
 @Injectable()
 export class PrismaCreditCardRepository implements CreditCardRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  private mapToEntity(creditCard: PrismaCreditCard, usedAmount: number): CreditCard {
+  private mapInvoice(invoice: PrismaInvoice): InvoiceRecord {
+    return {
+      id: invoice.id,
+      userId: invoice.userId,
+      creditCardId: invoice.creditCardId,
+      startsOn: ymdFromUtcDate(invoice.startsOn),
+      endsOn: ymdFromUtcDate(invoice.endsOn),
+      dueOn: ymdFromUtcDate(invoice.dueOn),
+      status: invoice.status,
+      amount: invoice.amount,
+      paidAt: invoice.paidAt?.toISOString() ?? null,
+      paidAmount: invoice.paidAmount,
+      paymentTransactionId: invoice.paymentTransactionId,
+      paidFromAccountId: invoice.paidFromAccountId,
+      createdAt: invoice.createdAt.toISOString(),
+      updatedAt: invoice.updatedAt.toISOString()
+    };
+  }
+
+  private toOpenSummary(invoice: PrismaInvoice | null): OpenInvoiceSummary | null {
+    if (!invoice) {
+      return null;
+    }
+    return {
+      id: invoice.id,
+      startsOn: ymdFromUtcDate(invoice.startsOn),
+      endsOn: ymdFromUtcDate(invoice.endsOn),
+      dueOn: ymdFromUtcDate(invoice.dueOn),
+      status: invoice.status,
+      amount: invoice.amount
+    };
+  }
+
+  private mapToEntity(
+    creditCard: PrismaCreditCard,
+    usedAmount: number,
+    openInvoice: PrismaInvoice | null
+  ): CreditCard {
     return {
       id: creditCard.id,
       userId: creditCard.userId,
@@ -25,6 +76,7 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
       closingOnLastDay: creditCard.closingOnLastDay,
       dueDay: creditCard.dueDay,
       usedAmount,
+      openInvoice: this.toOpenSummary(openInvoice),
       createdAt: creditCard.createdAt.toISOString(),
       updatedAt: creditCard.updatedAt.toISOString()
     };
@@ -78,6 +130,52 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     return aggregate._sum.amount ?? 0;
   }
 
+  private async ensureOpenInvoiceForCard(
+    creditCard: PrismaCreditCard
+  ): Promise<PrismaInvoice | null> {
+    const todayYmd = utcTodayYmd();
+    const closingDay = resolveClosingDay(creditCard);
+    const cycle = getCycleContainingDate(closingDay, todayYmd);
+    const existing = await this.prisma.invoice.findUnique({
+      where: {
+        creditCardId_endsOn: {
+          creditCardId: creditCard.id,
+          endsOn: utcDateFromYmd(cycle.end)
+        }
+      }
+    });
+    if (existing) {
+      if (
+        existing.status === InvoiceStatus.OPEN &&
+        canPayBillingCycle(ymdFromUtcDate(existing.endsOn), todayYmd)
+      ) {
+        return await this.prisma.invoice.update({
+          where: { id: existing.id },
+          data: { status: InvoiceStatus.CLOSED }
+        });
+      }
+      if (existing.status === InvoiceStatus.PAID) {
+        return null;
+      }
+      return existing;
+    }
+
+    const dueOn = getInvoiceDueYmd(closingDay, creditCard.dueDay, todayYmd);
+    return await this.prisma.invoice.create({
+      data: {
+        userId: creditCard.userId,
+        creditCardId: creditCard.id,
+        startsOn: utcDateFromYmd(cycle.start),
+        endsOn: utcDateFromYmd(cycle.end),
+        dueOn: utcDateFromYmd(dueOn),
+        status: canPayBillingCycle(cycle.end, todayYmd)
+          ? InvoiceStatus.CLOSED
+          : InvoiceStatus.OPEN,
+        amount: 0
+      }
+    });
+  }
+
   async findAllByUserId(userId: string): Promise<CreditCard[]> {
     const creditCards = await this.prisma.creditCard.findMany({
       where: { userId },
@@ -89,8 +187,17 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
       creditCards.map((creditCard) => creditCard.id)
     );
 
+    const openByCard = new Map<string, PrismaInvoice | null>();
+    for (const creditCard of creditCards) {
+      openByCard.set(creditCard.id, await this.ensureOpenInvoiceForCard(creditCard));
+    }
+
     return creditCards.map((creditCard) =>
-      this.mapToEntity(creditCard, usedByCardId.get(creditCard.id) ?? 0)
+      this.mapToEntity(
+        creditCard,
+        usedByCardId.get(creditCard.id) ?? 0,
+        openByCard.get(creditCard.id) ?? null
+      )
     );
   }
 
@@ -107,8 +214,9 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     }
 
     const usedAmount = await this.sumUsedAmountForCard(userId, creditCardId);
+    const openInvoice = await this.ensureOpenInvoiceForCard(creditCard);
 
-    return this.mapToEntity(creditCard, usedAmount);
+    return this.mapToEntity(creditCard, usedAmount, openInvoice);
   }
 
   async create(data: CreateCreditCardData): Promise<CreditCard> {
@@ -124,7 +232,8 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
       }
     });
 
-    return this.mapToEntity(creditCard, 0);
+    const openInvoice = await this.ensureOpenInvoiceForCard(creditCard);
+    return this.mapToEntity(creditCard, 0, openInvoice);
   }
 
   async update(creditCardId: string, data: UpdateCreditCardData): Promise<CreditCard> {
@@ -141,8 +250,9 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     });
 
     const usedAmount = await this.sumUsedAmountForCard(creditCard.userId, creditCardId);
+    const openInvoice = await this.ensureOpenInvoiceForCard(creditCard);
 
-    return this.mapToEntity(creditCard, usedAmount);
+    return this.mapToEntity(creditCard, usedAmount, openInvoice);
   }
 
   async delete(creditCardId: string): Promise<void> {
@@ -151,32 +261,88 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     });
   }
 
-  private utcDayStart(ymd: string): Date {
-    const parts = ymd.split('-');
-    const year = Number(parts[0] ?? 0);
-    const month = Number(parts[1] ?? 1);
-    const day = Number(parts[2] ?? 1);
-    return new Date(Date.UTC(year, month - 1, day));
+  async findInvoicesByCreditCardId(
+    creditCardId: string,
+    userId: string,
+    status?: 'OPEN' | 'CLOSED' | 'PAID'
+  ): Promise<InvoiceRecord[]> {
+    const invoices = await this.prisma.invoice.findMany({
+      where: {
+        creditCardId,
+        userId,
+        ...(status ? { status } : {})
+      },
+      orderBy: { endsOn: 'desc' }
+    });
+
+    return invoices.map((invoice) => this.mapInvoice(invoice));
   }
 
-  private utcDayAfter(ymd: string): Date {
-    const start = this.utcDayStart(ymd);
-    return new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), start.getUTCDate() + 1));
+  async findInvoiceByIdAndCreditCard(
+    invoiceId: string,
+    creditCardId: string,
+    userId: string
+  ): Promise<InvoiceRecord | null> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: {
+        id: invoiceId,
+        creditCardId,
+        userId
+      }
+    });
+
+    if (!invoice) {
+      return null;
+    }
+
+    if (
+      invoice.status === InvoiceStatus.OPEN &&
+      canPayBillingCycle(ymdFromUtcDate(invoice.endsOn), utcTodayYmd())
+    ) {
+      const closed = await this.prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { status: InvoiceStatus.CLOSED }
+      });
+      return this.mapInvoice(closed);
+    }
+
+    return this.mapInvoice(invoice);
   }
 
   async payInvoice(data: PayInvoiceData): Promise<PayInvoiceResult | null> {
     return await this.prisma.$transaction(async (tx) => {
+      const invoice = await tx.invoice.findFirst({
+        where: {
+          id: data.invoiceId,
+          creditCardId: data.creditCardId,
+          userId: data.userId
+        }
+      });
+
+      if (!invoice || invoice.status === InvoiceStatus.PAID) {
+        return null;
+      }
+
+      const endsOn = ymdFromUtcDate(invoice.endsOn);
+      if (!canPayBillingCycle(endsOn, data.paymentDate)) {
+        return null;
+      }
+
+      if (invoice.status === InvoiceStatus.OPEN) {
+        await tx.invoice.update({
+          where: { id: invoice.id },
+          data: { status: InvoiceStatus.CLOSED }
+        });
+      }
+
       const unpaid = await tx.transaction.findMany({
         where: {
           userId: data.userId,
           cardId: data.creditCardId,
+          invoiceId: data.invoiceId,
           type: TransactionType.EXPENSE,
           isPaid: false,
-          isProjected: false,
-          date: {
-            gte: this.utcDayStart(data.cycleStart),
-            lt: this.utcDayAfter(data.cycleEnd)
-          }
+          isProjected: false
         },
         select: { id: true, amount: true }
       });
@@ -192,11 +358,13 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
           userId: data.userId,
           accountId: data.accountId,
           cardId: null,
+          invoiceId: null,
           description: data.description,
           type: TransactionType.EXPENSE,
           amount,
-          date: new Date(data.paymentDate),
-          isPaid: true
+          date: utcDateFromYmd(data.paymentDate),
+          isPaid: true,
+          isProjected: false
         }
       });
 
@@ -217,13 +385,25 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
         }
       });
 
+      await tx.invoice.update({
+        where: { id: invoice.id },
+        data: {
+          status: InvoiceStatus.PAID,
+          paidAt: new Date(),
+          paidAmount: amount,
+          paymentTransactionId: payment.id,
+          paidFromAccountId: data.accountId
+        }
+      });
+
       return {
         amount,
         accountId: data.accountId,
         paymentTransactionId: payment.id,
         paidCount: unpaid.length,
-        cycleStart: data.cycleStart,
-        cycleEnd: data.cycleEnd
+        invoiceId: invoice.id,
+        cycleStart: ymdFromUtcDate(invoice.startsOn),
+        cycleEnd: endsOn
       };
     });
   }

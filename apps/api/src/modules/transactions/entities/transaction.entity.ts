@@ -6,6 +6,7 @@ export class Transaction {
   accountId: string | null;
   categoryId: string | null;
   cardId: string | null;
+  invoiceId: string | null;
   transferGroupId: string | null;
   seriesId: string | null;
   occurrenceNumber: number | null;

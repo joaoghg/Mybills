@@ -1,4 +1,5 @@
 import z from 'zod';
+import { openInvoiceSummarySchema } from './invoice-output.dto';
 
 export const creditCardOutputSchema = z.object({
   id: z.uuid(),
@@ -10,6 +11,7 @@ export const creditCardOutputSchema = z.object({
   closingOnLastDay: z.boolean(),
   dueDay: z.int(),
   usedAmount: z.int(),
+  openInvoice: openInvoiceSummarySchema.nullable(),
   createdAt: z.string(),
   updatedAt: z.string()
 });

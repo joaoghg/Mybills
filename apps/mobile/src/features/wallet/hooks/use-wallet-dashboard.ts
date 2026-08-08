@@ -1,20 +1,10 @@
-import {
-  listAccounts,
-  listCreditCards,
-  listTransactions
-} from '@mybills/api-client';
+import { listAccounts, listCreditCards } from '@mybills/api-client';
 import type { CreditCardOutput } from '@mybills/dtos';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
-import {
-  daysUntilNextDueDay,
-  getOpenBillingCycleRange,
-  resolveClosingDay,
-  ymdFromLocalDate
-} from '@/shared/lib/billing-cycle';
-import { sumUnpaidCardExpensesInRange } from '@/shared/lib/card-expenses';
+import { daysUntilNextDueDay } from '@/shared/lib/billing-cycle';
 import { centsToMajor } from '@/shared/utils/cents-to-major';
 
 const STALE_MS = 45_000;
@@ -70,48 +60,12 @@ export function useWalletDashboard(): {
     return (creditCardsQuery.data ?? []).find((c) => c.id === selectedCardId) ?? null;
   }, [creditCardsQuery.data, selectedCardId]);
 
-  const openCycle = useMemo(() => {
-    if (!selectedCard) return null;
-    return getOpenBillingCycleRange(resolveClosingDay(selectedCard), new Date());
-  }, [selectedCard]);
-
-  const invoiceTransactionsQuery = useQuery({
-    queryKey: [
-      'transactions',
-      'wallet-invoice',
-      selectedCardId,
-      openCycle?.start,
-      openCycle?.end
-    ],
-    queryFn: () =>
-      listTransactions(client, {
-        cardId: selectedCardId!,
-        from: openCycle!.start,
-        to: openCycle!.end,
-        type: 'EXPENSE',
-        isProjected: false
-      }),
-    staleTime: STALE_MS,
-    enabled: Boolean(selectedCardId && openCycle)
-  });
-
-  const isLoading =
-    accountsQuery.isPending ||
-    creditCardsQuery.isPending ||
-    (Boolean(selectedCardId && openCycle) && invoiceTransactionsQuery.isPending);
-
-  const isError =
-    accountsQuery.isError ||
-    creditCardsQuery.isError ||
-    invoiceTransactionsQuery.isError;
+  const isLoading = accountsQuery.isPending || creditCardsQuery.isPending;
+  const isError = accountsQuery.isError || creditCardsQuery.isError;
 
   const refetchAll = useCallback(async () => {
-    await Promise.all([
-      accountsQuery.refetch(),
-      creditCardsQuery.refetch(),
-      invoiceTransactionsQuery.refetch()
-    ]);
-  }, [accountsQuery, creditCardsQuery, invoiceTransactionsQuery]);
+    await Promise.all([accountsQuery.refetch(), creditCardsQuery.refetch()]);
+  }, [accountsQuery, creditCardsQuery]);
 
   const accounts = useMemo((): WalletAccountRow[] => {
     const list = accountsQuery.data ?? [];
@@ -150,27 +104,15 @@ export function useWalletDashboard(): {
   }, [physicalCards, selectedCardId]);
 
   const invoice = useMemo((): WalletInvoice | null => {
-    if (!selectedCard || !openCycle || !selectedCardId) return null;
+    if (!selectedCard) return null;
     const today = new Date();
-    const todayYmd = ymdFromLocalDate(today);
-    const totalCents = sumUnpaidCardExpensesInRange(
-      invoiceTransactionsQuery.data ?? [],
-      selectedCardId,
-      openCycle.start,
-      openCycle.end,
-      todayYmd
-    );
+    const totalCents = selectedCard.openInvoice?.amount ?? 0;
     return {
       totalMajor: centsToMajor(totalCents),
       dueInDays: daysUntilNextDueDay(selectedCard.dueDay, today),
       cardName: selectedCard.name
     };
-  }, [
-    selectedCard,
-    openCycle,
-    selectedCardId,
-    invoiceTransactionsQuery.data
-  ]);
+  }, [selectedCard]);
 
   return {
     isLoading,
