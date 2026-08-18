@@ -86,6 +86,16 @@ function deferredInvoiceMonth(tx: TransactionOutput): string | null {
   return tx.invoicePaymentMonth === purchaseYearMonth ? null : tx.invoicePaymentMonth;
 }
 
+function deferredCompetenceMonth(tx: TransactionOutput): string | null {
+  if (tx.type !== 'INCOME' || !tx.competenceDate) {
+    return null;
+  }
+
+  const occurrenceYearMonth = transactionDateYmd(tx).slice(0, 7);
+  const competenceYearMonth = (tx.competenceDate.split('T')[0] ?? tx.competenceDate).slice(0, 7);
+  return competenceYearMonth === occurrenceYearMonth ? null : competenceYearMonth;
+}
+
 function formatTimeFromIso(iso: string, locale: string): string {
   const date = new Date(iso);
   try {
@@ -151,6 +161,17 @@ function toHistoryRow(
       t('transactions.invoicePaymentMonthLabel', {
         month: formatYearMonthLabel(invoiceYearMonth, locale, {
           withYear: invoiceYearMonth.year !== parseYearMonth(transactionDateYmd(tx)).year
+        })
+      })
+    );
+  }
+  const competenceMonth = deferredCompetenceMonth(tx);
+  if (competenceMonth) {
+    const competenceYearMonth = parseYearMonth(competenceMonth);
+    extras.push(
+      t('transactions.competenceMonthLabelHistory', {
+        month: formatYearMonthLabel(competenceYearMonth, locale, {
+          withYear: competenceYearMonth.year !== parseYearMonth(transactionDateYmd(tx)).year
         })
       })
     );

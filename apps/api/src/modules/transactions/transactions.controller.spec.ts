@@ -35,6 +35,7 @@ describe('TransactionsController', () => {
     isPaid: false,
     isProjected: false,
     invoicePaymentMonth: null,
+    competenceDate: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -179,6 +180,7 @@ describe('TransactionsController', () => {
         amount: input.amount,
         date: input.date,
         isPaid: input.isPaid,
+        competenceDate: input.competenceDate,
         schedule: input.schedule
       });
     });
@@ -215,6 +217,7 @@ describe('TransactionsController', () => {
         type: input.type,
         amount: input.amount,
         date: input.date,
+        competenceDate: input.competenceDate,
         scope: input.scope,
         schedule: input.schedule
       });

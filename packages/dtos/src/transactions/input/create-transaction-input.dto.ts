@@ -32,6 +32,7 @@ export const createTransactionInputSchema = z
     type: transactionTypeSchema,
     amount: z.int().positive(),
     date: z.iso.date(),
+    competenceDate: z.iso.date().nullable().optional(),
     isPaid: z.boolean().default(false),
     schedule: transactionScheduleSchema.optional().default({ mode: 'NONE' })
   })
@@ -41,6 +42,22 @@ export const createTransactionInputSchema = z
         code: 'custom',
         path: ['schedule'],
         message: 'schedule not allowed for TRANSFER'
+      });
+    }
+
+    if (data.competenceDate && data.type !== 'INCOME') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['competenceDate'],
+        message: 'competenceDate is only allowed for INCOME'
+      });
+    }
+
+    if (data.competenceDate && data.schedule.mode !== 'NONE') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['competenceDate'],
+        message: 'competenceDate is not allowed for scheduled transactions'
       });
     }
   });

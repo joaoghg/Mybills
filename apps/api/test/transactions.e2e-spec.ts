@@ -733,6 +733,91 @@ describe('Transactions (e2e)', () => {
     });
   });
 
+  it('should count income competence in the target month summary and keep history on date', async () => {
+    const accessToken = await authenticateUser('transactions-competence@mybills.dev');
+    const accountId = await createAccount(accessToken, 'Competence Account', 100000);
+
+    const created = await request(app.getHttpServer())
+      .post('/transactions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        accountId,
+        description: 'PIX reimbursement',
+        type: 'INCOME',
+        amount: 5000,
+        date: '2026-08-17',
+        competenceDate: '2026-09-01',
+        isPaid: true
+      })
+      .expect(201);
+
+    expect(created.body.competenceDate).toMatch(/^2026-09-01/);
+
+    const augustList = await request(app.getHttpServer())
+      .get('/transactions')
+      .query({ month: 8, year: 2026 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect((augustList.body as Array<{ id: string }>).map((row) => row.id)).toContain(
+      created.body.id as string
+    );
+
+    const septemberList = await request(app.getHttpServer())
+      .get('/transactions')
+      .query({ month: 9, year: 2026 })
+      .set('Authorization', `Bearer ${accessToken}`)
+      .expect(200);
+
+    expect((septemberList.body as Array<{ id: string }>).map((row) => row.id)).not.toContain(
+      created.body.id as string
+    );
+
+    const augustSummary = monthlySummaryOutputSchema.parse(
+      (
+        await request(app.getHttpServer())
+          .get('/transactions/summary')
+          .query({ month: 8, year: 2026 })
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+      ).body as object
+    );
+    const septemberSummary = monthlySummaryOutputSchema.parse(
+      (
+        await request(app.getHttpServer())
+          .get('/transactions/summary')
+          .query({ month: 9, year: 2026 })
+          .set('Authorization', `Bearer ${accessToken}`)
+          .expect(200)
+      ).body as object
+    );
+
+    expect(augustSummary.incomeTotal).toBe(0);
+    expect(septemberSummary.incomeTotal).toBe(5000);
+    expect(septemberSummary.income.map((row) => row.id)).toContain(created.body.id as string);
+  });
+
+  it('should reject competence date on expense', async () => {
+    const accessToken = await authenticateUser('transactions-competence-expense@mybills.dev');
+    const accountId = await createAccount(accessToken, 'Competence Expense Account', 10000);
+
+    const response = await request(app.getHttpServer())
+      .post('/transactions')
+      .set('Authorization', `Bearer ${accessToken}`)
+      .send({
+        accountId,
+        description: 'Bill',
+        type: 'EXPENSE',
+        amount: 1000,
+        date: '2026-08-17',
+        competenceDate: '2026-09-01',
+        isPaid: false
+      })
+      .expect(400);
+
+    expect(response.body.message).toEqual(expect.any(String));
+  });
+
   it('should create recurring series with projected future rows and delete this-and-future', async () => {
     const accessToken = await authenticateUser('transactions-recurring@mybills.dev');
     const accountId = await createAccount(accessToken, 'Recurring Account', 50000);

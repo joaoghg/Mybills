@@ -19,6 +19,7 @@ export const transactionOutputSchema = z.object({
   type: transactionTypeSchema,
   amount: z.int(),
   date: z.string(),
+  competenceDate: z.string().nullable(),
   isPaid: z.boolean(),
   isProjected: z.boolean(),
   invoicePaymentMonth: z

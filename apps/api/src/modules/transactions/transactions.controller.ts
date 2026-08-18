@@ -245,7 +245,8 @@ export class TransactionsController {
   @Post()
   @ApiOperation({
     summary: 'Create transaction',
-    description: 'Creates a transaction for the authenticated user.'
+    description:
+      'Creates a transaction for the authenticated user. Income may set competenceDate so cash-flow uses that month while date stays the occurrence day.'
   })
   @ApiBody({
     schema: toJSONSchema(createTransactionInputSchema) as SchemaObject,
@@ -270,6 +271,7 @@ export class TransactionsController {
       type: data.type,
       amount: data.amount,
       date: data.date,
+      competenceDate: data.competenceDate,
       isPaid: data.isPaid,
       schedule: data.schedule
     });
@@ -305,6 +307,7 @@ export class TransactionsController {
       type: data.type,
       amount: data.amount,
       date: data.date,
+      competenceDate: data.competenceDate,
       scope: data.scope,
       schedule: data.schedule
     });

@@ -15,6 +15,7 @@ export interface UpdateTransactionData {
   type?: TransactionType;
   amount?: number;
   date?: string;
+  competenceDate?: string | null;
   scope?: TransactionSeriesScope;
   schedule?: UpdateTransactionSchedule;
 }

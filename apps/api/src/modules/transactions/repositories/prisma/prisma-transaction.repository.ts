@@ -120,6 +120,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
       type: transaction.type,
       amount: transaction.amount,
       date: transaction.date.toISOString(),
+      competenceDate: transaction.competenceDate?.toISOString() ?? null,
       isPaid: transaction.isPaid,
       isProjected: transaction.isProjected,
       invoicePaymentMonth,
@@ -342,6 +343,9 @@ export class PrismaTransactionRepository implements TransactionRepository {
           type: data.type,
           amount: data.amount,
           date: this.utcDayStart(dateYmd),
+          competenceDate: data.competenceDate
+            ? this.utcDayStart(data.competenceDate.slice(0, 10))
+            : null,
           isPaid: data.isPaid,
           isProjected: false
         },
@@ -1058,7 +1062,13 @@ export class PrismaTransactionRepository implements TransactionRepository {
           description: data.description,
           type: data.type,
           amount: data.amount,
-          date: data.date ? this.utcDayStart(data.date) : undefined
+          date: data.date ? this.utcDayStart(data.date) : undefined,
+          competenceDate:
+            data.competenceDate === undefined
+              ? undefined
+              : data.competenceDate === null
+                ? null
+                : this.utcDayStart(data.competenceDate.slice(0, 10))
         },
         include: transactionDetailInclude
       });

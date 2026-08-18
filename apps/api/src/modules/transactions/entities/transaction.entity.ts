@@ -16,6 +16,7 @@ export class Transaction {
   type: TransactionType;
   amount: number;
   date: string;
+  competenceDate: string | null;
   isPaid: boolean;
   isProjected: boolean;
   invoicePaymentMonth: string | null;

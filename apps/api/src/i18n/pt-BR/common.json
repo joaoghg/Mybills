@@ -32,7 +32,10 @@
       "installment_requires_two_months": "Parcelamento exige pelo menos dois meses",
       "invalid_installment_count": "Número de parcelas inválido",
       "schedule_detach_not_allowed": "Não é possível converter uma série de volta para transação avulsa",
-      "invalid_series_conversion": "Esta conversão de tipo de série não é permitida"
+      "invalid_series_conversion": "Esta conversão de tipo de série não é permitida",
+      "competence_date_income_only": "A data de competência só é permitida em receitas",
+      "competence_date_schedule_not_allowed": "A data de competência não é permitida em parcelas ou recorrências",
+      "competence_date_single_scope_only": "A data de competência só pode ser alterada em uma ocorrência"
     },
     "credit_cards": {
       "account_required": "É necessário informar uma conta para pagar esta fatura",

@@ -38,6 +38,7 @@ describe('TransactionsService', () => {
     isPaid: false,
     isProjected: false,
     invoicePaymentMonth: null,
+    competenceDate: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -245,7 +246,7 @@ describe('TransactionsService', () => {
       expect(result.netTotal).toBe(897000);
       expect(repository.findAllByUserId).toHaveBeenCalledWith(baseTransaction.userId, {
         from: '2026-05-01',
-        to: '2026-07-31',
+        to: '2026-09-30',
         includeTransfer: false
       });
     });
@@ -298,6 +299,56 @@ describe('TransactionsService', () => {
       expect(result.cardInvoices[0]?.total).toBe(3500);
       expect(result.cardInvoices[0]?.isFullyPaid).toBe(false);
       expect(result.expenseTotal).toBe(3500);
+    });
+
+    it('should count income by competence month instead of occurrence month', async () => {
+      const pix: Transaction = {
+        ...salary,
+        id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f005',
+        amount: 5000,
+        date: '2026-08-17T00:00:00.000Z',
+        competenceDate: '2026-09-01T00:00:00.000Z'
+      };
+
+      repository.findAllByUserId.mockResolvedValue([pix]);
+
+      const august = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
+      const september = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 9,
+        year: 2026
+      });
+
+      expect(august.income).toEqual([]);
+      expect(august.incomeTotal).toBe(0);
+      expect(september.income).toEqual([pix]);
+      expect(september.incomeTotal).toBe(5000);
+    });
+
+    it('should include later-dated income when competence is in the requested month', async () => {
+      const pix: Transaction = {
+        ...salary,
+        id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f006',
+        amount: 5000,
+        date: '2026-10-05T00:00:00.000Z',
+        competenceDate: '2026-09-01T00:00:00.000Z'
+      };
+
+      repository.findAllByUserId.mockResolvedValue([pix]);
+
+      const result = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 9,
+        year: 2026
+      });
+
+      expect(result.income).toEqual([pix]);
+      expect(repository.findAllByUserId).toHaveBeenCalledWith(baseTransaction.userId, {
+        from: '2026-07-01',
+        to: '2026-11-30',
+        includeTransfer: false
+      });
     });
 
     it('should throw InvalidArgumentError if user id is invalid', async () => {
@@ -382,6 +433,50 @@ describe('TransactionsService', () => {
 
       expect(result).toEqual(baseTransaction);
       expect(accountsService.update).not.toHaveBeenCalled();
+    });
+
+    it('should persist competence date on income and pass it to the repository', async () => {
+      const income: Transaction = {
+        ...baseTransaction,
+        type: TransactionType.INCOME,
+        competenceDate: '2026-09-01T00:00:00.000Z'
+      };
+
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      repository.create.mockResolvedValue(income);
+
+      await service.create({
+        userId: income.userId,
+        accountId: income.accountId,
+        categoryId: null,
+        type: TransactionType.INCOME,
+        amount: income.amount,
+        date: '2026-08-17',
+        competenceDate: '2026-09-01',
+        isPaid: false
+      });
+
+      expect(repository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: TransactionType.INCOME,
+          date: '2026-08-17',
+          competenceDate: '2026-09-01'
+        })
+      );
+    });
+
+    it('should reject competence date on expense', async () => {
+      await expect(
+        service.create({
+          userId: baseTransaction.userId,
+          accountId: baseTransaction.accountId,
+          type: TransactionType.EXPENSE,
+          amount: 1000,
+          date: '2026-08-17',
+          competenceDate: '2026-09-01',
+          isPaid: false
+        })
+      ).rejects.toThrow(InvalidArgumentError);
     });
 
     it('should create installment series and pay only the first occurrence', async () => {
@@ -593,6 +688,33 @@ describe('TransactionsService', () => {
   });
 
   describe('update', () => {
+    it('should persist competence date when updating income', async () => {
+      const income: Transaction = {
+        ...baseTransaction,
+        type: TransactionType.INCOME,
+        categoryId: null,
+        competenceDate: null
+      };
+      const updated: Transaction = {
+        ...income,
+        competenceDate: '2026-09-01T00:00:00.000Z'
+      };
+
+      repository.findByIdAndUserId.mockResolvedValue(income);
+      accountsService.accountExistsForUser.mockResolvedValue(true);
+      repository.update.mockResolvedValue(updated);
+
+      const result = await service.update(income.id, income.userId, {
+        competenceDate: '2026-09-01'
+      });
+
+      expect(result.competenceDate).toBe('2026-09-01T00:00:00.000Z');
+      expect(repository.update).toHaveBeenCalledWith(
+        income.id,
+        expect.objectContaining({ competenceDate: '2026-09-01' })
+      );
+    });
+
     it('should rebalance account when updating a paid transaction', async () => {
       const paidCurrentTransaction: Transaction = {
         ...baseTransaction,

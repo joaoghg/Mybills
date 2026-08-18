@@ -10,6 +10,7 @@ import { useHttpClient } from '@/core/api/http-client-provider';
 import { useTheme } from '@/core/theme';
 import { CategorySelectPicker } from '@/features/transactions/components/category-select-picker';
 import { InstallmentCountField } from '@/features/transactions/components/installment-count-field';
+import { TransactionCompetenceMonthField } from '@/features/transactions/components/transaction-competence-month-field';
 import { TransactionDateField } from '@/features/transactions/components/transaction-date-field';
 import { TransactionScheduleSegment } from '@/features/transactions/components/transaction-schedule-segment';
 import { TransactionTypeSegment } from '@/features/transactions/components/transaction-type-segment';
@@ -20,6 +21,11 @@ import {
   validateCreateTransactionClient,
   type ScheduleMode
 } from '@/features/transactions/utils/create-transaction-validation';
+import {
+  competenceDatePayload,
+  withIncomeCompetenceDate,
+  yearMonthFromYmd
+} from '@/features/transactions/utils/competence-date';
 import {
   buildInstallmentPreview,
   MIN_INSTALLMENT_COUNT
@@ -60,6 +66,9 @@ export function CreateTransactionScreen({ navigation }: Props) {
   const [amountCents, setAmountCents] = useState(0);
   const [description, setDescription] = useState('');
   const [dateYmd, setDateYmd] = useState(() => ymdFromLocalDate(new Date()));
+  const [competenceYearMonth, setCompetenceYearMonth] = useState(() =>
+    yearMonthFromYmd(ymdFromLocalDate(new Date()))
+  );
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('NONE');
   const [installments, setInstallments] = useState<number | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -124,6 +133,14 @@ export function CreateTransactionScreen({ navigation }: Props) {
       setSelectedCategoryId(null);
     }
   }, [filteredCategories, selectedCategoryId, type]);
+
+  function handleDateChange(nextYmd: string) {
+    const previousMonth = yearMonthFromYmd(dateYmd);
+    setDateYmd(nextYmd);
+    if (competenceYearMonth === previousMonth) {
+      setCompetenceYearMonth(yearMonthFromYmd(nextYmd));
+    }
+  }
 
   function handleSelectType(nextType: CreateTransactionInput['type']) {
     setType(nextType);
@@ -205,6 +222,9 @@ export function CreateTransactionScreen({ navigation }: Props) {
       date: dateYmd,
       isPaid,
       schedule,
+      ...(type === 'INCOME' && scheduleMode === 'NONE'
+        ? { competenceDate: competenceDatePayload(dateYmd, competenceYearMonth) }
+        : {}),
       ...(description.trim() ? { description: description.trim() } : {}),
       ...(type !== 'TRANSFER' && selectedCategoryId ? { categoryId: selectedCategoryId } : {}),
       ...(selectedAccountId ? { accountId: selectedAccountId } : {}),
@@ -217,11 +237,18 @@ export function CreateTransactionScreen({ navigation }: Props) {
       return;
     }
 
-    mutate(parsed.data, {
-      onSuccess: () => {
-        navigation.goBack();
+    mutate(
+      withIncomeCompetenceDate(parsed.data, {
+        dateYmd,
+        competenceYearMonth,
+        enabled: type === 'INCOME' && scheduleMode === 'NONE'
+      }),
+      {
+        onSuccess: () => {
+          navigation.goBack();
+        }
       }
-    });
+    );
   }
 
   return (
@@ -258,8 +285,21 @@ export function CreateTransactionScreen({ navigation }: Props) {
           theme={theme}
           valueYmd={dateYmd}
           locale={i18n.language}
-          onChangeYmd={setDateYmd}
+          onChangeYmd={handleDateChange}
         />
+
+        {type === 'INCOME' && scheduleMode === 'NONE' ? (
+          <TransactionCompetenceMonthField
+            theme={theme}
+            valueYearMonth={competenceYearMonth}
+            locale={i18n.language}
+            label={t('transactions.competenceMonthLabel')}
+            hint={t('transactions.competenceMonthHint')}
+            previousLabel={t('transactions.competencePreviousMonth')}
+            nextLabel={t('transactions.competenceNextMonth')}
+            onChangeYearMonth={setCompetenceYearMonth}
+          />
+        ) : null}
 
         {type !== 'TRANSFER' ? (
           <>

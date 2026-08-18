@@ -164,6 +164,7 @@ model Transaction {
   type             TransactionType
   amount           Int // Valor em centavos
   date             DateTime        @db.Date
+  competenceDate   DateTime?       @map("competence_date") @db.Date
   isPaid           Boolean         @default(false) @map("is_paid")
   isProjected      Boolean         @default(false) @map("is_projected")
   createdAt        DateTime        @default(now()) @map("created_at")
@@ -180,6 +181,7 @@ model Transaction {
   @@index([transferGroupId])
   @@index([seriesId])
   @@index([userId, date])
+  @@index([userId, competenceDate])
   @@index([invoiceId])
   @@map("transactions")
 }

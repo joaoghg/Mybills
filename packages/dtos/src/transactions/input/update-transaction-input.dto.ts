@@ -15,6 +15,7 @@ export const updateTransactionInputSchema = z
     type: transactionTypeSchema.optional(),
     amount: z.int().positive().optional(),
     date: z.iso.date().optional(),
+    competenceDate: z.iso.date().nullable().optional(),
     scope: transactionSeriesScopeSchema.optional().default('SINGLE'),
     schedule: transactionScheduleSchema.optional()
   })
@@ -27,6 +28,7 @@ export const updateTransactionInputSchema = z
       data.type !== undefined ||
       data.amount !== undefined ||
       data.date !== undefined ||
+      data.competenceDate !== undefined ||
       data.schedule !== undefined;
 
     if (!hasField) {
@@ -41,6 +43,30 @@ export const updateTransactionInputSchema = z
         code: 'custom',
         path: ['schedule'],
         message: 'schedule not allowed for TRANSFER'
+      });
+    }
+
+    if (data.competenceDate && data.type !== undefined && data.type !== 'INCOME') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['competenceDate'],
+        message: 'competenceDate is only allowed for INCOME'
+      });
+    }
+
+    if (data.competenceDate && data.schedule !== undefined && data.schedule.mode !== 'NONE') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['competenceDate'],
+        message: 'competenceDate is not allowed for scheduled transactions'
+      });
+    }
+
+    if (data.competenceDate && data.scope === 'THIS_AND_FUTURE') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['competenceDate'],
+        message: 'competenceDate is only allowed for SINGLE scope'
       });
     }
   });

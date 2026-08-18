@@ -16,7 +16,10 @@ import { CreateTransactionData } from './contracts/create-transaction-data.contr
 import { CreateTransferInputData } from './contracts/create-transfer-input-data.contract';
 import { CreateTransferResult } from './contracts/create-transfer-data.contract';
 import { UpdateTransferData } from './contracts/update-transfer-data.contract';
-import { UpdateTransactionData } from './contracts/update-transaction-data.contract';
+import {
+  UpdateTransactionData,
+  type TransactionSeriesScope
+} from './contracts/update-transaction-data.contract';
 import { Transaction } from './entities/transaction.entity';
 import {
   generateInstallmentOccurrencesByCount,
@@ -30,6 +33,8 @@ import { TransactionSeriesMaintenanceService } from './transaction-series-mainte
 
 /** Widest gap between a card purchase date and its invoice payment month. */
 const SUMMARY_LOOKBACK_MONTHS = 2;
+/** Widest gap between income occurrence date and an earlier competence month. */
+const SUMMARY_LOOKAHEAD_MONTHS = 2;
 
 @Injectable()
 export class TransactionsService {
@@ -78,7 +83,7 @@ export class TransactionsService {
         continue;
       }
 
-      if (transaction.date.slice(0, 7) !== month) {
+      if (this.cashFlowYearMonth(transaction) !== month) {
         continue;
       }
 
@@ -111,12 +116,76 @@ export class TransactionsService {
     const startIndex = year * 12 + (month - 1) - SUMMARY_LOOKBACK_MONTHS;
     const startYear = Math.floor(startIndex / 12);
     const startMonth = (startIndex % 12) + 1;
-    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const endIndex = year * 12 + (month - 1) + SUMMARY_LOOKAHEAD_MONTHS;
+    const endYear = Math.floor(endIndex / 12);
+    const endMonth = (endIndex % 12) + 1;
+    const lastDay = new Date(Date.UTC(endYear, endMonth, 0)).getUTCDate();
 
     return {
       from: `${formatYearMonth({ year: startYear, month: startMonth })}-01`,
-      to: `${formatYearMonth({ year, month })}-${String(lastDay).padStart(2, '0')}`
+      to: `${formatYearMonth({ year: endYear, month: endMonth })}-${String(lastDay).padStart(2, '0')}`
     };
+  }
+
+  private cashFlowYearMonth(transaction: Transaction): string {
+    if (transaction.type === TransactionType.INCOME) {
+      return (transaction.competenceDate ?? transaction.date).slice(0, 7);
+    }
+
+    return transaction.date.slice(0, 7);
+  }
+
+  private yearMonthOf(isoOrYmd: string): string {
+    return isoOrYmd.slice(0, 7);
+  }
+
+  private normalizeCompetenceDate(
+    dateYmd: string,
+    competenceDate: string | null | undefined
+  ): string | null {
+    if (!competenceDate) {
+      return null;
+    }
+
+    const competenceYmd = competenceDate.slice(0, 10);
+
+    if (this.yearMonthOf(competenceYmd) === this.yearMonthOf(dateYmd)) {
+      return null;
+    }
+
+    return competenceYmd;
+  }
+
+  private assertCompetenceAllowed(params: {
+    type: TransactionType;
+    competenceDate: string | null | undefined;
+    scheduleMode?: 'NONE' | 'INSTALLMENT' | 'RECURRING';
+    scope?: TransactionSeriesScope;
+  }): void {
+    if (!params.competenceDate) {
+      return;
+    }
+
+    if (params.type !== TransactionType.INCOME) {
+      throw new InvalidArgumentError({
+        code: 'transactions.competence_date_income_only',
+        i18nKey: 'errors.transactions.competence_date_income_only'
+      });
+    }
+
+    if (params.scheduleMode !== undefined && params.scheduleMode !== 'NONE') {
+      throw new InvalidArgumentError({
+        code: 'transactions.competence_date_schedule_not_allowed',
+        i18nKey: 'errors.transactions.competence_date_schedule_not_allowed'
+      });
+    }
+
+    if (params.scope === 'THIS_AND_FUTURE') {
+      throw new InvalidArgumentError({
+        code: 'transactions.competence_date_single_scope_only',
+        i18nKey: 'errors.transactions.competence_date_single_scope_only'
+      });
+    }
   }
 
   private async buildCardInvoices(
@@ -191,6 +260,14 @@ export class TransactionsService {
 
   async create(data: CreateTransactionData): Promise<Transaction> {
     this.validateCreateData(data);
+
+    const schedule = data.schedule ?? { mode: 'NONE' as const };
+    this.assertCompetenceAllowed({
+      type: data.type,
+      competenceDate: data.competenceDate,
+      scheduleMode: schedule.mode
+    });
+
     await this.validateRelations(
       data.userId,
       data.type,
@@ -199,10 +276,13 @@ export class TransactionsService {
       data.cardId
     );
 
-    const schedule = data.schedule ?? { mode: 'NONE' as const };
+    const createData: CreateTransactionData = {
+      ...data,
+      competenceDate: this.normalizeCompetenceDate(data.date, data.competenceDate)
+    };
 
     if (schedule.mode === 'NONE') {
-      const transaction = await this.repository.create(data);
+      const transaction = await this.repository.create(createData);
 
       if (transaction.isPaid && transaction.accountId) {
         await this.applyBalanceImpact(
@@ -462,6 +542,30 @@ export class TransactionsService {
     const nextDescription =
       data.description === undefined ? currentTransaction.description : data.description;
 
+    const payload: UpdateTransactionData = { ...data };
+    const scheduleModeForCompetence =
+      schedule?.mode ?? (currentTransaction.seriesId ? undefined : 'NONE');
+
+    if (nextType !== TransactionType.INCOME) {
+      if (data.competenceDate) {
+        this.assertCompetenceAllowed({
+          type: nextType,
+          competenceDate: data.competenceDate,
+          scheduleMode: scheduleModeForCompetence,
+          scope: data.scope ?? 'SINGLE'
+        });
+      }
+      payload.competenceDate = null;
+    } else if (payload.competenceDate !== undefined) {
+      this.assertCompetenceAllowed({
+        type: nextType,
+        competenceDate: payload.competenceDate,
+        scheduleMode: scheduleModeForCompetence,
+        scope: data.scope ?? 'SINGLE'
+      });
+      payload.competenceDate = this.normalizeCompetenceDate(nextDate, payload.competenceDate);
+    }
+
     await this.validateRelations(userId, nextType, nextAccountId, nextCategoryId, nextCardId);
 
     if (schedule && schedule.mode !== 'NONE') {
@@ -561,10 +665,15 @@ export class TransactionsService {
         }
       }
 
+      const seriesPayload: UpdateTransactionData = { ...payload };
+      if (nextType === TransactionType.INCOME) {
+        delete seriesPayload.competenceDate;
+      }
+
       const updatedRows = await this.repository.updateManyFromOccurrence(
         currentTransaction.seriesId,
         currentTransaction.occurrenceNumber,
-        data
+        seriesPayload
       );
 
       for (const row of updatedRows) {
@@ -579,7 +688,7 @@ export class TransactionsService {
       );
     }
 
-    const updatedTransaction = await this.repository.update(transactionId, data);
+    const updatedTransaction = await this.repository.update(transactionId, payload);
 
     if (currentTransaction.isPaid && currentTransaction.accountId && !currentTransaction.isProjected) {
       await this.applyBalanceImpact(
@@ -1037,6 +1146,18 @@ export class TransactionsService {
       });
     }
 
+    if (
+      data.competenceDate !== undefined &&
+      data.competenceDate !== null &&
+      Number.isNaN(new Date(data.competenceDate).getTime())
+    ) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_competence_date',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'competence_date' }
+      });
+    }
+
     if (typeof data.isPaid !== 'boolean') {
       throw new InvalidArgumentError({
         code: 'transactions.invalid_is_paid',
@@ -1069,6 +1190,7 @@ export class TransactionsService {
       data.type === undefined &&
       data.amount === undefined &&
       data.date === undefined &&
+      data.competenceDate === undefined &&
       data.schedule === undefined
     ) {
       throw new InvalidArgumentError({
@@ -1122,6 +1244,18 @@ export class TransactionsService {
         code: 'transactions.invalid_transaction_date',
         i18nKey: 'errors.validation.invalid_field',
         i18nArgs: { field: 'transaction_date' }
+      });
+    }
+
+    if (
+      data.competenceDate !== undefined &&
+      data.competenceDate !== null &&
+      Number.isNaN(new Date(data.competenceDate).getTime())
+    ) {
+      throw new InvalidArgumentError({
+        code: 'transactions.invalid_competence_date',
+        i18nKey: 'errors.validation.invalid_field',
+        i18nArgs: { field: 'competence_date' }
       });
     }
 
