@@ -5,6 +5,7 @@ import {
 } from '../contracts/pay-invoice-data.contract';
 import { UpdateCreditCardData } from '../contracts/update-credit-card-data.contract';
 import { CreditCard } from '../entities/credit-card.entity';
+import { InvoiceRecord } from '../entities/invoice.entity';
 
 export interface CreditCardRepository {
   findAllByUserId(userId: string): Promise<CreditCard[]>;
@@ -14,4 +15,14 @@ export interface CreditCardRepository {
   delete(creditCardId: string): Promise<void>;
   /** Atomic pay: create account EXPENSE, mark card purchases paid (no extra debit). Null if empty. */
   payInvoice(data: PayInvoiceData): Promise<PayInvoiceResult | null>;
+  findInvoicesByCreditCardId(
+    creditCardId: string,
+    userId: string,
+    status?: 'OPEN' | 'CLOSED' | 'PAID'
+  ): Promise<InvoiceRecord[]>;
+  findInvoiceByIdAndCreditCard(
+    invoiceId: string,
+    creditCardId: string,
+    userId: string
+  ): Promise<InvoiceRecord | null>;
 }

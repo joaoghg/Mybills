@@ -32,13 +32,17 @@
       "installment_requires_two_months": "Installments require at least two months",
       "invalid_installment_count": "Invalid installment count",
       "schedule_detach_not_allowed": "A series cannot be converted back to a single transaction",
-      "invalid_series_conversion": "This series type conversion is not allowed"
+      "invalid_series_conversion": "This series type conversion is not allowed",
+      "competence_date_income_only": "Competence date is only allowed on income transactions",
+      "competence_date_schedule_not_allowed": "Competence date is not allowed on installments or recurring transactions",
+      "competence_date_single_scope_only": "Competence date can only be changed for a single occurrence"
     },
     "credit_cards": {
       "account_required": "An account is required to pay this invoice",
       "invalid_cycle_end": "Invalid invoice cycle end date for this card",
       "invoice_not_closed": "This invoice cycle is not closed yet",
       "invoice_empty": "There are no unpaid purchases in this invoice cycle",
+      "invoice_already_paid": "This invoice has already been paid",
       "closing_day_required": "Closing day is required when closing on last day of month is disabled"
     },
     "auth": {

@@ -1,6 +1,7 @@
 import {
   listAccounts,
   listCategories,
+  listCreditCardInvoices,
   listCreditCards,
   listTransactions,
   payCreditCardInvoice
@@ -9,6 +10,7 @@ import type {
   AccountOutput,
   CategoryIcon,
   CreditCardOutput,
+  InvoiceOutput,
   PayCreditCardInvoiceInput,
   TransactionOutput
 } from '@mybills/dtos';
@@ -17,12 +19,7 @@ import type { TFunction } from 'i18next';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
-import {
-  canPayBillingCycle,
-  getOpenBillingCycleRange,
-  resolveClosingDay,
-  shiftBillingCycle
-} from '@/shared/lib/billing-cycle';
+import { canPayBillingCycle } from '@/shared/lib/billing-cycle';
 import {
   groupTransactionsByDate,
   type HistoryTransactionRow,
@@ -41,13 +38,6 @@ export type InvoiceAccountOption = {
   name: string;
   balanceMajor: number;
 };
-
-function compareYmd(a: string, b: string): number {
-  const aa = a.slice(0, 10);
-  const bb = b.slice(0, 10);
-  if (aa === bb) return 0;
-  return aa < bb ? -1 : 1;
-}
 
 function formatTimeFromIso(iso: string, locale: string): string {
   const date = new Date(iso);
@@ -116,6 +106,10 @@ function sumUnpaidCents(transactions: TransactionOutput[]): number {
   return sum;
 }
 
+function toCycle(invoice: InvoiceOutput): InvoiceCycleRange {
+  return { start: invoice.startsOn, end: invoice.endsOn };
+}
+
 export function useInvoiceDetail(
   cardId: string | null,
   enabled: boolean,
@@ -150,7 +144,7 @@ export function useInvoiceDetail(
 } {
   const client = useHttpClient();
   const queryClient = useQueryClient();
-  const [cycle, setCycle] = useState<InvoiceCycleRange | null>(null);
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [payError, setPayError] = useState<string | null>(null);
   const [paySuccess, setPaySuccess] = useState(false);
 
@@ -175,41 +169,56 @@ export function useInvoiceDetail(
     enabled
   });
 
+  const invoicesQuery = useQuery({
+    queryKey: ['credit-card-invoices', cardId],
+    queryFn: () => listCreditCardInvoices(client, cardId!),
+    staleTime: STALE_MS,
+    enabled: enabled && Boolean(cardId)
+  });
+
   const card = useMemo((): CreditCardOutput | null => {
     if (!cardId) return null;
     return (creditCardsQuery.data ?? []).find((c) => c.id === cardId) ?? null;
   }, [cardId, creditCardsQuery.data]);
 
-  const openCycle = useMemo((): InvoiceCycleRange | null => {
-    if (!card) return null;
-    return getOpenBillingCycleRange(resolveClosingDay(card), new Date());
-  }, [card]);
+  const invoices = invoicesQuery.data ?? [];
 
   useEffect(() => {
-    if (!enabled || !openCycle) return;
-    setCycle(openCycle);
+    if (!enabled || !cardId) return;
     setPayError(null);
     setPaySuccess(false);
-  }, [enabled, cardId, openCycle?.start, openCycle?.end]);
+
+    const openFromCard = card?.openInvoice?.id ?? null;
+    if (openFromCard && invoices.some((invoice) => invoice.id === openFromCard)) {
+      setSelectedInvoiceId(openFromCard);
+      return;
+    }
+
+    const first = invoices[0];
+    setSelectedInvoiceId(first?.id ?? null);
+  }, [enabled, cardId, card?.openInvoice?.id, invoices]);
+
+  const selectedInvoice = useMemo((): InvoiceOutput | null => {
+    if (!selectedInvoiceId) return null;
+    return invoices.find((invoice) => invoice.id === selectedInvoiceId) ?? null;
+  }, [invoices, selectedInvoiceId]);
+
+  const cycle = selectedInvoice ? toCycle(selectedInvoice) : null;
+  const selectedIndex = selectedInvoice
+    ? invoices.findIndex((invoice) => invoice.id === selectedInvoice.id)
+    : -1;
 
   const transactionsQuery = useQuery({
-    queryKey: [
-      'transactions',
-      'invoice',
-      cardId,
-      cycle?.start,
-      cycle?.end
-    ],
+    queryKey: ['transactions', 'invoice', cardId, selectedInvoiceId],
     queryFn: () =>
       listTransactions(client, {
         cardId: cardId!,
-        from: cycle!.start,
-        to: cycle!.end,
+        invoiceId: selectedInvoiceId!,
         type: 'EXPENSE',
         isProjected: false
       }),
     staleTime: STALE_MS,
-    enabled: enabled && Boolean(cardId) && Boolean(cycle)
+    enabled: enabled && Boolean(cardId) && Boolean(selectedInvoiceId)
   });
 
   const isLoading =
@@ -217,13 +226,15 @@ export function useInvoiceDetail(
       (creditCardsQuery.isPending ||
         accountsQuery.isPending ||
         categoriesQuery.isPending ||
-        (Boolean(cycle) && transactionsQuery.isPending))) ||
+        invoicesQuery.isPending ||
+        (Boolean(selectedInvoiceId) && transactionsQuery.isPending))) ||
     false;
 
   const isError =
     creditCardsQuery.isError ||
     accountsQuery.isError ||
     categoriesQuery.isError ||
+    invoicesQuery.isError ||
     transactionsQuery.isError;
 
   const refetch = useCallback(async () => {
@@ -231,9 +242,10 @@ export function useInvoiceDetail(
       creditCardsQuery.refetch(),
       accountsQuery.refetch(),
       categoriesQuery.refetch(),
+      invoicesQuery.refetch(),
       transactionsQuery.refetch()
     ]);
-  }, [creditCardsQuery, accountsQuery, categoriesQuery, transactionsQuery]);
+  }, [creditCardsQuery, accountsQuery, categoriesQuery, invoicesQuery, transactionsQuery]);
 
   const categoryNameById = useMemo(() => {
     const map = new Map<string, string>();
@@ -270,33 +282,33 @@ export function useInvoiceDetail(
   const totalUnpaidMajor = centsToMajor(unpaidCents);
 
   const canPay = Boolean(
-    cycle && hasUnpaid && canPayBillingCycle(cycle.end, new Date())
+    selectedInvoice &&
+      selectedInvoice.status !== 'PAID' &&
+      hasUnpaid &&
+      canPayBillingCycle(selectedInvoice.endsOn, new Date())
   );
   const isOverdue = canPay;
-  const isOpenCycle = Boolean(
-    cycle && openCycle && compareYmd(cycle.end, openCycle.end) === 0
-  );
-  const canGoNext = Boolean(
-    cycle && openCycle && compareYmd(cycle.end, openCycle.end) < 0
-  );
-  const canGoPrevious = Boolean(card && cycle);
+  const isOpenCycle = selectedInvoice?.status === 'OPEN' || selectedInvoice?.id === card?.openInvoice?.id;
+  const canGoNext = selectedIndex > 0;
+  const canGoPrevious = selectedIndex >= 0 && selectedIndex < invoices.length - 1;
 
   const goToPreviousCycle = useCallback(() => {
-    if (!card || !cycle) return;
-    setCycle(shiftBillingCycle(resolveClosingDay(card), cycle, -1));
+    if (selectedIndex < 0 || selectedIndex >= invoices.length - 1) return;
+    const previous = invoices[selectedIndex + 1];
+    if (!previous) return;
+    setSelectedInvoiceId(previous.id);
     setPayError(null);
     setPaySuccess(false);
-  }, [card, cycle]);
+  }, [invoices, selectedIndex]);
 
   const goToNextCycle = useCallback(() => {
-    if (!card || !cycle || !openCycle) return;
-    if (compareYmd(cycle.end, openCycle.end) >= 0) return;
-    const next = shiftBillingCycle(resolveClosingDay(card), cycle, 1);
-    if (compareYmd(next.end, openCycle.end) > 0) return;
-    setCycle(next);
+    if (selectedIndex <= 0) return;
+    const next = invoices[selectedIndex - 1];
+    if (!next) return;
+    setSelectedInvoiceId(next.id);
     setPayError(null);
     setPaySuccess(false);
-  }, [card, cycle, openCycle]);
+  }, [invoices, selectedIndex]);
 
   const accounts = useMemo((): InvoiceAccountOption[] => {
     const list: AccountOutput[] = accountsQuery.data ?? [];
@@ -323,7 +335,8 @@ export function useInvoiceDetail(
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['transactions'] }),
         queryClient.invalidateQueries({ queryKey: ['accounts'] }),
-        queryClient.invalidateQueries({ queryKey: ['credit-cards'] })
+        queryClient.invalidateQueries({ queryKey: ['credit-cards'] }),
+        queryClient.invalidateQueries({ queryKey: ['credit-card-invoices'] })
       ]);
     },
     onError: (error: unknown) => {
@@ -334,7 +347,7 @@ export function useInvoiceDetail(
 
   const payInvoice = useCallback(
     async (accountId?: string) => {
-      if (!cycle || !canPay) return;
+      if (!selectedInvoice || !canPay) return;
       const resolvedAccountId = linkedAccountId ?? accountId;
       if (!resolvedAccountId) {
         setPayError('account_required');
@@ -343,11 +356,11 @@ export function useInvoiceDetail(
       setPayError(null);
       setPaySuccess(false);
       await payMutation.mutateAsync({
-        cycleEnd: cycle.end,
+        invoiceId: selectedInvoice.id,
         accountId: linkedAccountId ? undefined : resolvedAccountId
       });
     },
-    [cycle, canPay, linkedAccountId, payMutation]
+    [selectedInvoice, canPay, linkedAccountId, payMutation]
   );
 
   const clearPayFeedback = useCallback(() => {

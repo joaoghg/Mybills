@@ -6,6 +6,7 @@ export class Transaction {
   accountId: string | null;
   categoryId: string | null;
   cardId: string | null;
+  invoiceId: string | null;
   transferGroupId: string | null;
   seriesId: string | null;
   occurrenceNumber: number | null;
@@ -15,6 +16,7 @@ export class Transaction {
   type: TransactionType;
   amount: number;
   date: string;
+  competenceDate: string | null;
   isPaid: boolean;
   isProjected: boolean;
   invoicePaymentMonth: string | null;

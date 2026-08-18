@@ -6,7 +6,7 @@ import {
   getInvoicePaymentMonth,
   inclusivePaymentMonthCount,
   resolveClosingDay
-} from './billing-cycle';
+} from '@mybills/utils';
 
 describe('billing-cycle payment month helpers', () => {
   describe('resolveClosingDay', () => {

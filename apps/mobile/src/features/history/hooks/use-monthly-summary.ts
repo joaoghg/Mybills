@@ -75,13 +75,18 @@ function deferredInvoiceMonth(tx: TransactionOutput): string | null {
   return tx.invoicePaymentMonth === purchaseYearMonth ? null : tx.invoicePaymentMonth;
 }
 
+function pad2(n: number): string {
+  return String(n).padStart(2, '0');
+}
+
 function toSummaryRow(
   tx: TransactionOutput,
   categoryName: string | undefined,
   categoryIcon: CategoryIcon | undefined,
   locale: string,
   timeLabels: RecentTimeLabels,
-  t: TFunction
+  t: TFunction,
+  summaryYearMonth: string
 ): SummaryTransactionRow {
   const base = mapTransactionToRecentRow(tx, categoryName, categoryIcon, locale, timeLabels);
 
@@ -110,6 +115,17 @@ function toSummaryRow(
       })
     );
   }
+  const occurrenceYearMonth = transactionDateYmd(tx).slice(0, 7);
+  if (tx.type === 'INCOME' && occurrenceYearMonth !== summaryYearMonth) {
+    const occurrence = parseYearMonth(occurrenceYearMonth);
+    extras.push(
+      t('transactions.receivedInMonthLabel', {
+        month: formatYearMonthLabel(occurrence, locale, {
+          withYear: occurrence.year !== parseYearMonth(summaryYearMonth).year
+        })
+      })
+    );
+  }
 
   return {
     ...base,
@@ -124,12 +140,13 @@ function mapRows(
   categoryIconById: Map<string, CategoryIcon>,
   locale: string,
   timeLabels: RecentTimeLabels,
-  t: TFunction
+  t: TFunction,
+  summaryYearMonth: string
 ): SummaryTransactionRow[] {
   return txs.map((tx) => {
     const categoryName = tx.categoryId ? categoryNameById.get(tx.categoryId) : undefined;
     const categoryIcon = tx.categoryId ? categoryIconById.get(tx.categoryId) : undefined;
-    return toSummaryRow(tx, categoryName, categoryIcon, locale, timeLabels, t);
+    return toSummaryRow(tx, categoryName, categoryIcon, locale, timeLabels, t, summaryYearMonth);
   });
 }
 
@@ -184,13 +201,15 @@ export function useMonthlySummary(
     const data = summaryQuery.data;
     if (!data) return null;
 
+    const summaryYearMonth = `${year}-${pad2(month)}`;
     const income = mapRows(
       data.income,
       categoryNameById,
       categoryIconById,
       locale,
       timeLabels,
-      t
+      t,
+      summaryYearMonth
     );
     const expenses = mapRows(
       data.expenses,
@@ -198,7 +217,8 @@ export function useMonthlySummary(
       categoryIconById,
       locale,
       timeLabels,
-      t
+      t,
+      summaryYearMonth
     );
     const cardInvoices: SummaryCardInvoiceRow[] = data.cardInvoices.map((invoice) => ({
       cardId: invoice.cardId,
@@ -212,7 +232,8 @@ export function useMonthlySummary(
         categoryIconById,
         locale,
         timeLabels,
-        t
+        t,
+        summaryYearMonth
       )
     }));
 
@@ -232,7 +253,9 @@ export function useMonthlySummary(
     categoryIconById,
     locale,
     timeLabels,
-    t
+    t,
+    month,
+    year
   ]);
 
   const isLoading =

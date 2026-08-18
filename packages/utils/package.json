@@ -1,0 +1,27 @@
+{
+  "name": "@mybills/utils",
+  "version": "1.0.0",
+  "description": "Shared helpers for MyBills apps",
+  "license": "MIT",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "check-types": "tsc --noEmit"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./billing-cycle": {
+      "types": "./dist/billing-cycle.d.ts",
+      "import": "./dist/billing-cycle.js",
+      "require": "./dist/billing-cycle.js",
+      "default": "./dist/billing-cycle.js"
+    }
+  }
+}

@@ -350,6 +350,25 @@ describe('CreditCards (e2e)', () => {
         .expect(201);
     }
 
+    async function findInvoiceIdByEndsOn(
+      accessToken: string,
+      cardId: string,
+      endsOn: string
+    ): Promise<string> {
+      const response = await request(app.getHttpServer())
+        .get(`/credit-cards/${cardId}/invoices`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const invoice = (response.body as Array<{ id: string; endsOn: string }>).find(
+        (item) => item.endsOn === endsOn
+      );
+      if (!invoice) {
+        throw new Error(`Invoice ending ${endsOn} not found`);
+      }
+      return invoice.id;
+    }
+
     it('should pay a closed invoice once and reject double pay', async () => {
       const accessToken = await authenticateUser('credit-cards-pay-happy@mybills.dev');
       const account = await createAccount(accessToken, 'Pay Account', 50000);
@@ -371,16 +390,19 @@ describe('CreditCards (e2e)', () => {
       await createCardPurchase(accessToken, cardId, 10000, '2026-05-15');
       await createCardPurchase(accessToken, cardId, 5000, '2026-06-01');
 
+      const invoiceId = await findInvoiceIdByEndsOn(accessToken, cardId, '2026-06-09');
+
       const payResponse = await request(app.getHttpServer())
         .post(`/credit-cards/${cardId}/pay-invoice`)
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ cycleEnd: '2026-06-09' })
+        .send({ invoiceId })
         .expect(201);
 
       expect(payResponse.body).toMatchObject({
         amount: 15000,
         accountId: account.id,
         paidCount: 2,
+        invoiceId,
         cycleStart: '2026-05-10',
         cycleEnd: '2026-06-09',
         paymentTransactionId: expect.any(String)
@@ -416,11 +438,11 @@ describe('CreditCards (e2e)', () => {
       const doublePay = await request(app.getHttpServer())
         .post(`/credit-cards/${cardId}/pay-invoice`)
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ cycleEnd: '2026-06-09' })
+        .send({ invoiceId })
         .expect(400);
 
       expect(doublePay.body).toMatchObject({
-        code: 'credit_cards.invoice_empty',
+        code: 'credit_cards.invoice_already_paid',
         error: 'invalid_argument'
       });
     });
@@ -446,16 +468,19 @@ describe('CreditCards (e2e)', () => {
       await createCardPurchase(accessToken, cardId, 8000, '2026-02-10');
       await createCardPurchase(accessToken, cardId, 2000, '2026-02-20');
 
+      const invoiceId = await findInvoiceIdByEndsOn(accessToken, cardId, '2026-02-27');
+
       const payResponse = await request(app.getHttpServer())
         .post(`/credit-cards/${cardId}/pay-invoice`)
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ cycleEnd: '2026-02-27' })
+        .send({ invoiceId })
         .expect(201);
 
       expect(payResponse.body).toMatchObject({
         amount: 10000,
         accountId: account.id,
         paidCount: 2,
+        invoiceId,
         cycleStart: '2026-01-31',
         cycleEnd: '2026-02-27',
         paymentTransactionId: expect.any(String)
@@ -481,10 +506,12 @@ describe('CreditCards (e2e)', () => {
       const cardId = cardResponse.body.id as string;
       await createCardPurchase(accessToken, cardId, 8000, '2099-01-15');
 
+      const invoiceId = await findInvoiceIdByEndsOn(accessToken, cardId, '2099-02-09');
+
       const response = await request(app.getHttpServer())
         .post(`/credit-cards/${cardId}/pay-invoice`)
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ cycleEnd: '2099-02-09' })
+        .send({ invoiceId })
         .expect(400);
 
       expect(response.body).toMatchObject({
@@ -509,11 +536,12 @@ describe('CreditCards (e2e)', () => {
 
       const cardId = cardResponse.body.id as string;
       await createCardPurchase(accessToken, cardId, 8000, '2026-05-15');
+      const invoiceId = await findInvoiceIdByEndsOn(accessToken, cardId, '2026-06-09');
 
       const response = await request(app.getHttpServer())
         .post(`/credit-cards/${cardId}/pay-invoice`)
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ cycleEnd: '2026-06-09' })
+        .send({ invoiceId })
         .expect(400);
 
       expect(response.body).toMatchObject({
@@ -522,7 +550,7 @@ describe('CreditCards (e2e)', () => {
       });
     });
 
-    it('should reject paying an empty invoice cycle', async () => {
+    it('should reject paying a missing invoice', async () => {
       const accessToken = await authenticateUser('credit-cards-pay-empty@mybills.dev');
       const account = await createAccount(accessToken, 'Empty Account', 50000);
 
@@ -541,12 +569,12 @@ describe('CreditCards (e2e)', () => {
       const response = await request(app.getHttpServer())
         .post(`/credit-cards/${cardResponse.body.id as string}/pay-invoice`)
         .set('Authorization', `Bearer ${accessToken}`)
-        .send({ cycleEnd: '2026-06-09' })
-        .expect(400);
+        .send({ invoiceId: 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee' })
+        .expect(404);
 
       expect(response.body).toMatchObject({
-        code: 'credit_cards.invoice_empty',
-        error: 'invalid_argument'
+        code: 'credit_cards.invoice_not_found',
+        error: 'not_found'
       });
     });
   });

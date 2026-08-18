@@ -24,6 +24,12 @@ enum TransactionSeriesType {
   RECURRING
 }
 
+enum InvoiceStatus {
+  OPEN
+  CLOSED
+  PAID
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -38,6 +44,7 @@ model User {
   categories        Category[]
   transactions      Transaction[]
   transactionSeries TransactionSeries[]
+  invoices          Invoice[]
 
   @@map("users")
 }
@@ -58,22 +65,48 @@ model Account {
 }
 
 model CreditCard {
-  id         String   @id @default(uuid())
-  userId     String   @map("user_id")
-  accountId  String?  @map("account_id")
-  name       String
-  limit      Int // Valor em centavos
-  closingDay       Int     @map("closing_day")
-  closingOnLastDay Boolean @default(false) @map("closing_on_last_day")
-  dueDay           Int     @map("due_day")
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  accountId        String?  @map("account_id")
+  name             String
+  limit            Int // Valor em centavos
+  closingDay       Int      @map("closing_day")
+  closingOnLastDay Boolean  @default(false) @map("closing_on_last_day")
+  dueDay           Int      @map("due_day")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   account      Account?      @relation(fields: [accountId], references: [id], onDelete: Cascade)
   transactions Transaction[]
+  invoices     Invoice[]
 
   @@map("credit_cards")
+}
+
+model Invoice {
+  id                   String        @id @default(uuid())
+  userId               String        @map("user_id")
+  creditCardId         String        @map("credit_card_id")
+  startsOn             DateTime      @map("starts_on") @db.Date
+  endsOn               DateTime      @map("ends_on") @db.Date
+  dueOn                DateTime      @map("due_on") @db.Date
+  status               InvoiceStatus @default(OPEN)
+  amount               Int           @default(0)
+  paidAt               DateTime?     @map("paid_at")
+  paidAmount           Int?          @map("paid_amount")
+  paymentTransactionId String?       @map("payment_transaction_id")
+  paidFromAccountId    String?       @map("paid_from_account_id")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditCard   CreditCard    @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  transactions Transaction[]
+
+  @@unique([creditCardId, endsOn])
+  @@index([userId, creditCardId, status])
+  @@map("invoices")
 }
 
 model Category {
@@ -123,6 +156,7 @@ model Transaction {
   accountId        String?         @map("account_id")
   categoryId       String?         @map("category_id")
   cardId           String?         @map("card_id")
+  invoiceId        String?         @map("invoice_id")
   transferGroupId  String?         @map("transfer_group_id")
   seriesId         String?         @map("series_id")
   occurrenceNumber Int?            @map("occurrence_number")
@@ -130,20 +164,24 @@ model Transaction {
   type             TransactionType
   amount           Int // Valor em centavos
   date             DateTime        @db.Date
+  competenceDate   DateTime?       @map("competence_date") @db.Date
   isPaid           Boolean         @default(false) @map("is_paid")
   isProjected      Boolean         @default(false) @map("is_projected")
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
 
-  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account  Account?           @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  category Category?          @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  card     CreditCard?        @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account  Account?          @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  card     CreditCard?       @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  invoice  Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   series   TransactionSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
 
   @@unique([seriesId, occurrenceNumber])
   @@index([transferGroupId])
   @@index([seriesId])
   @@index([userId, date])
+  @@index([userId, competenceDate])
+  @@index([invoiceId])
   @@map("transactions")
 }

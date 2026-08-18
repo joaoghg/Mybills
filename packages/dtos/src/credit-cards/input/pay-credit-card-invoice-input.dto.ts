@@ -1,7 +1,7 @@
 import z from 'zod';
 
 export const payCreditCardInvoiceInputSchema = z.object({
-  cycleEnd: z.iso.date(),
+  invoiceId: z.uuid(),
   accountId: z.uuid().optional()
 });
 

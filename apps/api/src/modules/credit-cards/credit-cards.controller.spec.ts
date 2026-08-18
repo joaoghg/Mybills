@@ -26,6 +26,7 @@ describe('CreditCardsController', () => {
     closingOnLastDay: false,
     dueDay: 18,
     usedAmount: 0,
+    openInvoice: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   };
@@ -144,7 +145,7 @@ describe('CreditCardsController', () => {
   describe('payInvoice', () => {
     it('should call creditCardsService.payInvoice with credit card id, user id and payload', async () => {
       const input: PayCreditCardInvoiceInput = {
-        cycleEnd: '2026-06-09',
+        invoiceId: '7aa4f605-31d5-4dcf-93bc-45fafad6f320',
         accountId: linkedAccountId
       };
       const output: PayCreditCardInvoiceOutput = {
@@ -152,6 +153,7 @@ describe('CreditCardsController', () => {
         accountId: linkedAccountId,
         paymentTransactionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
         paidCount: 2,
+        invoiceId: '7aa4f605-31d5-4dcf-93bc-45fafad6f320',
         cycleStart: '2026-05-10',
         cycleEnd: '2026-06-09'
       };

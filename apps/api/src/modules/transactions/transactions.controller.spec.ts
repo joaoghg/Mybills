@@ -22,6 +22,7 @@ describe('TransactionsController', () => {
     accountId: '4f2f72e9-517c-4f6e-83f6-c9a9df15ddef',
     categoryId: '2df2cc34-219b-4df3-8107-1ab2d1f0ec88',
     cardId: null,
+    invoiceId: null,
     transferGroupId: null,
     seriesId: null,
     occurrenceNumber: null,
@@ -34,6 +35,7 @@ describe('TransactionsController', () => {
     isPaid: false,
     isProjected: false,
     invoicePaymentMonth: null,
+    competenceDate: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -178,6 +180,7 @@ describe('TransactionsController', () => {
         amount: input.amount,
         date: input.date,
         isPaid: input.isPaid,
+        competenceDate: input.competenceDate,
         schedule: input.schedule
       });
     });
@@ -214,6 +217,7 @@ describe('TransactionsController', () => {
         type: input.type,
         amount: input.amount,
         date: input.date,
+        competenceDate: input.competenceDate,
         scope: input.scope,
         schedule: input.schedule
       });

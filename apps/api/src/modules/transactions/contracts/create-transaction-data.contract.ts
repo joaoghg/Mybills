@@ -9,6 +9,7 @@ export interface CreateTransactionData {
   type: TransactionType;
   amount: number;
   date: string;
+  competenceDate?: string | null;
   isPaid: boolean;
   schedule?:
     | { mode: 'NONE' }

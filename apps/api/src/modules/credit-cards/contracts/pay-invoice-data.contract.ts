@@ -2,8 +2,7 @@ export type PayInvoiceData = {
   userId: string;
   creditCardId: string;
   accountId: string;
-  cycleStart: string;
-  cycleEnd: string;
+  invoiceId: string;
   paymentDate: string;
   description: string;
 };
@@ -13,6 +12,7 @@ export type PayInvoiceResult = {
   accountId: string;
   paymentTransactionId: string;
   paidCount: number;
+  invoiceId: string;
   cycleStart: string;
   cycleEnd: string;
 };
