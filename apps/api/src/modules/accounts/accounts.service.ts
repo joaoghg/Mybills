@@ -53,7 +53,21 @@ export class AccountsService {
     this.validateUserId(userId);
     this.validateUpdateData(data);
 
-    await this.findById(accountId, userId);
+    const current = await this.findById(accountId, userId);
+    if (current.source === 'PLUGGY') {
+      const overridden = new Set(current.overriddenFields);
+      if (data.name !== undefined) {
+        overridden.add('name');
+      }
+      if (data.balance !== undefined) {
+        overridden.add('balance');
+      }
+
+      return await this.repository.update(accountId, {
+        ...data,
+        overriddenFields: [...overridden]
+      });
+    }
 
     return await this.repository.update(accountId, data);
   }
@@ -62,7 +76,12 @@ export class AccountsService {
     this.validateAccountId(accountId);
     this.validateUserId(userId);
 
-    await this.findById(accountId, userId);
+    const account = await this.findById(accountId, userId);
+    if (account.source === 'PLUGGY') {
+      await this.repository.hide(accountId);
+      return;
+    }
+
     await this.repository.delete(accountId);
   }
 

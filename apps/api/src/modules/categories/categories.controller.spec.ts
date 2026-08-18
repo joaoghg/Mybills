@@ -17,6 +17,7 @@ describe('CategoriesController', () => {
     userId: 'ba5f8ccd-5a24-4e41-9dbd-6ddb49a93fdd',
     name: 'Food',
     icon: 'restaurant-outline',
+    isSystem: false,
     types: ['EXPENSE'],
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'

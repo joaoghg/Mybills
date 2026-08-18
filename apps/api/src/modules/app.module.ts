@@ -11,6 +11,7 @@ import { AccountsModule } from './accounts/accounts.module';
 import { CreditCardsModule } from './credit-cards/credit-cards.module';
 import { CategoriesModule } from './categories/categories.module';
 import { TransactionsModule } from './transactions/transactions.module';
+import { OpenFinanceModule } from './open-finance/open-finance.module';
 import { DomainErrorFilter } from '../common/filters/domain-error.filter';
 import { PrismaClientExceptionFilter } from '../common/filters/prisma-client-exception.filter';
 
@@ -35,7 +36,8 @@ import { PrismaClientExceptionFilter } from '../common/filters/prisma-client-exc
     AccountsModule,
     CreditCardsModule,
     CategoriesModule,
-    TransactionsModule
+    TransactionsModule,
+    OpenFinanceModule
   ],
   providers: [
     {

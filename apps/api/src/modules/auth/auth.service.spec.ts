@@ -89,6 +89,7 @@ describe('AuthService', () => {
         name: 'Transferência',
         icon: 'swap-horizontal-outline',
         isSystem: true,
+        types: ['EXPENSE', 'INCOME'],
         createdAt: mockUser.createdAt,
         updatedAt: mockUser.updatedAt
       });

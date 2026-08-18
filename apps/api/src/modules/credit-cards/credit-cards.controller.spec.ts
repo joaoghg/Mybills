@@ -26,6 +26,13 @@ describe('CreditCardsController', () => {
     closingOnLastDay: false,
     dueDay: 18,
     usedAmount: 0,
+    availableLimit: null,
+    brand: null,
+    providerStatus: null,
+    currencyCode: null,
+    source: 'MANUAL',
+    overriddenFields: [],
+    hiddenAt: null,
     openInvoice: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'

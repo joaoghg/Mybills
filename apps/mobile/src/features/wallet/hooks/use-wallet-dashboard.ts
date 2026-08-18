@@ -1,7 +1,10 @@
 import { listAccounts, listCreditCards } from '@mybills/api-client';
 import type { CreditCardOutput } from '@mybills/dtos';
+import { importedBadgeI18nKey, importedBadgeKind } from '@mybills/utils';
 import { useQuery } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+
+import { useTranslation } from 'react-i18next';
 
 import { useHttpClient } from '@/core/api/http-client-provider';
 import { daysUntilNextDueDay } from '@/shared/lib/billing-cycle';
@@ -40,6 +43,7 @@ export function useWalletDashboard(): {
   invoice: WalletInvoice | null;
 } {
   const client = useHttpClient();
+  const { t } = useTranslation();
 
   const accountsQuery = useQuery({
     queryKey: ['accounts'],
@@ -74,10 +78,18 @@ export function useWalletDashboard(): {
       .map((a) => ({
         id: a.id,
         title: a.name,
-        subtitle: '',
+        subtitle: (() => {
+          const key = importedBadgeI18nKey(
+            importedBadgeKind({
+              source: a.source,
+              overriddenFields: a.overriddenFields
+            })
+          );
+          return key ? t(key) : '';
+        })(),
         balanceMajor: centsToMajor(a.balance)
       }));
-  }, [accountsQuery.data]);
+  }, [accountsQuery.data, t]);
 
   const physicalCards = useMemo((): WalletPhysicalCard[] => {
     const cards = creditCardsQuery.data ?? [];

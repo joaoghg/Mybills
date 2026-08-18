@@ -21,7 +21,10 @@
     "prisma:migrate": "dotenv -e .env.development prisma migrate dev",
     "prisma:migrate:test": "dotenv -e .env.test prisma migrate dev",
     "prisma:generate": "dotenv -e .env.development prisma generate",
-    "prisma:seed": "dotenv -e .env.development ts-node --transpile-only prisma/seed.ts"
+    "prisma:seed": "dotenv -e .env.development ts-node --transpile-only prisma/seed.ts",
+    "open-finance:probe": "dotenv -e .env.development -- ts-node -r dotenv/config -r tsconfig-paths/register --transpile-only src/modules/open-finance/scripts/probe-pluggy.ts",
+    "open-finance:list-items": "dotenv -e .env.development -- ts-node --transpile-only src/modules/open-finance/scripts/list-pluggy-items.ts",
+    "open-finance:cutover": "dotenv -e .env.development ts-node --transpile-only src/modules/open-finance/scripts/cutover-financial-data.ts"
   },
   "prisma": {
     "seed": "dotenv -e .env.development ts-node --transpile-only prisma/seed.ts"
@@ -47,6 +50,7 @@
     "i18n": "^0.15.3",
     "nestjs-i18n": "^10.6.0",
     "pg": "^8.20.0",
+    "pluggy-sdk": "^0.90.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "zod": "^4.3.6",

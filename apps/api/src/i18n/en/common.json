@@ -54,6 +54,23 @@
       "at_least_one_field_required": "At least one field must be provided",
       "source_and_destination_must_differ": "Source and destination accounts must be different"
     },
+    "open_finance": {
+      "disabled": "Open Finance is not enabled",
+      "not_configured": "Open Finance is not configured",
+      "invalid_connector": "Only Meu Pluggy (Connector 200) connections are accepted",
+      "item_already_registered": "This connection is already registered",
+      "item_unavailable": "This Item could not be retrieved from Pluggy",
+      "disconnect_failed": "This connection could not be disconnected",
+      "provider_unavailable": "The provider is temporarily unavailable",
+      "transaction_ids_limit": "The request cannot include more than 500 transactions",
+      "invalid_webhook_secret": "Invalid webhook secret",
+      "invalid_money": "A provider amount could not be converted",
+      "money_overflow": "A provider amount exceeds the supported range",
+      "imported_invoice_payment_not_allowed": "Imported card bills cannot be paid with the local invoice command",
+      "imported_series_not_allowed": "Imported movements cannot become installments or recurrences",
+      "consent_required": "Open Finance consent is missing or expired",
+      "product_unsupported": "This product is not available for the connection"
+    },
     "conflict": {
       "already_exists_field": "A record already exists for field: {field}"
     }

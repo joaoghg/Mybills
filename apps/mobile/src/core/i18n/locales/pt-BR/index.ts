@@ -6,6 +6,7 @@ import { history } from './history';
 import { home } from './home';
 import { more } from './more';
 import { onboarding } from './onboarding';
+import { openFinance } from './openFinance';
 import { quickAdd } from './quickAdd';
 import { tabs } from './tabs';
 import { transactions } from './transactions';
@@ -21,6 +22,7 @@ export const ptBR = {
   home,
   more,
   onboarding,
+  openFinance,
   quickAdd,
   tabs,
   transactions,

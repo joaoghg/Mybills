@@ -20,6 +20,16 @@ export class Transaction {
   isPaid: boolean;
   isProjected: boolean;
   invoicePaymentMonth: string | null;
+  source: 'MANUAL' | 'PLUGGY';
+  overriddenFields: string[];
+  hiddenAt: string | null;
+  providerStatus: 'POSTED' | 'PENDING' | null;
+  currencyCode: string | null;
+  cashFlowRole: 'NORMAL' | 'TRANSFER' | 'CARD_PAYMENT' | 'INVESTMENT' | 'IGNORED';
+  billForecastMonth: string | null;
+  providerCategoryId: string | null;
+  providerCategoryName: string | null;
+  providerBillId: string | null;
   createdAt: string;
   updatedAt: string;
 }

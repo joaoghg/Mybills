@@ -22,6 +22,9 @@ import { CreateCreditCardScreen } from '@/features/credit-cards/screens/create-c
 import { EditCreditCardScreen } from '@/features/credit-cards/screens/edit-credit-card-screen';
 import { LanguageSettingsScreen } from '@/features/more/screens/language-settings-screen';
 import { ThemeSettingsScreen } from '@/features/more/screens/theme-settings-screen';
+import { OpenFinanceSettingsScreen } from '@/features/open-finance/screens/open-finance-settings-screen';
+import { InvestmentsScreen } from '@/features/open-finance/screens/investments-screen';
+import { InvestmentDetailScreen } from '@/features/open-finance/screens/investment-detail-screen';
 import { AppTabNavigator } from '@/navigation/app-tab-navigator';
 import { rootNavigationRef } from '@/navigation/root-navigation-ref';
 import type { RootStackParamList } from '@/navigation/types';
@@ -160,6 +163,27 @@ export function AuthenticatedRoot() {
           component={ThemeSettingsScreen}
           options={{
             presentation: 'modal'
+          }}
+        />
+        <Stack.Screen
+          name="OpenFinanceSettings"
+          component={OpenFinanceSettingsScreen}
+          options={{
+            title: t('openFinance.settingsTitle')
+          }}
+        />
+        <Stack.Screen
+          name="Investments"
+          component={InvestmentsScreen}
+          options={{
+            title: t('openFinance.investmentsTitle')
+          }}
+        />
+        <Stack.Screen
+          name="InvestmentDetail"
+          component={InvestmentDetailScreen}
+          options={{
+            title: t('openFinance.investmentDetailTitle')
           }}
         />
       </Stack.Navigator>

@@ -11,6 +11,14 @@ export type InvoiceRecord = {
   paidAmount: number | null;
   paymentTransactionId: string | null;
   paidFromAccountId: string | null;
+  source: 'MANUAL' | 'PLUGGY';
+  currencyCode: string | null;
+  closingOn: string | null;
+  minimumPaymentAmount: number | null;
+  allowsInstallments: boolean | null;
+  isFullyPaid: boolean | null;
+  isForecast: boolean;
+  providerBillId: string | null;
   createdAt: string;
   updatedAt: string;
 };

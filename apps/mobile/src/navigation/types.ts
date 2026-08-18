@@ -13,6 +13,9 @@ export type RootStackParamList = {
   EditCategory: { categoryId: string };
   LanguageSettings: undefined;
   ThemeSettings: undefined;
+  OpenFinanceSettings: undefined;
+  Investments: undefined;
+  InvestmentDetail: { investmentId: string };
 };
 
 export type AppTabParamList = {

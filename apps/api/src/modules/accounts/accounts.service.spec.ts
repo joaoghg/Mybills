@@ -14,6 +14,10 @@ describe('AccountsService', () => {
     name: 'Main Account',
     balance: 1000,
     userId: '2cea6915-f57e-4ba4-84ec-08f47e4eb7f9',
+    source: 'MANUAL',
+    currencyCode: null,
+    overriddenFields: [],
+    hiddenAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
   };
@@ -29,7 +33,8 @@ describe('AccountsService', () => {
             findByIdAndUserId: jest.fn(),
             create: jest.fn(),
             update: jest.fn(),
-            delete: jest.fn()
+            delete: jest.fn(),
+            hide: jest.fn()
           }
         }
       ]

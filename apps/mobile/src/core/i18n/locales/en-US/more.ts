@@ -3,6 +3,8 @@ export const more = {
   subtitle: 'Account and preferences',
   signOut: 'Sign out',
   categoriesRow: 'Categories',
+  moreRow: 'Open Finance',
+  investmentsRow: 'Investments',
   languageRow: 'Language',
   themeRow: 'Theme',
   languageScreenTitle: 'Language',

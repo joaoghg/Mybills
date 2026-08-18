@@ -1,7 +1,7 @@
 import z from 'zod';
+import { cashFlowRoleSchema, financialSourceSchema } from '../../open-finance/enums';
+import { yearMonthSchema } from '../../open-finance/primitives';
 import { transactionOutputSchema } from './transaction-output.dto';
-
-const yearMonthSchema = z.string().regex(/^\d{4}-\d{2}$/);
 
 export const monthlySummaryCardInvoiceSchema = z.object({
   cardId: z.uuid(),
@@ -9,6 +9,8 @@ export const monthlySummaryCardInvoiceSchema = z.object({
   paymentMonth: yearMonthSchema,
   total: z.int(),
   isFullyPaid: z.boolean(),
+  isForecast: z.boolean().default(false),
+  source: financialSourceSchema.default('MANUAL'),
   transactions: z.array(transactionOutputSchema)
 });
 
@@ -22,5 +24,12 @@ export const monthlySummaryOutputSchema = z.object({
   cardInvoices: z.array(monthlySummaryCardInvoiceSchema)
 });
 
+export const cashFlowClassificationOutputSchema = z.object({
+  role: cashFlowRoleSchema,
+  isForecast: z.boolean(),
+  evidence: z.array(z.string())
+});
+
 export type MonthlySummaryCardInvoice = z.infer<typeof monthlySummaryCardInvoiceSchema>;
 export type MonthlySummaryOutput = z.infer<typeof monthlySummaryOutputSchema>;
+export type CashFlowClassificationOutput = z.infer<typeof cashFlowClassificationOutputSchema>;

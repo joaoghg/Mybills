@@ -44,7 +44,12 @@ export interface TransactionRepository {
     seriesId: string,
     fromOccurrenceNumber: number
   ): Promise<Transaction[]>;
-  updateIsPaid(transactionId: string, isPaid: boolean): Promise<Transaction>;
+  updateIsPaid(
+    transactionId: string,
+    isPaid: boolean,
+    overriddenFields?: string[]
+  ): Promise<Transaction>;
+  hide(transactionId: string): Promise<void>;
   updateTransferPair(
     transferGroupId: string,
     data: UpdateTransferData

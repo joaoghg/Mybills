@@ -21,6 +21,13 @@ describe('CreditCardsService', () => {
     closingOnLastDay: false,
     dueDay: 18,
     usedAmount: 0,
+    availableLimit: null,
+    brand: null,
+    providerStatus: null,
+    currencyCode: null,
+    source: 'MANUAL',
+    overriddenFields: [],
+    hiddenAt: null,
     openInvoice: null,
     createdAt: '2026-01-01T00:00:00.000Z',
     updatedAt: '2026-01-01T00:00:00.000Z'
@@ -38,6 +45,7 @@ describe('CreditCardsService', () => {
             create: jest.fn(),
             update: jest.fn(),
             delete: jest.fn(),
+            hide: jest.fn(),
             payInvoice: jest.fn(),
             findInvoicesByCreditCardId: jest.fn(),
             findInvoiceByIdAndCreditCard: jest.fn()
@@ -323,6 +331,14 @@ describe('CreditCardsService', () => {
       paidAmount: null,
       paymentTransactionId: null,
       paidFromAccountId: null,
+      source: 'MANUAL' as const,
+      currencyCode: null,
+      closingOn: null,
+      minimumPaymentAmount: null,
+      allowsInstallments: null,
+      isFullyPaid: false,
+      isForecast: false,
+      providerBillId: null,
       createdAt: '2026-05-10T00:00:00.000Z',
       updatedAt: '2026-05-10T00:00:00.000Z'
     };
@@ -358,6 +374,18 @@ describe('CreditCardsService', () => {
         paymentDate: '2026-06-15',
         description: 'Invoice payment'
       });
+    });
+
+    it('should reject local payment for imported cards', async () => {
+      repository.findByIdAndUserId.mockResolvedValue({
+        ...creditCard,
+        source: 'PLUGGY'
+      });
+
+      await expect(
+        service.payInvoice(creditCard.id, creditCard.userId, { invoiceId }, now)
+      ).rejects.toThrow(InvalidArgumentError);
+      expect(repository.payInvoice).not.toHaveBeenCalled();
     });
 
     it('should throw InvalidArgumentError if invoice cycle is not closed yet', async () => {

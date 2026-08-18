@@ -1,4 +1,10 @@
 import z from 'zod';
+import {
+  cashFlowRoleSchema,
+  financialSourceSchema,
+  providerTransactionStatusSchema
+} from '../../open-finance/enums';
+import { currencyCodeSchema, yearMonthSchema } from '../../open-finance/primitives';
 import { transactionTypeSchema } from '../input/create-transaction-input.dto';
 
 export const transactionSeriesTypeSchema = z.enum(['INSTALLMENT', 'RECURRING']);
@@ -22,10 +28,17 @@ export const transactionOutputSchema = z.object({
   competenceDate: z.string().nullable(),
   isPaid: z.boolean(),
   isProjected: z.boolean(),
-  invoicePaymentMonth: z
-    .string()
-    .regex(/^\d{4}-\d{2}$/)
-    .nullable(),
+  invoicePaymentMonth: yearMonthSchema.nullable(),
+  source: financialSourceSchema.default('MANUAL'),
+  currencyCode: currencyCodeSchema.nullable().default(null),
+  providerStatus: providerTransactionStatusSchema.nullable().default(null),
+  providerCategoryId: z.string().nullable().default(null),
+  providerCategoryName: z.string().nullable().default(null),
+  overriddenFields: z.array(z.string()).default([]),
+  hiddenAt: z.string().nullable().default(null),
+  providerBillId: z.uuid().nullable().default(null),
+  billForecastMonth: yearMonthSchema.nullable().default(null),
+  cashFlowRole: cashFlowRoleSchema.default('NORMAL'),
   createdAt: z.string(),
   updatedAt: z.string()
 });

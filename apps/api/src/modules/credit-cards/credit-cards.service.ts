@@ -155,7 +155,12 @@ export class CreditCardsService {
     this.validateCreditCardId(creditCardId);
     this.validateUserId(userId);
 
-    await this.findById(creditCardId, userId);
+    const card = await this.findById(creditCardId, userId);
+    if (card.source === 'PLUGGY') {
+      await this.repository.hide(creditCardId);
+      return;
+    }
+
     await this.repository.delete(creditCardId);
   }
 
@@ -173,6 +178,13 @@ export class CreditCardsService {
     }
 
     const creditCard = await this.findById(creditCardId, userId);
+    if (creditCard.source === 'PLUGGY') {
+      throw new InvalidArgumentError({
+        code: 'open_finance.imported_invoice_payment_not_allowed',
+        i18nKey: 'errors.open_finance.imported_invoice_payment_not_allowed'
+      });
+    }
+
     const accountId = input.accountId ?? creditCard.accountId ?? null;
 
     if (!accountId) {

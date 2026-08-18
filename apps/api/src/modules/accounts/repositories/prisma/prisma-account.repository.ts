@@ -16,6 +16,10 @@ export class PrismaAccountRepository implements AccountRepository {
       name: account.name,
       balance: account.balance,
       userId: account.userId,
+      source: account.source,
+      currencyCode: null,
+      overriddenFields: account.overriddenFields,
+      hiddenAt: account.hiddenAt?.toISOString() ?? null,
       createdAt: account.createdAt.toISOString(),
       updatedAt: account.updatedAt.toISOString()
     };
@@ -23,7 +27,7 @@ export class PrismaAccountRepository implements AccountRepository {
 
   async findAllByUserId(userId: string): Promise<Account[]> {
     const accounts = await this.prisma.account.findMany({
-      where: { userId },
+      where: { userId, hiddenAt: null },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -34,7 +38,8 @@ export class PrismaAccountRepository implements AccountRepository {
     const account = await this.prisma.account.findFirst({
       where: {
         id: accountId,
-        userId
+        userId,
+        hiddenAt: null
       }
     });
 
@@ -62,11 +67,20 @@ export class PrismaAccountRepository implements AccountRepository {
       where: { id: accountId },
       data: {
         name: data.name,
-        balance: data.balance
+        balance: data.balance,
+        overriddenFields: data.overriddenFields,
+        hiddenAt: data.hiddenAt
       }
     });
 
     return this.mapToEntity(account);
+  }
+
+  async hide(accountId: string): Promise<void> {
+    await this.prisma.account.update({
+      where: { id: accountId },
+      data: { hiddenAt: new Date() }
+    });
   }
 
   async delete(accountId: string): Promise<void> {

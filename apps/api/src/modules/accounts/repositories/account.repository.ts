@@ -8,4 +8,5 @@ export interface AccountRepository {
   create(data: CreateAccountData): Promise<Account>;
   update(accountId: string, data: UpdateAccountData): Promise<Account>;
   delete(accountId: string): Promise<void>;
+  hide(accountId: string): Promise<void>;
 }

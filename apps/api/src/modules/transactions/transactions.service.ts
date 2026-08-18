@@ -76,10 +76,26 @@ export class TransactionsService {
     const cardTransactions: Transaction[] = [];
 
     for (const transaction of transactions) {
+      if (
+        transaction.source === 'PLUGGY' &&
+        (transaction.cashFlowRole === 'TRANSFER' ||
+          transaction.cashFlowRole === 'CARD_PAYMENT' ||
+          transaction.cashFlowRole === 'INVESTMENT' ||
+          transaction.cashFlowRole === 'IGNORED')
+      ) {
+        continue;
+      }
+
       if (transaction.cardId) {
-        if (transaction.invoicePaymentMonth === month) {
+        const paymentMonth =
+          transaction.billForecastMonth ?? transaction.invoicePaymentMonth;
+        if (paymentMonth === month) {
           cardTransactions.push(transaction);
         }
+        continue;
+      }
+
+      if (transaction.source === 'PLUGGY' && transaction.providerStatus === 'PENDING') {
         continue;
       }
 
@@ -234,6 +250,8 @@ export class TransactionsService {
         paymentMonth,
         total,
         isFullyPaid: group.every((transaction) => transaction.isPaid),
+        isForecast: group.some((transaction) => Boolean(transaction.billForecastMonth)),
+        source: group.some((transaction) => transaction.source === 'PLUGGY') ? 'PLUGGY' : 'MANUAL',
         transactions: group
       });
     }
@@ -529,6 +547,13 @@ export class TransactionsService {
       });
     }
 
+    if (currentTransaction.source === 'PLUGGY' && data.schedule && data.schedule.mode !== 'NONE') {
+      throw new InvalidArgumentError({
+        code: 'open_finance.imported_series_not_allowed',
+        i18nKey: 'errors.open_finance.imported_series_not_allowed'
+      });
+    }
+
     const schedule = data.schedule;
     const nextAccountId =
       data.accountId === undefined ? currentTransaction.accountId : data.accountId;
@@ -543,6 +568,16 @@ export class TransactionsService {
       data.description === undefined ? currentTransaction.description : data.description;
 
     const payload: UpdateTransactionData = { ...data };
+    if (currentTransaction.source === 'PLUGGY') {
+      const overridden = new Set(currentTransaction.overriddenFields);
+      if (data.description !== undefined) overridden.add('description');
+      if (data.amount !== undefined) overridden.add('amount');
+      if (data.date !== undefined) overridden.add('date');
+      if (data.categoryId !== undefined) overridden.add('categoryId');
+      if (data.type !== undefined) overridden.add('type');
+      payload.overriddenFields = [...overridden];
+      payload.schedule = { mode: 'NONE' };
+    }
     const scheduleModeForCompetence =
       schedule?.mode ?? (currentTransaction.seriesId ? undefined : 'NONE');
 
@@ -904,9 +939,19 @@ export class TransactionsService {
       return currentTransaction;
     }
 
-    const updatedTransaction = await this.repository.updateIsPaid(transactionId, isPaid);
+    const updatedTransaction = await this.repository.updateIsPaid(
+      transactionId,
+      isPaid,
+      currentTransaction.source === 'PLUGGY'
+        ? [...new Set([...currentTransaction.overriddenFields, 'isPaid'])]
+        : undefined
+    );
 
-    if (updatedTransaction.accountId && !updatedTransaction.isProjected) {
+    if (
+      updatedTransaction.accountId &&
+      !updatedTransaction.isProjected &&
+      updatedTransaction.source !== 'PLUGGY'
+    ) {
       const signedAmount = isPaid ? updatedTransaction.amount : -updatedTransaction.amount;
 
       await this.applyBalanceImpact(
@@ -929,6 +974,11 @@ export class TransactionsService {
     this.validateUserId(userId);
 
     const transaction = await this.findById(transactionId, userId);
+
+    if (transaction.source === 'PLUGGY') {
+      await this.repository.hide(transactionId);
+      return;
+    }
 
     if (transaction.transferGroupId) {
       const deleted = await this.repository.deleteTransferPair(
@@ -1040,6 +1090,10 @@ export class TransactionsService {
     amount: number
   ): Promise<void> {
     const account = await this.accountsService.findById(accountId, userId);
+    if (account.source === 'PLUGGY') {
+      return;
+    }
+
     const signedAmount = type === TransactionType.INCOME ? amount : -amount;
 
     await this.accountsService.update(accountId, userId, {

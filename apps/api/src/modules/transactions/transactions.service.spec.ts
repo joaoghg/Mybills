@@ -5,6 +5,7 @@ import { TransactionType } from 'src/generated/prisma/client';
 import { Account } from '../accounts/entities/account.entity';
 import { AccountsService } from '../accounts/accounts.service';
 import { CategoriesService } from '../categories/categories.service';
+import { Category } from '../categories/entities/category.entity';
 import { CreditCardsService } from '../credit-cards/credit-cards.service';
 import { CreditCard } from '../credit-cards/entities/credit-card.entity';
 import { Transaction } from './entities/transaction.entity';
@@ -39,6 +40,16 @@ describe('TransactionsService', () => {
     isProjected: false,
     invoicePaymentMonth: null,
     competenceDate: null,
+    source: 'MANUAL',
+    overriddenFields: [],
+    hiddenAt: null,
+    providerStatus: null,
+    currencyCode: null,
+    cashFlowRole: 'NORMAL',
+    billForecastMonth: null,
+    providerCategoryName: null,
+    providerCategoryId: null,
+    providerBillId: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
@@ -48,16 +59,21 @@ describe('TransactionsService', () => {
     userId: '6d35154f-0d4f-4efb-95a1-6997e2759c60',
     name: 'Main account',
     balance: 10000,
+    source: 'MANUAL',
+    currencyCode: null,
+    overriddenFields: [],
+    hiddenAt: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };
 
-  const expenseCategory = {
+  const expenseCategory: Category = {
     id: baseTransaction.categoryId as string,
     userId: baseTransaction.userId,
     name: 'Food',
-    icon: 'restaurant-outline' as const,
-    types: ['EXPENSE'] as const,
+    icon: 'restaurant-outline',
+    isSystem: false,
+    types: ['EXPENSE'],
     createdAt: baseTransaction.createdAt,
     updatedAt: baseTransaction.updatedAt
   };
@@ -75,6 +91,7 @@ describe('TransactionsService', () => {
             createTransferPair: jest.fn(),
             update: jest.fn(),
             updateIsPaid: jest.fn(),
+            hide: jest.fn(),
             delete: jest.fn(),
             findByTransferGroupIdAndUserId: jest.fn(),
             updateTransferPair: jest.fn(),
@@ -199,6 +216,13 @@ describe('TransactionsService', () => {
       closingOnLastDay: false,
       dueDay: 11,
       usedAmount: 0,
+      availableLimit: null,
+      brand: null,
+      providerStatus: null,
+      currencyCode: null,
+      source: 'MANUAL',
+      overriddenFields: [],
+      hiddenAt: null,
       openInvoice: null,
       createdAt: baseTransaction.createdAt,
       updatedAt: baseTransaction.updatedAt
@@ -270,6 +294,8 @@ describe('TransactionsService', () => {
           paymentMonth: '2026-08',
           total: 5000,
           isFullyPaid: false,
+          isForecast: false,
+          source: 'MANUAL',
           transactions: [cardPurchase]
         }
       ]);
@@ -554,6 +580,13 @@ describe('TransactionsService', () => {
         closingOnLastDay: false,
         dueDay: 11,
       usedAmount: 0,
+      availableLimit: null,
+      brand: null,
+      providerStatus: null,
+      currencyCode: null,
+      source: 'MANUAL',
+      overriddenFields: [],
+      hiddenAt: null,
       openInvoice: null,
       createdAt: first.createdAt,
         updatedAt: first.updatedAt
@@ -951,6 +984,10 @@ describe('TransactionsService', () => {
       userId: account.userId,
       name: 'Savings',
       balance: 5000,
+      source: 'MANUAL',
+      currencyCode: null,
+      overriddenFields: [],
+      hiddenAt: null,
       createdAt: account.createdAt,
       updatedAt: account.updatedAt
     };
@@ -973,6 +1010,7 @@ describe('TransactionsService', () => {
         name: 'Transferência',
         icon: 'swap-horizontal-outline',
         isSystem: true,
+        types: ['EXPENSE', 'INCOME'],
         createdAt: baseTransaction.createdAt,
         updatedAt: baseTransaction.updatedAt
       });
@@ -1103,6 +1141,10 @@ describe('TransactionsService', () => {
       userId: account.userId,
       name: 'Savings',
       balance: 5000,
+      source: 'MANUAL',
+      currencyCode: null,
+      overriddenFields: [],
+      hiddenAt: null,
       createdAt: account.createdAt,
       updatedAt: account.updatedAt
     };
@@ -1150,6 +1192,36 @@ describe('TransactionsService', () => {
         ...updateInput,
         userId: account.userId
       });
+    });
+  });
+
+  describe('imported provider transactions', () => {
+    it('does not change balances when toggling isPaid on a PLUGGY transaction', async () => {
+      const imported: Transaction = {
+        ...baseTransaction,
+        source: 'PLUGGY',
+        providerStatus: 'POSTED',
+        isPaid: true
+      };
+      repository.findByIdAndUserId.mockResolvedValue(imported);
+      repository.updateIsPaid.mockResolvedValue({ ...imported, isPaid: false, overriddenFields: ['isPaid'] });
+
+      await service.updateIsPaid(imported.id, imported.userId, false);
+
+      expect(accountsService.update).not.toHaveBeenCalled();
+      expect(repository.updateIsPaid).toHaveBeenCalledWith(imported.id, false, ['isPaid']);
+    });
+
+    it('hides imported transactions instead of deleting them', async () => {
+      repository.findByIdAndUserId.mockResolvedValue({
+        ...baseTransaction,
+        source: 'PLUGGY'
+      });
+
+      await service.remove(baseTransaction.id, baseTransaction.userId);
+
+      expect(repository.hide).toHaveBeenCalledWith(baseTransaction.id);
+      expect(repository.delete).not.toHaveBeenCalled();
     });
   });
 });

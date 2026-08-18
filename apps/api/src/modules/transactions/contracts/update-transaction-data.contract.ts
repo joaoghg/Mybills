@@ -18,4 +18,5 @@ export interface UpdateTransactionData {
   competenceDate?: string | null;
   scope?: TransactionSeriesScope;
   schedule?: UpdateTransactionSchedule;
+  overriddenFields?: string[];
 }

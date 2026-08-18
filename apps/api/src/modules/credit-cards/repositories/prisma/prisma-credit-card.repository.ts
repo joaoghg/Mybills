@@ -42,6 +42,14 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
       paidAmount: invoice.paidAmount,
       paymentTransactionId: invoice.paymentTransactionId,
       paidFromAccountId: invoice.paidFromAccountId,
+      source: 'MANUAL',
+      currencyCode: null,
+      closingOn: null,
+      minimumPaymentAmount: null,
+      allowsInstallments: null,
+      isFullyPaid: invoice.status === 'PAID',
+      isForecast: false,
+      providerBillId: null,
       createdAt: invoice.createdAt.toISOString(),
       updatedAt: invoice.updatedAt.toISOString()
     };
@@ -57,7 +65,10 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
       endsOn: ymdFromUtcDate(invoice.endsOn),
       dueOn: ymdFromUtcDate(invoice.dueOn),
       status: invoice.status,
-      amount: invoice.amount
+      amount: invoice.amount,
+      source: 'MANUAL',
+      isForecast: false,
+      providerBillId: null
     };
   }
 
@@ -76,6 +87,14 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
       closingOnLastDay: creditCard.closingOnLastDay,
       dueDay: creditCard.dueDay,
       usedAmount,
+      availableLimit:
+        creditCard.source === 'PLUGGY' ? Math.max(creditCard.limit - usedAmount, 0) : null,
+      brand: null,
+      providerStatus: null,
+      currencyCode: null,
+      source: creditCard.source,
+      overriddenFields: creditCard.overriddenFields,
+      hiddenAt: creditCard.hiddenAt?.toISOString() ?? null,
       openInvoice: this.toOpenSummary(openInvoice),
       createdAt: creditCard.createdAt.toISOString(),
       updatedAt: creditCard.updatedAt.toISOString()
@@ -130,9 +149,47 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     return aggregate._sum.amount ?? 0;
   }
 
+  private async findLatestProviderBillAsInvoice(
+    creditCard: PrismaCreditCard
+  ): Promise<PrismaInvoice | null> {
+    if (!creditCard.openFinanceAccountId) {
+      return null;
+    }
+
+    const bill = await this.prisma.openFinanceBill.findFirst({
+      where: { accountId: creditCard.openFinanceAccountId, unavailableAt: null },
+      orderBy: { dueOn: 'desc' }
+    });
+
+    if (!bill) {
+      return null;
+    }
+
+    return {
+      id: bill.id,
+      userId: creditCard.userId,
+      creditCardId: creditCard.id,
+      startsOn: bill.closingOn ?? bill.dueOn,
+      endsOn: bill.closingOn ?? bill.dueOn,
+      dueOn: bill.dueOn,
+      status: InvoiceStatus.OPEN,
+      amount: Math.round(Number(bill.totalAmount) * 100),
+      paidAt: null,
+      paidAmount: null,
+      paymentTransactionId: null,
+      paidFromAccountId: null,
+      createdAt: bill.createdAt,
+      updatedAt: bill.updatedAt
+    };
+  }
+
   private async ensureOpenInvoiceForCard(
     creditCard: PrismaCreditCard
   ): Promise<PrismaInvoice | null> {
+    if (creditCard.source === 'PLUGGY') {
+      return await this.findLatestProviderBillAsInvoice(creditCard);
+    }
+
     const todayYmd = utcTodayYmd();
     const closingDay = resolveClosingDay(creditCard);
     const cycle = getCycleContainingDate(closingDay, todayYmd);
@@ -178,7 +235,7 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
 
   async findAllByUserId(userId: string): Promise<CreditCard[]> {
     const creditCards = await this.prisma.creditCard.findMany({
-      where: { userId },
+      where: { userId, hiddenAt: null },
       orderBy: { createdAt: 'desc' }
     });
 
@@ -189,6 +246,10 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
 
     const openByCard = new Map<string, PrismaInvoice | null>();
     for (const creditCard of creditCards) {
+      if (creditCard.source === 'PLUGGY') {
+        openByCard.set(creditCard.id, await this.findLatestProviderBillAsInvoice(creditCard));
+        continue;
+      }
       openByCard.set(creditCard.id, await this.ensureOpenInvoiceForCard(creditCard));
     }
 
@@ -205,7 +266,8 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     const creditCard = await this.prisma.creditCard.findFirst({
       where: {
         id: creditCardId,
-        userId
+        userId,
+        hiddenAt: null
       }
     });
 
@@ -214,7 +276,10 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     }
 
     const usedAmount = await this.sumUsedAmountForCard(userId, creditCardId);
-    const openInvoice = await this.ensureOpenInvoiceForCard(creditCard);
+    const openInvoice =
+      creditCard.source === 'PLUGGY'
+        ? await this.findLatestProviderBillAsInvoice(creditCard)
+        : await this.ensureOpenInvoiceForCard(creditCard);
 
     return this.mapToEntity(creditCard, usedAmount, openInvoice);
   }
@@ -253,6 +318,13 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
     const openInvoice = await this.ensureOpenInvoiceForCard(creditCard);
 
     return this.mapToEntity(creditCard, usedAmount, openInvoice);
+  }
+
+  async hide(creditCardId: string): Promise<void> {
+    await this.prisma.creditCard.update({
+      where: { id: creditCardId },
+      data: { hiddenAt: new Date() }
+    });
   }
 
   async delete(creditCardId: string): Promise<void> {

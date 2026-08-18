@@ -37,3 +37,19 @@ export { createCategory } from './categories/create-category.js';
 export { deleteCategory } from './categories/delete-category.js';
 export { listCategories } from './categories/list-categories.js';
 export { updateCategory } from './categories/update-category.js';
+export {
+  createOpenFinanceConnection,
+  disconnectOpenFinanceConnection,
+  getOpenFinanceSyncRun,
+  listOpenFinanceConnections,
+  startOpenFinanceSync
+} from './open-finance/connections.js';
+export {
+  getInvestment,
+  listInvestmentTransactions,
+  listInvestments,
+  listProviderBills,
+  resetAccountOverrides,
+  resetCreditCardOverrides,
+  resetTransactionOverrides
+} from './open-finance/products.js';

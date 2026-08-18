@@ -54,6 +54,23 @@
       "at_least_one_field_required": "Pelo menos um campo deve ser informado",
       "source_and_destination_must_differ": "Origem e destino devem ser diferentes"
     },
+    "open_finance": {
+      "disabled": "Open Finance não está habilitado",
+      "not_configured": "A integração Open Finance não está configurada",
+      "invalid_connector": "Somente conexões do Meu Pluggy (Connector 200) são aceitas",
+      "item_already_registered": "Esta conexão já está registrada",
+      "item_unavailable": "Não foi possível acessar este Item na Pluggy",
+      "disconnect_failed": "Não foi possível desconectar esta conexão",
+      "provider_unavailable": "O provedor está temporariamente indisponível",
+      "transaction_ids_limit": "A consulta não pode incluir mais de 500 transações",
+      "invalid_webhook_secret": "Segredo de webhook inválido",
+      "invalid_money": "Não foi possível converter um valor do provedor",
+      "money_overflow": "Um valor do provedor excede o intervalo suportado",
+      "imported_invoice_payment_not_allowed": "Faturas importadas não podem ser pagas pelo comando local",
+      "imported_series_not_allowed": "Movimentos importados não podem virar parcelas ou recorrências",
+      "consent_required": "O consentimento Open Finance está ausente ou expirado",
+      "product_unsupported": "Este produto não está disponível para a conexão"
+    },
     "conflict": {
       "already_exists_field": "Já existe um registro para o campo: {field}"
     }

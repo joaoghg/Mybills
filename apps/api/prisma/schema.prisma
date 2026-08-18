@@ -30,6 +30,113 @@ enum InvoiceStatus {
   PAID
 }
 
+enum FinancialSource {
+  MANUAL
+  PLUGGY
+}
+
+enum OpenFinanceConnectionStatus {
+  ACTIVE
+  DISCONNECTED
+}
+
+enum OpenFinanceItemStatus {
+  UPDATED
+  UPDATING
+  WAITING_USER_INPUT
+  WAITING_USER_ACTION
+  MERGING
+  LOGIN_ERROR
+  OUTDATED
+}
+
+enum OpenFinanceProductType {
+  ACCOUNTS
+  CREDIT_CARDS
+  TRANSACTIONS
+  INVESTMENTS
+  INVESTMENTS_TRANSACTIONS
+}
+
+enum OpenFinanceProductStatus {
+  PENDING
+  SUCCESS
+  PARTIAL
+  FAILED
+  UNSUPPORTED
+}
+
+enum OpenFinanceSyncTrigger {
+  MANUAL
+  WEBHOOK
+  STALE
+}
+
+enum OpenFinanceSyncRunStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum ProviderAccountType {
+  BANK
+  CREDIT
+}
+
+enum ProviderTransactionStatus {
+  POSTED
+  PENDING
+}
+
+enum CashFlowRole {
+  NORMAL
+  TRANSFER
+  CARD_PAYMENT
+  INVESTMENT
+  IGNORED
+}
+
+enum InvestmentType {
+  FIXED_INCOME
+  SECURITY
+  MUTUAL_FUND
+  EQUITY
+  ETF
+  COE
+  OTHER
+}
+
+enum InvestmentStatus {
+  ACTIVE
+  PENDING
+  TOTAL_WITHDRAWAL
+}
+
+enum InvestmentTransactionType {
+  BUY
+  SELL
+  TAX
+  TRANSFER
+  INTEREST
+  AMORTIZATION
+}
+
+enum BillPaymentValueType {
+  INSTALLMENT_PAYMENT
+  FULL_PAYMENT
+  OTHER_PAYMENT
+}
+
+enum BillFinanceChargeType {
+  LATE_PAYMENT_REMUNERATIVE_INTEREST
+  LATE_PAYMENT_FEE
+  LATE_PAYMENT_INTEREST
+  IOF
+  OTHER
+}
+
 model User {
   id           String   @id @default(uuid())
   name         String
@@ -39,48 +146,61 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  accounts          Account[]
-  creditCards       CreditCard[]
-  categories        Category[]
-  transactions      Transaction[]
-  transactionSeries TransactionSeries[]
-  invoices          Invoice[]
+  accounts              Account[]
+  creditCards           CreditCard[]
+  categories            Category[]
+  transactions          Transaction[]
+  transactionSeries     TransactionSeries[]
+  invoices              Invoice[]
+  openFinanceConnections OpenFinanceConnection[]
 
   @@map("users")
 }
 
 model Account {
-  id        String   @id @default(uuid())
-  name      String
-  balance   Int      @default(0) // Valor em centavos
-  userId    String   @map("user_id")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                   String          @id @default(uuid())
+  name                 String
+  balance              Int             @default(0)
+  userId               String          @map("user_id")
+  source               FinancialSource @default(MANUAL)
+  openFinanceAccountId String?         @unique @map("open_finance_account_id")
+  overriddenFields     String[]        @default([]) @map("overridden_fields")
+  hiddenAt             DateTime?       @map("hidden_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  creditCards  CreditCard[]
-  transactions Transaction[]
+  user               User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  openFinanceAccount OpenFinanceAccount?  @relation(fields: [openFinanceAccountId], references: [id], onDelete: SetNull)
+  creditCards        CreditCard[]
+  transactions       Transaction[]
 
+  @@index([userId, source, hiddenAt])
   @@map("accounts")
 }
 
 model CreditCard {
-  id               String   @id @default(uuid())
-  userId           String   @map("user_id")
-  accountId        String?  @map("account_id")
-  name             String
-  limit            Int // Valor em centavos
-  closingDay       Int      @map("closing_day")
-  closingOnLastDay Boolean  @default(false) @map("closing_on_last_day")
-  dueDay           Int      @map("due_day")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id                   String          @id @default(uuid())
+  userId               String          @map("user_id")
+  accountId            String?         @map("account_id")
+  name                 String
+  limit                Int
+  closingDay           Int             @map("closing_day")
+  closingOnLastDay     Boolean         @default(false) @map("closing_on_last_day")
+  dueDay               Int             @map("due_day")
+  source               FinancialSource @default(MANUAL)
+  openFinanceAccountId String?         @unique @map("open_finance_account_id")
+  overriddenFields     String[]        @default([]) @map("overridden_fields")
+  hiddenAt             DateTime?       @map("hidden_at")
+  createdAt            DateTime        @default(now()) @map("created_at")
+  updatedAt            DateTime        @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account      Account?      @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
-  invoices     Invoice[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account            Account?            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  openFinanceAccount OpenFinanceAccount? @relation("CreditCardProviderAccount", fields: [openFinanceAccountId], references: [id], onDelete: SetNull)
+  transactions       Transaction[]
+  invoices           Invoice[]
 
+  @@index([userId, source, hiddenAt])
   @@map("credit_cards")
 }
 
@@ -151,31 +271,39 @@ model TransactionSeries {
 }
 
 model Transaction {
-  id               String          @id @default(uuid())
-  userId           String          @map("user_id")
-  accountId        String?         @map("account_id")
-  categoryId       String?         @map("category_id")
-  cardId           String?         @map("card_id")
-  invoiceId        String?         @map("invoice_id")
-  transferGroupId  String?         @map("transfer_group_id")
-  seriesId         String?         @map("series_id")
-  occurrenceNumber Int?            @map("occurrence_number")
-  description      String?
-  type             TransactionType
-  amount           Int // Valor em centavos
-  date             DateTime        @db.Date
-  competenceDate   DateTime?       @map("competence_date") @db.Date
-  isPaid           Boolean         @default(false) @map("is_paid")
-  isProjected      Boolean         @default(false) @map("is_projected")
-  createdAt        DateTime        @default(now()) @map("created_at")
-  updatedAt        DateTime        @updatedAt @map("updated_at")
+  id                       String                    @id @default(uuid())
+  userId                   String                    @map("user_id")
+  accountId                String?                   @map("account_id")
+  categoryId               String?                   @map("category_id")
+  cardId                   String?                   @map("card_id")
+  invoiceId                String?                   @map("invoice_id")
+  transferGroupId          String?                   @map("transfer_group_id")
+  seriesId                 String?                   @map("series_id")
+  occurrenceNumber         Int?                      @map("occurrence_number")
+  description              String?
+  type                     TransactionType
+  amount                   Int
+  date                     DateTime                  @db.Date
+  competenceDate           DateTime?                 @map("competence_date") @db.Date
+  isPaid                   Boolean                   @default(false) @map("is_paid")
+  isProjected              Boolean                   @default(false) @map("is_projected")
+  source                   FinancialSource           @default(MANUAL)
+  openFinanceTransactionId String?                   @unique @map("open_finance_transaction_id")
+  overriddenFields         String[]                  @default([]) @map("overridden_fields")
+  hiddenAt                 DateTime?                 @map("hidden_at")
+  providerStatus           ProviderTransactionStatus?
+  currencyCode             String?                   @map("currency_code")
+  cashFlowRole             CashFlowRole              @default(NORMAL) @map("cash_flow_role")
+  createdAt                DateTime                  @default(now()) @map("created_at")
+  updatedAt                DateTime                  @updatedAt @map("updated_at")
 
-  user     User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  account  Account?          @relation(fields: [accountId], references: [id], onDelete: SetNull)
-  category Category?         @relation(fields: [categoryId], references: [id], onDelete: SetNull)
-  card     CreditCard?       @relation(fields: [cardId], references: [id], onDelete: SetNull)
-  invoice  Invoice?          @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
-  series   TransactionSeries? @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  user                   User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account                Account?                @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  category               Category?               @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  card                   CreditCard?             @relation(fields: [cardId], references: [id], onDelete: SetNull)
+  invoice                Invoice?                @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  series                 TransactionSeries?      @relation(fields: [seriesId], references: [id], onDelete: SetNull)
+  openFinanceTransaction OpenFinanceTransaction? @relation(fields: [openFinanceTransactionId], references: [id], onDelete: SetNull)
 
   @@unique([seriesId, occurrenceNumber])
   @@index([transferGroupId])
@@ -183,5 +311,317 @@ model Transaction {
   @@index([userId, date])
   @@index([userId, competenceDate])
   @@index([invoiceId])
+  @@index([userId, source, hiddenAt])
   @@map("transactions")
+}
+
+model OpenFinanceConnection {
+  id                    String                      @id @default(uuid())
+  userId                String                      @map("user_id")
+  itemId                String                      @unique @map("item_id")
+  connectorId           Int                         @map("connector_id")
+  status                OpenFinanceConnectionStatus @default(ACTIVE)
+  itemStatus            OpenFinanceItemStatus?      @map("item_status")
+  institutionName       String?                     @map("institution_name")
+  institutionLogoUrl    String?                     @map("institution_logo_url")
+  lastSuccessfulSyncAt  DateTime?                   @map("last_successful_sync_at")
+  lastSyncAttemptAt     DateTime?                   @map("last_sync_attempt_at")
+  errorCode             String?                     @map("error_code")
+  errorI18nKey          String?                     @map("error_i18n_key")
+  disconnectedAt        DateTime?                   @map("disconnected_at")
+  createdAt             DateTime                    @default(now()) @map("created_at")
+  updatedAt             DateTime                    @updatedAt @map("updated_at")
+
+  user             User                         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productSyncState OpenFinanceProductSyncState[]
+  syncRuns         OpenFinanceSyncRun[]
+  accounts         OpenFinanceAccount[]
+  investments      Investment[]
+
+  @@index([userId, status])
+  @@index([status, lastSuccessfulSyncAt])
+  @@map("open_finance_connections")
+}
+
+model OpenFinanceProductSyncState {
+  id                   String                   @id @default(uuid())
+  connectionId         String                   @map("connection_id")
+  product              OpenFinanceProductType
+  status               OpenFinanceProductStatus @default(PENDING)
+  lastSuccessfulSyncAt DateTime?                @map("last_successful_sync_at")
+  errorCode            String?                  @map("error_code")
+  errorI18nKey         String?                  @map("error_i18n_key")
+  createdAt            DateTime                 @default(now()) @map("created_at")
+  updatedAt            DateTime                 @updatedAt @map("updated_at")
+
+  connection OpenFinanceConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+
+  @@unique([connectionId, product])
+  @@map("open_finance_product_sync_states")
+}
+
+model OpenFinanceSyncRun {
+  id                       String                   @id @default(uuid())
+  connectionId             String                   @map("connection_id")
+  trigger                  OpenFinanceSyncTrigger
+  status                   OpenFinanceSyncRunStatus @default(PENDING)
+  leaseExpiresAt           DateTime?                @map("lease_expires_at")
+  attemptCount             Int                      @default(0) @map("attempt_count")
+  errorCode                String?                  @map("error_code")
+  errorI18nKey             String?                  @map("error_i18n_key")
+  webhookEventId           String?                  @map("webhook_event_id")
+  createdTransactionsLink  String?                  @map("created_transactions_link")
+  transactionIds           String[]                 @default([]) @map("transaction_ids")
+  accountExternalId        String?                  @map("account_external_id")
+  startedAt                DateTime?                @map("started_at")
+  finishedAt               DateTime?                @map("finished_at")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt @map("updated_at")
+
+  connection   OpenFinanceConnection    @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  webhookEvent OpenFinanceWebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
+
+  @@index([connectionId, status])
+  @@index([status, leaseExpiresAt])
+  @@map("open_finance_sync_runs")
+}
+
+model OpenFinanceWebhookEvent {
+  id              String   @id @default(uuid())
+  eventId         String   @unique @map("event_id")
+  event           String
+  itemId          String?  @map("item_id")
+  accountId       String?  @map("account_id")
+  payloadMetadata Json     @map("payload_metadata")
+  processedAt     DateTime? @map("processed_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  syncRuns OpenFinanceSyncRun[]
+
+  @@index([itemId, createdAt])
+  @@map("open_finance_webhook_events")
+}
+
+model OpenFinanceAccount {
+  id                    String              @id @default(uuid())
+  connectionId          String              @map("connection_id")
+  externalId            String              @map("external_id")
+  type                  ProviderAccountType
+  subtype               String?
+  name                  String
+  currencyCode          String?             @map("currency_code")
+  balance               Decimal             @db.Decimal(19, 4)
+  availableBalance      Decimal?            @map("available_balance") @db.Decimal(19, 4)
+  creditLimit           Decimal?            @map("credit_limit") @db.Decimal(19, 4)
+  availableCreditLimit  Decimal?            @map("available_credit_limit") @db.Decimal(19, 4)
+  brand                 String?
+  providerStatus        String?             @map("provider_status")
+  closingDate           DateTime?           @map("closing_date")
+  dueDate               DateTime?           @map("due_date")
+  providerCreatedAt     DateTime?           @map("provider_created_at")
+  providerUpdatedAt     DateTime?           @map("provider_updated_at")
+  rawPayload            Json                @map("raw_payload")
+  lastSeenAt            DateTime            @map("last_seen_at")
+  unavailableAt         DateTime?           @map("unavailable_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  connection            OpenFinanceConnection     @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  bankProjection        Account?
+  creditCardProjection  CreditCard?               @relation("CreditCardProviderAccount")
+  bills                 OpenFinanceBill[]
+  transactions          OpenFinanceTransaction[]
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId, unavailableAt])
+  @@map("open_finance_accounts")
+}
+
+model OpenFinanceBill {
+  id                   String   @id @default(uuid())
+  accountId            String   @map("account_id")
+  externalId           String   @map("external_id")
+  dueOn                DateTime @map("due_on")
+  closingOn            DateTime? @map("closing_on")
+  totalAmount          Decimal  @map("total_amount") @db.Decimal(19, 4)
+  minimumPaymentAmount Decimal? @map("minimum_payment_amount") @db.Decimal(19, 4)
+  currencyCode         String   @map("currency_code")
+  allowsInstallments   Boolean? @map("allows_installments")
+  providerCreatedAt    DateTime? @map("provider_created_at")
+  providerUpdatedAt    DateTime? @map("provider_updated_at")
+  rawPayload           Json     @map("raw_payload")
+  lastSeenAt           DateTime @map("last_seen_at")
+  unavailableAt        DateTime? @map("unavailable_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  account         OpenFinanceAccount            @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  payments        OpenFinanceBillPayment[]
+  financeCharges  OpenFinanceBillFinanceCharge[]
+  transactions    OpenFinanceTransaction[]
+
+  @@unique([accountId, externalId])
+  @@index([accountId, dueOn])
+  @@map("open_finance_bills")
+}
+
+model OpenFinanceBillPayment {
+  id             String               @id @default(uuid())
+  billId         String               @map("bill_id")
+  externalId     String               @map("external_id")
+  valueType      BillPaymentValueType @map("value_type")
+  paymentDate    DateTime             @map("payment_date")
+  paymentMode    String?              @map("payment_mode")
+  amount         Decimal              @db.Decimal(19, 4)
+  currencyCode   String               @map("currency_code")
+  rawPayload     Json                 @map("raw_payload")
+  lastSeenAt     DateTime             @map("last_seen_at")
+  unavailableAt  DateTime?            @map("unavailable_at")
+  createdAt      DateTime             @default(now()) @map("created_at")
+  updatedAt      DateTime             @updatedAt @map("updated_at")
+
+  bill OpenFinanceBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@unique([billId, externalId])
+  @@map("open_finance_bill_payments")
+}
+
+model OpenFinanceBillFinanceCharge {
+  id             String                 @id @default(uuid())
+  billId         String                 @map("bill_id")
+  externalId     String                 @map("external_id")
+  type           BillFinanceChargeType
+  amount         Decimal                @db.Decimal(19, 4)
+  currencyCode   String                 @map("currency_code")
+  additionalInfo String?                @map("additional_info")
+  rawPayload     Json                   @map("raw_payload")
+  lastSeenAt     DateTime               @map("last_seen_at")
+  unavailableAt  DateTime?              @map("unavailable_at")
+  createdAt      DateTime               @default(now()) @map("created_at")
+  updatedAt      DateTime               @updatedAt @map("updated_at")
+
+  bill OpenFinanceBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+
+  @@unique([billId, externalId])
+  @@map("open_finance_bill_finance_charges")
+}
+
+model OpenFinanceTransaction {
+  id                       String                     @id @default(uuid())
+  accountId                String                     @map("account_id")
+  billId                   String?                    @map("bill_id")
+  externalId               String                     @map("external_id")
+  description              String
+  type                     TransactionType
+  amount                   Decimal                    @db.Decimal(19, 4)
+  currencyCode             String                     @map("currency_code")
+  date                     DateTime
+  status                   ProviderTransactionStatus
+  providerCategoryId       String?                    @map("provider_category_id")
+  providerCategoryName     String?                    @map("provider_category_name")
+  paymentMethod            String?                    @map("payment_method")
+  paymentReference         String?                    @map("payment_reference")
+  merchantName             String?                    @map("merchant_name")
+  operationType            String?                    @map("operation_type")
+  sameDayOrder             Int?                       @map("same_day_order")
+  billForecastMonth        String?                    @map("bill_forecast_month")
+  creditCardMetadata       Json?                      @map("credit_card_metadata")
+  paymentParticipants      Json?                      @map("payment_participants")
+  cashFlowRole             CashFlowRole               @default(NORMAL) @map("cash_flow_role")
+  classificationEvidence   String[]                   @default([]) @map("classification_evidence")
+  providerCreatedAt        DateTime?                  @map("provider_created_at")
+  providerUpdatedAt        DateTime?                  @map("provider_updated_at")
+  rawPayload               Json                       @map("raw_payload")
+  lastSeenAt               DateTime                   @map("last_seen_at")
+  unavailableAt            DateTime?                  @map("unavailable_at")
+  createdAt                DateTime                   @default(now()) @map("created_at")
+  updatedAt                DateTime                   @updatedAt @map("updated_at")
+
+  account    OpenFinanceAccount  @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  bill       OpenFinanceBill?    @relation(fields: [billId], references: [id], onDelete: SetNull)
+  projection Transaction?
+
+  @@unique([accountId, externalId])
+  @@index([accountId, date])
+  @@index([accountId, unavailableAt])
+  @@map("open_finance_transactions")
+}
+
+model Investment {
+  id                   String            @id @default(uuid())
+  connectionId         String            @map("connection_id")
+  externalId           String            @map("external_id")
+  name                 String
+  code                 String?
+  isin                 String?
+  number               String?
+  type                 InvestmentType
+  subtype              String?
+  status               InvestmentStatus?
+  currencyCode         String?           @map("currency_code")
+  balance              Decimal           @db.Decimal(19, 4)
+  amount               Decimal           @db.Decimal(19, 4)
+  amountOriginal       Decimal?          @map("amount_original") @db.Decimal(19, 4)
+  amountProfit         Decimal?          @map("amount_profit") @db.Decimal(19, 4)
+  amountWithdrawal     Decimal?          @map("amount_withdrawal") @db.Decimal(19, 4)
+  taxes                Decimal?          @db.Decimal(19, 4)
+  taxes2               Decimal?          @db.Decimal(19, 4)
+  quantity             Decimal?          @db.Decimal(28, 10)
+  value                Decimal?          @db.Decimal(28, 10)
+  lastMonthRate        Decimal?          @map("last_month_rate") @db.Decimal(19, 8)
+  lastTwelveMonthsRate Decimal?          @map("last_twelve_months_rate") @db.Decimal(19, 8)
+  annualRate           Decimal?          @map("annual_rate") @db.Decimal(19, 8)
+  rate                 Decimal?          @db.Decimal(19, 8)
+  rateType             String?           @map("rate_type")
+  fixedAnnualRate      Decimal?          @map("fixed_annual_rate") @db.Decimal(19, 8)
+  issuer               String?
+  issueDate            DateTime?         @map("issue_date")
+  dueDate              DateTime?         @map("due_date")
+  gracePeriodDate      DateTime?         @map("grace_period_date")
+  date                 DateTime?
+  institutionName      String?           @map("institution_name")
+  providerCreatedAt    DateTime?         @map("provider_created_at")
+  providerUpdatedAt    DateTime?         @map("provider_updated_at")
+  rawPayload           Json              @map("raw_payload")
+  lastSeenAt           DateTime          @map("last_seen_at")
+  unavailableAt        DateTime?         @map("unavailable_at")
+  createdAt            DateTime          @default(now()) @map("created_at")
+  updatedAt            DateTime          @updatedAt @map("updated_at")
+
+  connection   OpenFinanceConnection  @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  transactions InvestmentTransaction[]
+
+  @@unique([connectionId, externalId])
+  @@index([connectionId, unavailableAt])
+  @@map("investments")
+}
+
+model InvestmentTransaction {
+  id              String                     @id @default(uuid())
+  investmentId    String                     @map("investment_id")
+  externalId      String                     @map("external_id")
+  type            InvestmentTransactionType
+  description     String?
+  quantity        Decimal?                   @db.Decimal(28, 10)
+  value           Decimal?                   @db.Decimal(28, 10)
+  amount          Decimal?                   @db.Decimal(19, 4)
+  netAmount       Decimal?                   @map("net_amount") @db.Decimal(19, 4)
+  agreedRate      Decimal?                   @map("agreed_rate") @db.Decimal(19, 8)
+  date            DateTime
+  tradeDate       DateTime?                  @map("trade_date")
+  brokerageNumber String?                    @map("brokerage_number")
+  expenses        Json?
+  providerCreatedAt DateTime?                @map("provider_created_at")
+  providerUpdatedAt DateTime?                @map("provider_updated_at")
+  rawPayload      Json                       @map("raw_payload")
+  lastSeenAt      DateTime                   @map("last_seen_at")
+  unavailableAt   DateTime?                  @map("unavailable_at")
+  createdAt       DateTime                   @default(now()) @map("created_at")
+  updatedAt       DateTime                   @updatedAt @map("updated_at")
+
+  investment Investment @relation(fields: [investmentId], references: [id], onDelete: Cascade)
+
+  @@unique([investmentId, externalId])
+  @@index([investmentId, date])
+  @@map("investment_transactions")
 }

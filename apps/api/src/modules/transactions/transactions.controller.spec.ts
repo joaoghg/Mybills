@@ -36,6 +36,16 @@ describe('TransactionsController', () => {
     isProjected: false,
     invoicePaymentMonth: null,
     competenceDate: null,
+    source: 'MANUAL',
+    overriddenFields: [],
+    hiddenAt: null,
+    providerStatus: null,
+    currencyCode: null,
+    cashFlowRole: 'NORMAL',
+    billForecastMonth: null,
+    providerCategoryName: null,
+    providerCategoryId: null,
+    providerBillId: null,
     createdAt: '2026-04-04T00:00:00.000Z',
     updatedAt: '2026-04-04T00:00:00.000Z'
   };

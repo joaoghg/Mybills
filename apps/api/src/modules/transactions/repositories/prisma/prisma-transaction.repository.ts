@@ -50,6 +50,12 @@ import { TransactionRepository } from '../transaction.repository';
 type PrismaTransactionWithSeries = PrismaTransaction & {
   series?: Pick<PrismaTransactionSeries, 'type' | 'totalOccurrences'> | null;
   card?: { closingDay: number; closingOnLastDay: boolean; dueDay: number } | null;
+  openFinanceTransaction?: {
+    billForecastMonth: string | null;
+    providerCategoryName: string | null;
+    providerCategoryId: string | null;
+    billId: string | null;
+  } | null;
 };
 
 const transactionDetailInclude = {
@@ -64,6 +70,14 @@ const transactionDetailInclude = {
       closingDay: true,
       closingOnLastDay: true,
       dueDay: true
+    }
+  },
+  openFinanceTransaction: {
+    select: {
+      billForecastMonth: true,
+      providerCategoryName: true,
+      providerCategoryId: true,
+      billId: true
     }
   }
 } as const;
@@ -124,6 +138,16 @@ export class PrismaTransactionRepository implements TransactionRepository {
       isPaid: transaction.isPaid,
       isProjected: transaction.isProjected,
       invoicePaymentMonth,
+      source: transaction.source,
+      overriddenFields: transaction.overriddenFields,
+      hiddenAt: transaction.hiddenAt?.toISOString() ?? null,
+      providerStatus: transaction.providerStatus,
+      currencyCode: transaction.currencyCode,
+      cashFlowRole: transaction.cashFlowRole,
+      billForecastMonth: transaction.openFinanceTransaction?.billForecastMonth ?? null,
+      providerCategoryId: transaction.openFinanceTransaction?.providerCategoryId ?? null,
+      providerCategoryName: transaction.openFinanceTransaction?.providerCategoryName ?? null,
+      providerBillId: transaction.openFinanceTransaction?.billId ?? null,
       createdAt: transaction.createdAt.toISOString(),
       updatedAt: transaction.updatedAt.toISOString()
     };
@@ -206,7 +230,7 @@ export class PrismaTransactionRepository implements TransactionRepository {
     userId: string,
     filters?: ListTransactionsQueryInput
   ): Prisma.TransactionWhereInput {
-    const where: Prisma.TransactionWhereInput = { userId };
+    const where: Prisma.TransactionWhereInput = { userId, hiddenAt: null };
 
     if (!filters) {
       return where;
@@ -281,7 +305,8 @@ export class PrismaTransactionRepository implements TransactionRepository {
     const transaction = await this.prisma.transaction.findFirst({
       where: {
         id: transactionId,
-        userId
+        userId,
+        hiddenAt: null
       },
       include: transactionDetailInclude
     });
@@ -1041,16 +1066,15 @@ export class PrismaTransactionRepository implements TransactionRepository {
         ? data.date.slice(0, 10)
         : ymdFromUtcDate(existing.date);
 
-      const invoiceId = await this.reassignInvoiceForExisting(
-        tx,
-        existing,
-        {
-          cardId: nextCardId,
-          type: nextType,
-          amount: nextAmount,
-          dateYmd: nextDateYmd
-        }
-      );
+      const invoiceId =
+        existing.source === 'PLUGGY'
+          ? existing.invoiceId
+          : await this.reassignInvoiceForExisting(tx, existing, {
+              cardId: nextCardId,
+              type: nextType,
+              amount: nextAmount,
+              dateYmd: nextDateYmd
+            });
 
       const transaction = await tx.transaction.update({
         where: { id: transactionId },
@@ -1068,7 +1092,8 @@ export class PrismaTransactionRepository implements TransactionRepository {
               ? undefined
               : data.competenceDate === null
                 ? null
-                : this.utcDayStart(data.competenceDate.slice(0, 10))
+                : this.utcDayStart(data.competenceDate.slice(0, 10)),
+          overriddenFields: data.overriddenFields
         },
         include: transactionDetailInclude
       });
@@ -1191,14 +1216,25 @@ export class PrismaTransactionRepository implements TransactionRepository {
     });
   }
 
-  async updateIsPaid(transactionId: string, isPaid: boolean): Promise<Transaction> {
+  async updateIsPaid(
+    transactionId: string,
+    isPaid: boolean,
+    overriddenFields?: string[]
+  ): Promise<Transaction> {
     const transaction = await this.prisma.transaction.update({
       where: { id: transactionId },
-      data: { isPaid },
+      data: { isPaid, overriddenFields },
       include: transactionDetailInclude
     });
 
     return this.mapToEntity(transaction);
+  }
+
+  async hide(transactionId: string): Promise<void> {
+    await this.prisma.transaction.update({
+      where: { id: transactionId },
+      data: { hiddenAt: new Date() }
+    });
   }
 
   async delete(transactionId: string): Promise<void> {

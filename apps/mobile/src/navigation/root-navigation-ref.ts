@@ -18,10 +18,15 @@ export function navigateRoot<Route extends keyof RootStackParamList>(
   params?: RootStackParamList[Route]
 ): void {
   if (rootNavigationRef.isReady()) {
+    const navigate = rootNavigationRef.navigate.bind(rootNavigationRef) as (
+      screen: keyof RootStackParamList,
+      screenParams?: object
+    ) => void;
+
     if (params !== undefined) {
-      rootNavigationRef.navigate(name, params);
+      navigate(name, params);
     } else {
-      rootNavigationRef.navigate(name as RootRouteWithoutParams);
+      navigate(name);
     }
   }
 }
