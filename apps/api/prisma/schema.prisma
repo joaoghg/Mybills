@@ -291,7 +291,7 @@ model Transaction {
   openFinanceTransactionId String?                   @unique @map("open_finance_transaction_id")
   overriddenFields         String[]                  @default([]) @map("overridden_fields")
   hiddenAt                 DateTime?                 @map("hidden_at")
-  providerStatus           ProviderTransactionStatus?
+  providerStatus           ProviderTransactionStatus? @map("provider_status")
   currencyCode             String?                   @map("currency_code")
   cashFlowRole             CashFlowRole              @default(NORMAL) @map("cash_flow_role")
   createdAt                DateTime                  @default(now()) @map("created_at")

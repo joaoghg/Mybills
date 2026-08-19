@@ -14,7 +14,7 @@
 - [x] 2.3 Create a typed Pluggy client port and backend adapter under `apps/api/src/modules/open-finance/providers/`, including automatic API-key refresh and typed REST fallbacks.
 - [x] 2.4 Add a non-persisting probe command under `apps/api/src/modules/open-finance/scripts/` that verifies Connector 200 Items and reports product counts, pagination, date ranges, and sanitized errors.
 - [x] 2.5 Run the probe against Pluggy sandbox, save redacted fixtures for mapper tests, and document which endpoint behaviors were confirmed.
-- [ ] 2.6 Run the probe against one real Meu Pluggy Item before cutover and record coverage for accounts, cards, bills, transactions, investments, and webhook delivery without storing sensitive output.
+- [x] 2.6 Run the probe against one real Meu Pluggy Item before cutover and record coverage for accounts, cards, bills, transactions, investments, and webhook delivery without storing sensitive output.
 
 ## 3. Prisma persistence and migration
 
@@ -107,8 +107,8 @@
 
 ## 13. Cutover and VPS operation
 
-- [ ] 13.1 Back up the development database and run the guarded financial-data cutover only after the real Connector 200 probe passes.
-- [ ] 13.2 Register the real Item IDs, perform a full manual sync, and reconcile counts, balances, transaction ranges, bill totals, and investment totals against Meu Pluggy.
+- [x] 13.1 Back up the development database and run the guarded financial-data cutover only after the real Connector 200 probe passes.
+- [x] 13.2 Register the real Item IDs, perform a full manual sync, and reconcile counts, balances, transaction ranges, bill totals, and investment totals against Meu Pluggy.
 - [ ] 13.3 Configure VPS Pluggy credentials, HTTPS webhook URL/secret, feature flag, encrypted backups, and stale-sync schedule without logging secrets.
 - [ ] 13.4 Verify process-restart recovery, duplicate webhook delivery, Connector 200 webhook availability, and manual “Sync now” behavior in the deployed environment.
 - [x] 13.5 Document operational recovery: disable the worker/feature flag, restore the database backup, and leave remote Items/Meu Pluggy consents untouched unless explicitly disconnected.

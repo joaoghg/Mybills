@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
+import { existsSync } from 'fs';
 import { join } from 'path';
 import { AcceptLanguageResolver, HeaderResolver, I18nJsonLoader, I18nModule } from 'nestjs-i18n';
 import { validate } from '../config/env.validation';
@@ -26,8 +27,8 @@ import { PrismaClientExceptionFilter } from '../common/filters/prisma-client-exc
       fallbackLanguage: 'pt-BR',
       loader: I18nJsonLoader,
       loaderOptions: {
-        path: join(__dirname, '../i18n/'),
-        watch: process.env.NODE_ENV !== 'production'
+        path: resolveI18nPath(),
+        watch: process.env.NODE_ENV !== 'production' && existsSync(join(process.cwd(), 'src', 'i18n'))
       },
       resolvers: [new HeaderResolver(['x-lang']), AcceptLanguageResolver]
     }),
@@ -51,3 +52,12 @@ import { PrismaClientExceptionFilter } from '../common/filters/prisma-client-exc
   ]
 })
 export class AppModule {}
+
+function resolveI18nPath(): string {
+  const sourcePath = join(process.cwd(), 'src', 'i18n');
+  if (existsSync(sourcePath)) {
+    return sourcePath;
+  }
+
+  return join(__dirname, '..', 'i18n');
+}

@@ -24,7 +24,8 @@
     "prisma:seed": "dotenv -e .env.development ts-node --transpile-only prisma/seed.ts",
     "open-finance:probe": "dotenv -e .env.development -- ts-node -r dotenv/config -r tsconfig-paths/register --transpile-only src/modules/open-finance/scripts/probe-pluggy.ts",
     "open-finance:list-items": "dotenv -e .env.development -- ts-node --transpile-only src/modules/open-finance/scripts/list-pluggy-items.ts",
-    "open-finance:cutover": "dotenv -e .env.development ts-node --transpile-only src/modules/open-finance/scripts/cutover-financial-data.ts"
+    "open-finance:cutover": "dotenv -e .env.development -- ts-node -r tsconfig-paths/register --transpile-only src/modules/open-finance/scripts/cutover-financial-data.ts",
+    "open-finance:register-and-sync": "cross-env NODE_ENV=development dotenv -e .env.development -- ts-node -r tsconfig-paths/register --transpile-only src/modules/open-finance/scripts/register-and-sync.ts"
   },
   "prisma": {
     "seed": "dotenv -e .env.development ts-node --transpile-only prisma/seed.ts"

@@ -87,7 +87,27 @@ export class PluggySdkClientAdapter implements PluggyClientPort {
   }
 
   async fetchAllTransactions(accountId: string): Promise<Transaction[]> {
-    return await this.getSdk().fetchAllTransactions(accountId);
+    const results: Transaction[] = [];
+    let after: string | undefined;
+    let hasMore = true;
+
+    while (hasMore) {
+      const page = await this.fetchTransactionsPage({
+        accountId,
+        after
+      });
+      results.push(...page.results);
+
+      if (!page.next) {
+        hasMore = false;
+      } else {
+        const afterMatch = page.next.match(/after=([^&]+)/);
+        after = afterMatch?.[1] ? decodeURIComponent(afterMatch[1]) : undefined;
+        hasMore = Boolean(after);
+      }
+    }
+
+    return results;
   }
 
   async fetchTransactionsByIds(accountId: string, ids: string[]): Promise<Transaction[]> {

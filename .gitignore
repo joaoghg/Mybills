@@ -37,5 +37,9 @@ yarn-error.log*
 .DS_Store
 *.pem
 
+# Local database backups
+backups/
+*.sql.dump
+
 # Git worktrees
 .worktrees/

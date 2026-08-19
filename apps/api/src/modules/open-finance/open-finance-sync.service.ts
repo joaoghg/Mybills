@@ -261,7 +261,9 @@ export class OpenFinanceSyncService {
         succeededAt: seenAt
       });
       return true;
-    } catch {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'unknown';
+      this.logger.warn(`Transaction sync failed: ${message}`);
       await this.syncRuns.markProductResult({
         connectionId: run.connectionId,
         product: 'TRANSACTIONS',
@@ -318,7 +320,9 @@ export class OpenFinanceSyncService {
       }
 
       return true;
-    } catch {
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'unknown';
+      this.logger.warn(`Investment sync failed: ${message}`);
       await this.syncRuns.markProductResult({
         connectionId: run.connectionId,
         product: 'INVESTMENTS',
