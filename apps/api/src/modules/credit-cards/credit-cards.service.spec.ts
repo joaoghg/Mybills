@@ -48,6 +48,7 @@ describe('CreditCardsService', () => {
             hide: jest.fn(),
             payInvoice: jest.fn(),
             findInvoicesByCreditCardId: jest.fn(),
+            findInvoicesDueInMonth: jest.fn(),
             findInvoiceByIdAndCreditCard: jest.fn()
           }
         },
@@ -315,6 +316,55 @@ describe('CreditCardsService', () => {
     });
   });
 
+  describe('listInvoices', () => {
+    it('should return invoices including mapped payments for a manual card', async () => {
+      const invoiceWithPayment = {
+        id: '7aa4f605-31d5-4dcf-93bc-45fafad6f320',
+        userId: creditCard.userId,
+        creditCardId: creditCard.id,
+        startsOn: '2026-05-10',
+        endsOn: '2026-06-09',
+        dueOn: '2026-06-18',
+        status: 'PAID' as const,
+        amount: 15000,
+        paidAt: '2026-06-15T00:00:00.000Z',
+        paidAmount: 15000,
+        paymentTransactionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890',
+        paidFromAccountId: creditCard.accountId,
+        source: 'MANUAL' as const,
+        currencyCode: null,
+        closingOn: null,
+        minimumPaymentAmount: null,
+        allowsInstallments: null,
+        isFullyPaid: true,
+        isForecast: false,
+        providerBillId: null,
+        payments: [
+          {
+            id: '9aa4f605-31d5-4dcf-93bc-45fafad6f322',
+            amount: 15000,
+            paymentDate: '2026-06-15',
+            transactionId: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890'
+          }
+        ],
+        createdAt: '2026-05-10T00:00:00.000Z',
+        updatedAt: '2026-06-15T00:00:00.000Z'
+      };
+
+      repository.findByIdAndUserId.mockResolvedValue(creditCard);
+      repository.findInvoicesByCreditCardId.mockResolvedValue([invoiceWithPayment]);
+
+      const result = await service.listInvoices(creditCard.id, creditCard.userId);
+
+      expect(result[0]?.payments).toEqual(invoiceWithPayment.payments);
+      expect(repository.findInvoicesByCreditCardId).toHaveBeenCalledWith(
+        creditCard.id,
+        creditCard.userId,
+        undefined
+      );
+    });
+  });
+
   describe('payInvoice', () => {
     const now = new Date(Date.UTC(2026, 5, 15));
     const invoiceId = '7aa4f605-31d5-4dcf-93bc-45fafad6f320';
@@ -339,6 +389,7 @@ describe('CreditCardsService', () => {
       isFullyPaid: false,
       isForecast: false,
       providerBillId: null,
+      payments: [],
       createdAt: '2026-05-10T00:00:00.000Z',
       updatedAt: '2026-05-10T00:00:00.000Z'
     };
@@ -382,6 +433,11 @@ describe('CreditCardsService', () => {
         source: 'PLUGGY'
       });
 
+      await expect(
+        service.payInvoice(creditCard.id, creditCard.userId, { invoiceId }, now)
+      ).rejects.toMatchObject({
+        code: 'open_finance.imported_invoice_payment_not_allowed'
+      });
       await expect(
         service.payInvoice(creditCard.id, creditCard.userId, { invoiceId }, now)
       ).rejects.toThrow(InvalidArgumentError);

@@ -59,6 +59,11 @@ export class CreditCardsService {
     );
   }
 
+  async listInvoicesDueInMonth(userId: string, yearMonth: string): Promise<InvoiceRecord[]> {
+    this.validateUserId(userId);
+    return await this.repository.findInvoicesDueInMonth(userId, yearMonth);
+  }
+
   async getInvoice(
     creditCardId: string,
     invoiceId: string,

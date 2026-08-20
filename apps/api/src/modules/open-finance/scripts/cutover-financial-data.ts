@@ -49,6 +49,7 @@ async function main(): Promise<void> {
       await tx.$executeRawUnsafe('TRUNCATE TABLE "open_finance_connections" CASCADE');
       await tx.$executeRawUnsafe('TRUNCATE TABLE "transactions" CASCADE');
       await tx.$executeRawUnsafe('TRUNCATE TABLE "transaction_series" CASCADE');
+      await tx.$executeRawUnsafe('TRUNCATE TABLE "invoice_payments" CASCADE');
       await tx.$executeRawUnsafe('TRUNCATE TABLE "invoices" CASCADE');
       await tx.$executeRawUnsafe('TRUNCATE TABLE "credit_cards" CASCADE');
       await tx.$executeRawUnsafe('TRUNCATE TABLE "accounts" CASCADE');

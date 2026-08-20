@@ -1,3 +1,10 @@
+export type InvoicePaymentRecord = {
+  id: string;
+  amount: number;
+  paymentDate: string;
+  transactionId: string | null;
+};
+
 export type InvoiceRecord = {
   id: string;
   userId: string;
@@ -19,6 +26,7 @@ export type InvoiceRecord = {
   isFullyPaid: boolean | null;
   isForecast: boolean;
   providerBillId: string | null;
+  payments: InvoicePaymentRecord[];
   createdAt: string;
   updatedAt: string;
 };

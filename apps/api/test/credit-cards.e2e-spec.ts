@@ -3,7 +3,14 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AppModule } from 'src/modules/app.module';
 import request from 'supertest';
 import { App } from 'supertest/types';
-import { SignInInput, SignUpInput, signInOutputSchema } from '@mybills/dtos';
+import {
+  SignInInput,
+  SignUpInput,
+  invoiceOutputSchema,
+  listInvoicesOutputSchema,
+  payCreditCardInvoiceOutputSchema,
+  signInOutputSchema
+} from '@mybills/dtos';
 
 describe('CreditCards (e2e)', () => {
   let app: INestApplication<App>;
@@ -329,6 +336,64 @@ describe('CreditCards (e2e)', () => {
     expect(response.body.errors).toBeDefined();
   });
 
+  describe('GET /credit-cards/:id/invoices', () => {
+    it('should list invoices for the owner and parse the payments contract', async () => {
+      const accessToken = await authenticateUser('credit-cards-invoices-owner@mybills.dev');
+      const account = await createAccount(accessToken, 'Invoice Account', 0);
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${accessToken}`)
+        .send({
+          accountId: account.id,
+          name: 'Invoice Card',
+          limit: 100000,
+          closingDay: 10,
+          dueDay: 18
+        })
+        .expect(201);
+
+      const cardId = cardResponse.body.id as string;
+
+      const response = await request(app.getHttpServer())
+        .get(`/credit-cards/${cardId}/invoices`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const invoices = listInvoicesOutputSchema.parse(response.body);
+      expect(invoices.length).toBeGreaterThan(0);
+      expect(invoices[0]?.creditCardId).toBe(cardId);
+      expect(invoices[0]?.payments).toEqual([]);
+    });
+
+    it('should return not found when listing invoices of another user credit card', async () => {
+      const ownerToken = await authenticateUser('credit-cards-invoices-owner-b@mybills.dev');
+      const strangerToken = await authenticateUser('credit-cards-invoices-stranger@mybills.dev');
+
+      const cardResponse = await request(app.getHttpServer())
+        .post('/credit-cards')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          name: 'Private Invoice Card',
+          limit: 100000,
+          closingDay: 10,
+          dueDay: 18
+        })
+        .expect(201);
+
+      const response = await request(app.getHttpServer())
+        .get(`/credit-cards/${cardResponse.body.id as string}/invoices`)
+        .set('Authorization', `Bearer ${strangerToken}`)
+        .expect(404);
+
+      expect(response.body).toMatchObject({
+        statusCode: 404,
+        code: 'credit_cards.credit_card_not_found',
+        error: 'not_found'
+      });
+    });
+  });
+
   describe('POST /credit-cards/:id/pay-invoice', () => {
     async function createCardPurchase(
       accessToken: string,
@@ -360,9 +425,9 @@ describe('CreditCards (e2e)', () => {
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 
-      const invoice = (response.body as Array<{ id: string; endsOn: string }>).find(
-        (item) => item.endsOn === endsOn
-      );
+      const invoice = listInvoicesOutputSchema
+        .parse(response.body)
+        .find((item) => item.endsOn === endsOn);
       if (!invoice) {
         throw new Error(`Invoice ending ${endsOn} not found`);
       }
@@ -398,14 +463,27 @@ describe('CreditCards (e2e)', () => {
         .send({ invoiceId })
         .expect(201);
 
-      expect(payResponse.body).toMatchObject({
+      const paid = payCreditCardInvoiceOutputSchema.parse(payResponse.body);
+      expect(paid).toMatchObject({
         amount: 15000,
         accountId: account.id,
         paidCount: 2,
         invoiceId,
         cycleStart: '2026-05-10',
-        cycleEnd: '2026-06-09',
-        paymentTransactionId: expect.any(String)
+        cycleEnd: '2026-06-09'
+      });
+
+      const invoiceAfterPay = await request(app.getHttpServer())
+        .get(`/credit-cards/${cardId}/invoices/${invoiceId}`)
+        .set('Authorization', `Bearer ${accessToken}`)
+        .expect(200);
+
+      const invoice = invoiceOutputSchema.parse(invoiceAfterPay.body);
+      expect(invoice.payments).toHaveLength(1);
+      expect(invoice.payments[0]).toMatchObject({
+        amount: 15000,
+        paymentDate: expect.any(String),
+        transactionId: paid.paymentTransactionId
       });
 
       const accountAfter = await request(app.getHttpServer())
@@ -423,7 +501,7 @@ describe('CreditCards (e2e)', () => {
       expect(cardAfter.body.usedAmount).toBe(0);
 
       const paymentTx = await request(app.getHttpServer())
-        .get(`/transactions/${payResponse.body.paymentTransactionId as string}`)
+        .get(`/transactions/${paid.paymentTransactionId}`)
         .set('Authorization', `Bearer ${accessToken}`)
         .expect(200);
 

@@ -4,6 +4,15 @@ import { currencyCodeSchema } from '../../open-finance/primitives';
 
 export const invoiceStatusSchema = z.enum(['OPEN', 'CLOSED', 'PAID']);
 
+export const invoicePaymentOutputSchema = z.object({
+  id: z.uuid(),
+  amount: z.int(),
+  paymentDate: z.iso.date(),
+  transactionId: z.uuid().nullable()
+});
+
+export type InvoicePaymentOutput = z.infer<typeof invoicePaymentOutputSchema>;
+
 export const invoiceOutputSchema = z.object({
   id: z.uuid(),
   userId: z.uuid(),
@@ -25,6 +34,7 @@ export const invoiceOutputSchema = z.object({
   isFullyPaid: z.boolean().nullable().default(null),
   isForecast: z.boolean().default(false),
   providerBillId: z.uuid().nullable().default(null),
+  payments: z.array(invoicePaymentOutputSchema),
   createdAt: z.string(),
   updatedAt: z.string()
 });

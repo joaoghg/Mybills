@@ -21,6 +21,7 @@ export interface CreditCardRepository {
     userId: string,
     status?: 'OPEN' | 'CLOSED' | 'PAID'
   ): Promise<InvoiceRecord[]>;
+  findInvoicesDueInMonth(userId: string, yearMonth: string): Promise<InvoiceRecord[]>;
   findInvoiceByIdAndCreditCard(
     invoiceId: string,
     creditCardId: string,

@@ -205,28 +205,54 @@ model CreditCard {
 }
 
 model Invoice {
-  id                   String        @id @default(uuid())
-  userId               String        @map("user_id")
-  creditCardId         String        @map("credit_card_id")
-  startsOn             DateTime      @map("starts_on") @db.Date
-  endsOn               DateTime      @map("ends_on") @db.Date
-  dueOn                DateTime      @map("due_on") @db.Date
-  status               InvoiceStatus @default(OPEN)
-  amount               Int           @default(0)
-  paidAt               DateTime?     @map("paid_at")
-  paidAmount           Int?          @map("paid_amount")
-  paymentTransactionId String?       @map("payment_transaction_id")
-  paidFromAccountId    String?       @map("paid_from_account_id")
-  createdAt            DateTime      @default(now()) @map("created_at")
-  updatedAt            DateTime      @updatedAt @map("updated_at")
+  id                    String          @id @default(uuid())
+  userId                String          @map("user_id")
+  creditCardId          String          @map("credit_card_id")
+  startsOn              DateTime        @map("starts_on") @db.Date
+  endsOn                DateTime        @map("ends_on") @db.Date
+  dueOn                 DateTime        @map("due_on") @db.Date
+  status                InvoiceStatus   @default(OPEN)
+  amount                Int             @default(0)
+  paidAt                DateTime?       @map("paid_at")
+  paidAmount            Int?            @map("paid_amount")
+  paymentTransactionId  String?         @map("payment_transaction_id")
+  paidFromAccountId     String?         @map("paid_from_account_id")
+  source                FinancialSource @default(MANUAL)
+  openFinanceBillId     String?         @unique @map("open_finance_bill_id")
+  currencyCode          String?         @map("currency_code")
+  minimumPaymentAmount  Int?            @map("minimum_payment_amount")
+  allowsInstallments    Boolean?        @map("allows_installments")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  creditCard   CreditCard    @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
-  transactions Transaction[]
+  user            User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  creditCard      CreditCard         @relation(fields: [creditCardId], references: [id], onDelete: Cascade)
+  openFinanceBill OpenFinanceBill?   @relation(fields: [openFinanceBillId], references: [id], onDelete: SetNull)
+  transactions    Transaction[]
+  payments        InvoicePayment[]
 
   @@unique([creditCardId, endsOn])
   @@index([userId, creditCardId, status])
   @@map("invoices")
+}
+
+model InvoicePayment {
+  id                       String          @id @default(uuid())
+  invoiceId                String          @map("invoice_id")
+  amount                   Int
+  paymentDate              DateTime        @map("payment_date") @db.Date
+  transactionId            String?         @map("transaction_id")
+  openFinanceBillPaymentId String?         @unique @map("open_finance_bill_payment_id")
+  source                   FinancialSource @default(MANUAL)
+  createdAt                DateTime        @default(now()) @map("created_at")
+  updatedAt                DateTime        @updatedAt @map("updated_at")
+
+  invoice                Invoice                 @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  transaction            Transaction?            @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+  openFinanceBillPayment OpenFinanceBillPayment? @relation(fields: [openFinanceBillPaymentId], references: [id], onDelete: SetNull)
+
+  @@index([invoiceId])
+  @@map("invoice_payments")
 }
 
 model Category {
@@ -304,6 +330,7 @@ model Transaction {
   invoice                Invoice?                @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   series                 TransactionSeries?      @relation(fields: [seriesId], references: [id], onDelete: SetNull)
   openFinanceTransaction OpenFinanceTransaction? @relation(fields: [openFinanceTransactionId], references: [id], onDelete: SetNull)
+  invoicePayments        InvoicePayment[]
 
   @@unique([seriesId, occurrenceNumber])
   @@index([transferGroupId])
@@ -459,6 +486,7 @@ model OpenFinanceBill {
   payments        OpenFinanceBillPayment[]
   financeCharges  OpenFinanceBillFinanceCharge[]
   transactions    OpenFinanceTransaction[]
+  invoice         Invoice?
 
   @@unique([accountId, externalId])
   @@index([accountId, dueOn])
@@ -480,7 +508,8 @@ model OpenFinanceBillPayment {
   createdAt      DateTime             @default(now()) @map("created_at")
   updatedAt      DateTime             @updatedAt @map("updated_at")
 
-  bill OpenFinanceBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  bill          OpenFinanceBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  invoicePayment InvoicePayment?
 
   @@unique([billId, externalId])
   @@map("open_finance_bill_payments")

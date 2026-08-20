@@ -8,6 +8,7 @@ import { CategoriesService } from '../categories/categories.service';
 import { Category } from '../categories/entities/category.entity';
 import { CreditCardsService } from '../credit-cards/credit-cards.service';
 import { CreditCard } from '../credit-cards/entities/credit-card.entity';
+import { InvoiceRecord } from '../credit-cards/entities/invoice.entity';
 import { Transaction } from './entities/transaction.entity';
 import { TransactionRepository } from './repositories/transaction.repository';
 import { TransactionSeriesMaintenanceService } from './transaction-series-maintenance.service';
@@ -136,7 +137,8 @@ describe('TransactionsService', () => {
           provide: CreditCardsService,
           useValue: {
             findAll: jest.fn(),
-            findById: jest.fn()
+            findById: jest.fn(),
+            listInvoicesDueInMonth: jest.fn()
           }
         }
       ]
@@ -149,6 +151,7 @@ describe('TransactionsService', () => {
     creditCardsService = module.get(CreditCardsService) as jest.Mocked<CreditCardsService>;
 
     jest.clearAllMocks();
+    creditCardsService.listInvoicesDueInMonth.mockResolvedValue([]);
   });
 
   describe('findAll', () => {
@@ -243,18 +246,60 @@ describe('TransactionsService', () => {
       date: '2026-07-10T00:00:00.000Z'
     };
 
+    const invoiceId = '7d8e9f01-2345-6789-abcd-ef0123456789';
+
+    const augustInvoice: InvoiceRecord = {
+      id: invoiceId,
+      userId: baseTransaction.userId,
+      creditCardId: cardId,
+      startsOn: '2026-07-05',
+      endsOn: '2026-08-04',
+      dueOn: '2026-08-11',
+      status: 'OPEN',
+      amount: 5000,
+      paidAt: null,
+      paidAmount: null,
+      paymentTransactionId: null,
+      paidFromAccountId: null,
+      source: 'MANUAL',
+      currencyCode: null,
+      closingOn: null,
+      minimumPaymentAmount: null,
+      allowsInstallments: null,
+      isFullyPaid: false,
+      isForecast: false,
+      providerBillId: null,
+      payments: [],
+      createdAt: baseTransaction.createdAt,
+      updatedAt: baseTransaction.updatedAt
+    };
+
     const cardPurchase: Transaction = {
       ...baseTransaction,
       id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f003',
       accountId: null,
       cardId,
+      invoiceId,
       amount: 5000,
       date: '2026-07-21T00:00:00.000Z',
       invoicePaymentMonth: '2026-08'
     };
 
+    const mockWindowAndInvoiceTransactions = (
+      windowTransactions: Transaction[],
+      purchasesByInvoiceId: Record<string, Transaction[]>
+    ) => {
+      repository.findAllByUserId.mockImplementation(async (_userId, filters) => {
+        if (filters?.invoiceId) {
+          return purchasesByInvoiceId[filters.invoiceId] ?? [];
+        }
+
+        return windowTransactions;
+      });
+    };
+
     it('should count only non-card transactions in the purchase month', async () => {
-      repository.findAllByUserId.mockResolvedValue([salary, groceries, cardPurchase]);
+      mockWindowAndInvoiceTransactions([salary, groceries, cardPurchase], {});
 
       const result = await service.getMonthlySummary(baseTransaction.userId, {
         month: 7,
@@ -273,10 +318,17 @@ describe('TransactionsService', () => {
         to: '2026-09-30',
         includeTransfer: false
       });
+      expect(creditCardsService.listInvoicesDueInMonth).toHaveBeenCalledWith(
+        baseTransaction.userId,
+        '2026-07'
+      );
     });
 
-    it('should count a card purchase in its invoice payment month grouped by card', async () => {
-      repository.findAllByUserId.mockResolvedValue([salary, groceries, cardPurchase]);
+    it('should count a card purchase in its invoice due month grouped by invoice', async () => {
+      mockWindowAndInvoiceTransactions([salary, groceries, cardPurchase], {
+        [invoiceId]: [cardPurchase]
+      });
+      creditCardsService.listInvoicesDueInMonth.mockResolvedValue([augustInvoice]);
       creditCardsService.findAll.mockResolvedValue([creditCard]);
 
       const result = await service.getMonthlySummary(baseTransaction.userId, {
@@ -290,6 +342,7 @@ describe('TransactionsService', () => {
       expect(result.cardInvoices).toEqual([
         {
           cardId,
+          invoiceId,
           cardName: 'Nubank',
           paymentMonth: '2026-08',
           total: 5000,
@@ -302,9 +355,48 @@ describe('TransactionsService', () => {
       expect(result.incomeTotal).toBe(0);
       expect(result.expenseTotal).toBe(5000);
       expect(result.netTotal).toBe(-5000);
+      expect(repository.findAllByUserId).toHaveBeenCalledWith(baseTransaction.userId, {
+        invoiceId,
+        includeTransfer: false
+      });
     });
 
-    it('should subtract card refunds from the invoice total', async () => {
+    it('should use persisted invoice amount when it differs from nested purchase sum', async () => {
+      const firstPurchase: Transaction = {
+        ...cardPurchase,
+        id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f014',
+        amount: 50000
+      };
+      const secondPurchase: Transaction = {
+        ...cardPurchase,
+        id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f015',
+        amount: 38262
+      };
+      const septemberInvoice: InvoiceRecord = {
+        ...augustInvoice,
+        dueOn: '2026-09-11',
+        amount: 89010
+      };
+
+      mockWindowAndInvoiceTransactions([firstPurchase, secondPurchase], {
+        [invoiceId]: [firstPurchase, secondPurchase]
+      });
+      creditCardsService.listInvoicesDueInMonth.mockResolvedValue([septemberInvoice]);
+      creditCardsService.findAll.mockResolvedValue([creditCard]);
+
+      const result = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 9,
+        year: 2026
+      });
+
+      expect(result.cardInvoices).toHaveLength(1);
+      expect(result.cardInvoices[0]?.invoiceId).toBe(invoiceId);
+      expect(result.cardInvoices[0]?.total).toBe(89010);
+      expect(result.cardInvoices[0]?.transactions).toEqual([firstPurchase, secondPurchase]);
+      expect(result.expenseTotal).toBe(89010);
+    });
+
+    it('should nest assigned refunds without using them as the invoice total', async () => {
       const refund: Transaction = {
         ...cardPurchase,
         id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f004',
@@ -312,8 +404,15 @@ describe('TransactionsService', () => {
         amount: 1500,
         isPaid: true
       };
+      const invoiceWithRefund: InvoiceRecord = {
+        ...augustInvoice,
+        amount: 3500
+      };
 
-      repository.findAllByUserId.mockResolvedValue([cardPurchase, refund]);
+      mockWindowAndInvoiceTransactions([cardPurchase, refund], {
+        [invoiceId]: [cardPurchase, refund]
+      });
+      creditCardsService.listInvoicesDueInMonth.mockResolvedValue([invoiceWithRefund]);
       creditCardsService.findAll.mockResolvedValue([creditCard]);
 
       const result = await service.getMonthlySummary(baseTransaction.userId, {
@@ -323,8 +422,61 @@ describe('TransactionsService', () => {
 
       expect(result.cardInvoices).toHaveLength(1);
       expect(result.cardInvoices[0]?.total).toBe(3500);
+      expect(result.cardInvoices[0]?.transactions).toEqual([cardPurchase, refund]);
       expect(result.cardInvoices[0]?.isFullyPaid).toBe(false);
       expect(result.expenseTotal).toBe(3500);
+    });
+
+    it('should not create a cardInvoices row when no invoice is due in the month', async () => {
+      const unassignedPurchase: Transaction = {
+        ...cardPurchase,
+        invoiceId: null,
+        billForecastMonth: '2026-08'
+      };
+
+      mockWindowAndInvoiceTransactions([unassignedPurchase], {});
+      creditCardsService.listInvoicesDueInMonth.mockResolvedValue([]);
+
+      const result = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 8,
+        year: 2026
+      });
+
+      expect(result.cardInvoices).toEqual([]);
+      expect(result.expenses).toEqual([]);
+      expect(result.expenseTotal).toBe(0);
+      expect(creditCardsService.findAll).not.toHaveBeenCalled();
+    });
+
+    it('should omit card-bill payments from expenses and nested invoice transactions', async () => {
+      const cardBillPayment: Transaction = {
+        ...baseTransaction,
+        id: '6c9a5b40-0b6f-4a9e-9d3a-2b41f1c9f016',
+        cardId: null,
+        invoiceId: null,
+        amount: 89010,
+        date: '2026-09-10T00:00:00.000Z',
+        source: 'PLUGGY',
+        cashFlowRole: 'CARD_PAYMENT',
+        providerStatus: 'POSTED'
+      };
+
+      mockWindowAndInvoiceTransactions([cardPurchase, cardBillPayment], {
+        [invoiceId]: [cardPurchase, cardBillPayment]
+      });
+      creditCardsService.listInvoicesDueInMonth.mockResolvedValue([
+        { ...augustInvoice, dueOn: '2026-09-11', amount: 5000 }
+      ]);
+      creditCardsService.findAll.mockResolvedValue([creditCard]);
+
+      const result = await service.getMonthlySummary(baseTransaction.userId, {
+        month: 9,
+        year: 2026
+      });
+
+      expect(result.expenses).toEqual([]);
+      expect(result.cardInvoices[0]?.transactions).toEqual([cardPurchase]);
+      expect(result.cardInvoices[0]?.total).toBe(5000);
     });
 
     it('should count income by competence month instead of occurrence month', async () => {

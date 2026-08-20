@@ -73,25 +73,13 @@ export class TransactionsService {
 
     const income: Transaction[] = [];
     const expenses: Transaction[] = [];
-    const cardTransactions: Transaction[] = [];
 
     for (const transaction of transactions) {
-      if (
-        transaction.source === 'PLUGGY' &&
-        (transaction.cashFlowRole === 'TRANSFER' ||
-          transaction.cashFlowRole === 'CARD_PAYMENT' ||
-          transaction.cashFlowRole === 'INVESTMENT' ||
-          transaction.cashFlowRole === 'IGNORED')
-      ) {
+      if (this.shouldExcludeFromMonthlyCashFlow(transaction)) {
         continue;
       }
 
       if (transaction.cardId) {
-        const paymentMonth =
-          transaction.billForecastMonth ?? transaction.invoicePaymentMonth;
-        if (paymentMonth === month) {
-          cardTransactions.push(transaction);
-        }
         continue;
       }
 
@@ -110,7 +98,7 @@ export class TransactionsService {
       }
     }
 
-    const cardInvoices = await this.buildCardInvoices(userId, month, cardTransactions);
+    const cardInvoices = await this.buildCardInvoices(userId, month);
 
     const incomeTotal = income.reduce((total, transaction) => total + transaction.amount, 0);
     const expenseTotal =
@@ -204,57 +192,55 @@ export class TransactionsService {
     }
   }
 
+  private shouldExcludeFromMonthlyCashFlow(transaction: Transaction): boolean {
+    if (transaction.cashFlowRole === 'CARD_PAYMENT') {
+      return true;
+    }
+
+    return (
+      transaction.source === 'PLUGGY' &&
+      (transaction.cashFlowRole === 'TRANSFER' ||
+        transaction.cashFlowRole === 'INVESTMENT' ||
+        transaction.cashFlowRole === 'IGNORED')
+    );
+  }
+
   private async buildCardInvoices(
     userId: string,
-    paymentMonth: string,
-    cardTransactions: Transaction[]
+    paymentMonth: string
   ): Promise<MonthlySummaryCardInvoice[]> {
-    if (cardTransactions.length === 0) {
+    const dueInvoices = await this.creditCardsService.listInvoicesDueInMonth(userId, paymentMonth);
+
+    if (dueInvoices.length === 0) {
       return [];
     }
 
     const cards = await this.creditCardsService.findAll(userId);
     const cardNameById = new Map(cards.map((card) => [card.id, card.name]));
-    const grouped = new Map<string, Transaction[]>();
 
-    for (const transaction of cardTransactions) {
-      const cardId = transaction.cardId;
+    const invoices = await Promise.all(
+      dueInvoices.map(async (invoice) => {
+        const assigned = await this.repository.findAllByUserId(userId, {
+          invoiceId: invoice.id,
+          includeTransfer: false
+        });
+        const purchases = assigned.filter(
+          (transaction) => transaction.cashFlowRole !== 'CARD_PAYMENT'
+        );
 
-      if (!cardId) {
-        continue;
-      }
-
-      const group = grouped.get(cardId);
-
-      if (group) {
-        group.push(transaction);
-      } else {
-        grouped.set(cardId, [transaction]);
-      }
-    }
-
-    const invoices: MonthlySummaryCardInvoice[] = [];
-
-    for (const [cardId, group] of grouped) {
-      const total = group.reduce(
-        (sum, transaction) =>
-          transaction.type === TransactionType.INCOME
-            ? sum - transaction.amount
-            : sum + transaction.amount,
-        0
-      );
-
-      invoices.push({
-        cardId,
-        cardName: cardNameById.get(cardId) ?? '',
-        paymentMonth,
-        total,
-        isFullyPaid: group.every((transaction) => transaction.isPaid),
-        isForecast: group.some((transaction) => Boolean(transaction.billForecastMonth)),
-        source: group.some((transaction) => transaction.source === 'PLUGGY') ? 'PLUGGY' : 'MANUAL',
-        transactions: group
-      });
-    }
+        return {
+          cardId: invoice.creditCardId,
+          invoiceId: invoice.id,
+          cardName: cardNameById.get(invoice.creditCardId) ?? '',
+          paymentMonth,
+          total: invoice.amount,
+          isFullyPaid: invoice.isFullyPaid === true,
+          isForecast: invoice.isForecast,
+          source: invoice.source,
+          transactions: purchases
+        };
+      })
+    );
 
     return invoices.sort((a, b) => a.cardName.localeCompare(b.cardName));
   }

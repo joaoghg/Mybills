@@ -17,6 +17,14 @@ import { MappedProviderBill } from '../../mappers/map-bill';
 import { MappedInvestment, MappedInvestmentTransaction } from '../../mappers/map-investment';
 import { MappedProviderTransaction } from '../../mappers/map-transaction';
 import { decimalToString, providerAmountToCents, toIsoString } from '../../mappers/money';
+import {
+  ensureUnbilledOpenInvoice,
+  maybeRecordCardPaymentLedger,
+  mergeCanonicalBillIntoInvoice,
+  recalcTouchedUnbilledOpenInvoices,
+  resolveInvoiceIdForCardMovement,
+  upsertInvoicePaymentsFromBill
+} from '../../lib/project-imported-invoices';
 
 const LAST_DAY_CLOSING = 31;
 
@@ -202,6 +210,22 @@ export class PrismaOpenFinanceCanonicalRepository {
           }
         });
       }
+
+      const invoiceId = await mergeCanonicalBillIntoInvoice(this.prisma, account.id, {
+        id: canonical.id,
+        dueOn: canonical.dueOn,
+        closingOn: canonical.closingOn,
+        totalAmount: bill.totalAmount,
+        totalAmountCents: bill.totalAmountCents,
+        currencyCode: bill.currencyCode,
+        minimumPaymentAmount: bill.minimumPaymentAmount,
+        minimumPaymentAmountCents: bill.minimumPaymentAmountCents,
+        allowsInstallments: bill.allowsInstallments
+      });
+
+      if (invoiceId) {
+        await upsertInvoicePaymentsFromBill(this.prisma, invoiceId, canonical.id);
+      }
     }
   }
 
@@ -222,6 +246,8 @@ export class PrismaOpenFinanceCanonicalRepository {
     transactions: MappedProviderTransaction[],
     seenAt: Date
   ): Promise<void> {
+    const touchedInvoiceIds = new Set<string>();
+
     for (const transaction of transactions) {
       const ofAccount = await this.prisma.openFinanceAccount.findUnique({
         where: {
@@ -309,13 +335,30 @@ export class PrismaOpenFinanceCanonicalRepository {
       const isPaid = transaction.status === 'POSTED';
       const accountId = ofAccount.type === 'BANK' ? ofAccount.bankProjection?.id ?? null : null;
       const cardId = ofAccount.type === 'CREDIT' ? ofAccount.creditCardProjection?.id ?? null : null;
+      const invoiceId =
+        ofAccount.type === 'CREDIT'
+          ? await resolveInvoiceIdForCardMovement(this.prisma, {
+              openFinanceAccountId: ofAccount.id,
+              openFinanceBillId: bill?.id ?? null,
+              cashFlowRole: transaction.cashFlowRole,
+              accountDates: { closingDate: ofAccount.closingDate, dueDate: ofAccount.dueDate }
+            })
+          : null;
+
+      if (invoiceId) {
+        touchedInvoiceIds.add(invoiceId);
+      }
+      if (existing?.invoiceId) {
+        touchedInvoiceIds.add(existing.invoiceId);
+      }
 
       if (!existing) {
-        await this.prisma.transaction.create({
+        const created = await this.prisma.transaction.create({
           data: {
             userId,
             accountId,
             cardId,
+            invoiceId,
             description: transaction.description,
             type: transaction.type,
             amount: transaction.amountCents,
@@ -330,15 +373,32 @@ export class PrismaOpenFinanceCanonicalRepository {
             hiddenAt: null
           }
         });
+
+        if (cardId) {
+          await maybeRecordCardPaymentLedger(this.prisma, {
+            cardId,
+            cashFlowRole: transaction.cashFlowRole,
+            amountCents: transaction.amountCents,
+            paymentDate: transaction.date,
+            transactionId: created.id,
+            openFinanceBillId: bill?.id ?? null
+          });
+        }
         continue;
       }
 
       const overridden = new Set(existing.overriddenFields);
+      const nextInvoiceId = overridden.has('invoiceId') ? existing.invoiceId : invoiceId;
+      if (nextInvoiceId) {
+        touchedInvoiceIds.add(nextInvoiceId);
+      }
+
       await this.prisma.transaction.update({
         where: { id: existing.id },
         data: {
           accountId: overridden.has('accountId') ? existing.accountId : accountId,
           cardId: overridden.has('cardId') ? existing.cardId : cardId,
+          invoiceId: nextInvoiceId,
           description: overridden.has('description') ? existing.description : transaction.description,
           type: overridden.has('type') ? existing.type : transaction.type,
           amount: overridden.has('amount') ? existing.amount : transaction.amountCents,
@@ -350,7 +410,20 @@ export class PrismaOpenFinanceCanonicalRepository {
           hiddenAt: null
         }
       });
+
+      if (cardId) {
+        await maybeRecordCardPaymentLedger(this.prisma, {
+          cardId,
+          cashFlowRole: existing.cashFlowRole === 'NORMAL' ? transaction.cashFlowRole : existing.cashFlowRole,
+          amountCents: overridden.has('amount') ? existing.amount : transaction.amountCents,
+          paymentDate: overridden.has('date') ? existing.date : transaction.date,
+          transactionId: existing.id,
+          openFinanceBillId: bill?.id ?? null
+        });
+      }
     }
+
+    await recalcTouchedUnbilledOpenInvoices(this.prisma, touchedInvoiceIds);
   }
 
   async markUnseenTransactionsUnavailable(connectionId: string, seenAt: Date): Promise<void> {
@@ -800,6 +873,10 @@ export class PrismaOpenFinanceCanonicalRepository {
           hiddenAt: null
         }
       });
+      await ensureUnbilledOpenInvoice(this.prisma, openFinanceAccountId, {
+        closingDate: account.closingDate,
+        dueDate: account.dueDate
+      });
       return;
     }
 
@@ -813,6 +890,10 @@ export class PrismaOpenFinanceCanonicalRepository {
         dueDay: overridden.has('dueDay') ? existing.dueDay : dueDay,
         hiddenAt: null
       }
+    });
+    await ensureUnbilledOpenInvoice(this.prisma, openFinanceAccountId, {
+      closingDate: account.closingDate,
+      dueDate: account.dueDate
     });
   }
 

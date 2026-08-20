@@ -5,6 +5,7 @@ import { transactionOutputSchema } from './transaction-output.dto';
 
 export const monthlySummaryCardInvoiceSchema = z.object({
   cardId: z.uuid(),
+  invoiceId: z.uuid(),
   cardName: z.string(),
   paymentMonth: yearMonthSchema,
   total: z.int(),

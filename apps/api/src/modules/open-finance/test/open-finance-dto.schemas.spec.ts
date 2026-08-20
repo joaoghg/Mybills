@@ -2,6 +2,7 @@ import {
   accountOutputSchema,
   createOpenFinanceConnectionInputSchema,
   investmentOutputSchema,
+  invoiceOutputSchema,
   monthlySummaryOutputSchema,
   openFinanceConnectionOutputSchema,
   openFinanceSyncRunOutputSchema,
@@ -266,5 +267,97 @@ describe('Open Finance DTO schemas', () => {
 
     expect(parsed.incomeTotal).toBe(100);
     expect(parsed.cardInvoices).toEqual([]);
+  });
+
+  it('should parse an invoice with an empty payments array', () => {
+    const parsed = invoiceOutputSchema.parse({
+      id: uuid,
+      userId: uuid,
+      creditCardId: uuid,
+      startsOn: '2026-08-01',
+      endsOn: '2026-08-31',
+      dueOn: '2026-09-10',
+      status: 'OPEN',
+      amount: 88262,
+      paidAt: null,
+      paidAmount: 0,
+      paymentTransactionId: null,
+      paidFromAccountId: null,
+      payments: [],
+      ...timestamps
+    });
+
+    expect(parsed.payments).toEqual([]);
+    expect(parsed.providerBillId).toBeNull();
+    expect(parsed.source).toBe('MANUAL');
+  });
+
+  it('should parse an invoice with a populated payment', () => {
+    const parsed = invoiceOutputSchema.parse({
+      id: uuid,
+      userId: uuid,
+      creditCardId: uuid,
+      startsOn: '2026-08-01',
+      endsOn: '2026-08-31',
+      dueOn: '2026-09-10',
+      status: 'PAID',
+      amount: 2500,
+      paidAt: '2026-09-10T12:00:00.000Z',
+      paidAmount: 2500,
+      paymentTransactionId: uuid,
+      paidFromAccountId: uuid,
+      source: 'PLUGGY',
+      providerBillId: uuid,
+      payments: [
+        {
+          id: uuid,
+          amount: 2500,
+          paymentDate: '2026-09-10',
+          transactionId: uuid
+        },
+        {
+          id: '22222222-2222-4222-8222-222222222222',
+          amount: 1000,
+          paymentDate: '2026-09-11',
+          transactionId: null
+        }
+      ],
+      ...timestamps
+    });
+
+    expect(parsed.payments).toHaveLength(2);
+    expect(parsed.payments[0]).toEqual({
+      id: uuid,
+      amount: 2500,
+      paymentDate: '2026-09-10',
+      transactionId: uuid
+    });
+    expect(parsed.payments[1]?.transactionId).toBeNull();
+    expect(parsed.providerBillId).toBe(uuid);
+  });
+
+  it('should parse a monthly summary card invoice with invoiceId', () => {
+    const parsed = monthlySummaryOutputSchema.parse({
+      month: '2026-09',
+      incomeTotal: 0,
+      expenseTotal: 0,
+      netTotal: 0,
+      income: [],
+      expenses: [],
+      cardInvoices: [
+        {
+          cardId: uuid,
+          invoiceId: uuid,
+          cardName: 'Nubank',
+          paymentMonth: '2026-09',
+          total: 89010,
+          isFullyPaid: false,
+          transactions: []
+        }
+      ]
+    });
+
+    expect(parsed.cardInvoices[0]?.invoiceId).toBe(uuid);
+    expect(parsed.cardInvoices[0]?.total).toBe(89010);
   });
 });
