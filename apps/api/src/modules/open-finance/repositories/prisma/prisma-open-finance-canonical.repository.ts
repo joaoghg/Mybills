@@ -22,6 +22,7 @@ import {
   ensureUnbilledInvoiceForDate,
   maybeRecordCardPaymentLedger,
   mergeCanonicalBillIntoInvoice,
+  pruneUnbilledInvoicesOverlappingBilled,
   recalcTouchedUnbilledOpenInvoices,
   refreshImportedCardCycleDays,
   resolveInvoiceIdForCardMovement,
@@ -220,6 +221,7 @@ export class PrismaOpenFinanceCanonicalRepository {
     }
 
     await refreshImportedCardCycleDays(this.prisma, account.id);
+    await pruneUnbilledInvoicesOverlappingBilled(this.prisma, account.id);
 
     for (const { canonical, bill } of persisted) {
       const invoiceId = await mergeCanonicalBillIntoInvoice(this.prisma, account.id, {
@@ -260,6 +262,7 @@ export class PrismaOpenFinanceCanonicalRepository {
     seenAt: Date
   ): Promise<void> {
     const touchedInvoiceIds = new Set<string>();
+    const creditAccountIds = new Set<string>();
 
     for (const transaction of transactions) {
       const ofAccount = await this.prisma.openFinanceAccount.findUnique({
@@ -348,6 +351,9 @@ export class PrismaOpenFinanceCanonicalRepository {
       const isPaid = transaction.status === 'POSTED';
       const accountId = ofAccount.type === 'BANK' ? ofAccount.bankProjection?.id ?? null : null;
       const cardId = ofAccount.type === 'CREDIT' ? ofAccount.creditCardProjection?.id ?? null : null;
+      if (ofAccount.type === 'CREDIT') {
+        creditAccountIds.add(ofAccount.id);
+      }
       const invoiceId =
         ofAccount.type === 'CREDIT'
           ? await resolveInvoiceIdForCardMovement(this.prisma, {
@@ -434,6 +440,13 @@ export class PrismaOpenFinanceCanonicalRepository {
           transactionId: existing.id,
           openFinanceBillId: bill?.id ?? null
         });
+      }
+    }
+
+    for (const accountId of creditAccountIds) {
+      const pruned = await pruneUnbilledInvoicesOverlappingBilled(this.prisma, accountId);
+      for (const invoiceId of pruned) {
+        touchedInvoiceIds.add(invoiceId);
       }
     }
 

@@ -28,4 +28,18 @@ describe('imported invoice cycle dates', () => {
     expect(dates.endsOn).toEqual(new Date(Date.UTC(2026, 7, 31)));
     expect(dates.dueOn).toEqual(new Date(Date.UTC(2026, 8, 12)));
   });
+
+  it('should snap a last-day billed cycle closing 2026-07-30 to endsOn 2026-07-31', () => {
+    const dates = importedCycleDatesFromBill(
+      { closingDay: 31, closingOnLastDay: true, dueDay: 12 },
+      {
+        closingOn: new Date(Date.UTC(2026, 6, 30)),
+        dueOn: new Date(Date.UTC(2026, 7, 12))
+      }
+    );
+
+    expect(dates.startsOn).toEqual(new Date(Date.UTC(2026, 5, 30)));
+    expect(dates.endsOn).toEqual(new Date(Date.UTC(2026, 6, 31)));
+    expect(dates.dueOn).toEqual(new Date(Date.UTC(2026, 7, 12)));
+  });
 });

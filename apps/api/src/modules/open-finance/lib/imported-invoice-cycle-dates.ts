@@ -52,6 +52,10 @@ function nextYearMonth(yearMonth: string): string {
   return `${year}-${pad2(month + 1)}`;
 }
 
+export function yearMonthFromUtcDate(date: Date): string {
+  return ymdFromUtcDate(date).slice(0, 7);
+}
+
 export function dueOnYearMonthRange(yearMonth: string): { gte: Date; lt: Date } {
   return {
     gte: utcDateFromYmd(`${yearMonth}-01`),
@@ -79,20 +83,31 @@ export function importedCycleDatesForAnchor(
 
 /**
  * Billed cycle: anchor on the day before bill.closingOn so inclusive math
- * returns the closed cycle; persist endsOn = closingOn and dueOn = bill.dueOn.
+ * returns the closed cycle. For fixed-day cards, persist endsOn = closingOn.
+ * For last-day cards, persist the card's half-open last-day range so a
+ * weekend-shifted bill (e.g. 30) shares endsOn with the unbilled cycle (31).
+ * dueOn is always the bill due date.
  */
 export function importedCycleDatesFromBill(
   card: ImportedCycleCard,
   bill: { dueOn: Date; closingOn: Date | null }
 ): ImportedCycleDates {
-  const endsOn = dateOnlyUtc(bill.closingOn ?? bill.dueOn);
+  const rawEndsOn = dateOnlyUtc(bill.closingOn ?? bill.dueOn);
+  const dueOn = dateOnlyUtc(bill.dueOn);
+
+  if (card.closingOnLastDay) {
+    const anchor = utcDateFromYmd(subtractOneCalendarDay(ymdFromUtcDate(rawEndsOn)));
+    const cycleDates = importedCycleDatesForAnchor(card, anchor);
+    return { ...cycleDates, dueOn };
+  }
+
   const closingDay = resolveClosingDay(card);
-  const anchorYmd = subtractOneCalendarDay(ymdFromUtcDate(endsOn));
+  const anchorYmd = subtractOneCalendarDay(ymdFromUtcDate(rawEndsOn));
   const cycle = getCycleContainingDate(closingDay, anchorYmd);
   return {
     startsOn: utcDateFromYmd(cycle.start),
-    endsOn,
-    dueOn: dateOnlyUtc(bill.dueOn)
+    endsOn: rawEndsOn,
+    dueOn
   };
 }
 

@@ -4,6 +4,7 @@ import {
   ensureUnbilledInvoiceForDate,
   maybeRecordCardPaymentLedger,
   mergeCanonicalBillIntoInvoice,
+  pruneUnbilledInvoicesOverlappingBilled,
   recalcUnbilledOpenInvoiceAmount,
   resolveInvoiceIdForCardMovement,
   upsertInvoicePaymentsFromBill
@@ -73,7 +74,9 @@ type BillPaymentRow = {
 
 type OfTransactionRow = {
   id: string;
-  billId: string;
+  billId: string | null;
+  billForecastMonth?: string | null;
+  date?: Date;
 };
 
 type PurchaseRow = {
@@ -85,13 +88,14 @@ type PurchaseRow = {
   type: TransactionType;
   amount: number;
   hiddenAt: Date | null;
+  date?: Date;
 };
 
 type InvoiceWhere = {
   id?: string;
   creditCardId?: string;
   status?: 'OPEN' | 'CLOSED' | 'PAID';
-  openFinanceBillId?: string | null;
+  openFinanceBillId?: string | null | { not: null };
   source?: 'MANUAL' | 'PLUGGY';
   startsOn?: { lte?: Date; lt?: Date };
   endsOn?: { gt?: Date };
@@ -116,8 +120,18 @@ function invoiceMatchesWhere(row: InvoiceRow, where: InvoiceWhere): boolean {
   if (where.status && row.status !== where.status) {
     return false;
   }
-  if (where.openFinanceBillId !== undefined && row.openFinanceBillId !== where.openFinanceBillId) {
-    return false;
+  if (where.openFinanceBillId !== undefined) {
+    if (
+      where.openFinanceBillId !== null &&
+      typeof where.openFinanceBillId === 'object' &&
+      'not' in where.openFinanceBillId
+    ) {
+      if (where.openFinanceBillId.not === null && row.openFinanceBillId == null) {
+        return false;
+      }
+    } else if (row.openFinanceBillId !== where.openFinanceBillId) {
+      return false;
+    }
   }
   if (where.source && row.source !== where.source) {
     return false;
@@ -312,7 +326,29 @@ function createProjectDb(seed?: {
     openFinanceTransaction: {
       findMany: jest.fn(async ({ where }: { where: { billId: string } }) => {
         return ofTransactions.filter((row) => row.billId === where.billId).map((row) => ({ id: row.id }));
-      })
+      }),
+      findUnique: jest.fn(
+        async ({
+          where,
+          select
+        }: {
+          where: { id: string };
+          select?: { billId?: true; billForecastMonth?: true; date?: true };
+        }) => {
+          const found = ofTransactions.find((row) => row.id === where.id);
+          if (!found) {
+            return null;
+          }
+          if (select) {
+            return {
+              billId: found.billId,
+              billForecastMonth: found.billForecastMonth ?? null,
+              date: found.date ?? new Date()
+            };
+          }
+          return found;
+        }
+      )
     },
     transaction: {
       findFirst: jest.fn(
@@ -344,18 +380,36 @@ function createProjectDb(seed?: {
         }: {
           where: {
             invoiceId: string;
-            hiddenAt: null;
-            cashFlowRole: { not: CashFlowRole };
-            type: { in: TransactionType[] };
+            hiddenAt?: null;
+            cashFlowRole?: { not: CashFlowRole };
+            type?: { in: TransactionType[] };
           };
         }) => {
-          return purchases.filter(
-            (row) =>
-              row.invoiceId === where.invoiceId &&
-              row.hiddenAt === where.hiddenAt &&
-              row.cashFlowRole !== where.cashFlowRole.not &&
-              where.type.in.includes(row.type)
-          );
+          return purchases.filter((row) => {
+            if (row.invoiceId !== where.invoiceId) {
+              return false;
+            }
+            if (where.hiddenAt !== undefined && row.hiddenAt !== where.hiddenAt) {
+              return false;
+            }
+            if (where.cashFlowRole && row.cashFlowRole === where.cashFlowRole.not) {
+              return false;
+            }
+            if (where.type && !where.type.in.includes(row.type)) {
+              return false;
+            }
+            return true;
+          });
+        }
+      ),
+      update: jest.fn(
+        async ({ where, data }: { where: { id: string }; data: { invoiceId: string } }) => {
+          const found = purchases.find((row) => row.id === where.id);
+          if (!found) {
+            throw new Error(`transaction ${where.id} not found`);
+          }
+          found.invoiceId = data.invoiceId;
+          return found;
         }
       ),
       count: jest.fn(async ({ where }: { where: { invoiceId: string } }) => {
@@ -502,7 +556,14 @@ function createProjectDb(seed?: {
           }
           return { count };
         }
-      )
+      ),
+      deleteMany: jest.fn(async ({ where }: { where: { invoiceId: string } }) => {
+        const remaining = invoicePayments.filter((row) => row.invoiceId !== where.invoiceId);
+        const count = invoicePayments.length - remaining.length;
+        invoicePayments.length = 0;
+        invoicePayments.push(...remaining);
+        return { count };
+      })
     }
   };
 
@@ -537,6 +598,12 @@ describe('project-imported-invoices', () => {
     ...card,
     closingDay: 4,
     dueDay: 11
+  };
+  const bradescoCard: CardRow = {
+    ...card,
+    closingDay: 31,
+    closingOnLastDay: true,
+    dueDay: 12
   };
   const cycleDate = new Date(Date.UTC(2026, 5, 15));
   const billId = '6ea4f605-31d5-4dcf-93bc-45fafad6f316';
@@ -899,6 +966,185 @@ describe('project-imported-invoices', () => {
 
       expect(invoices.find((row) => row.id === currentId)?.amount).toBe(150463);
       expect(invoices.find((row) => row.id === futureId)?.amount).toBe(11133);
+    });
+
+    it('should assign Bradesco current purchases to the last-day cycle when forecast matches a billed due month', async () => {
+      const billedId = randomUUID();
+      const { db, invoices, invoiceCreate } = createProjectDb({
+        cards: [bradescoCard],
+        invoices: [
+          makeInvoice({
+            id: billedId,
+            startsOn: new Date(Date.UTC(2026, 5, 30)),
+            endsOn: new Date(Date.UTC(2026, 6, 31)),
+            dueOn: new Date(Date.UTC(2026, 7, 12)),
+            status: 'PAID',
+            amount: 137817,
+            paidAmount: 137817,
+            openFinanceBillId: billId
+          })
+        ]
+      });
+
+      const invoiceId = await resolveInvoiceIdForCardMovement(asProjectDb(db), {
+        openFinanceAccountId,
+        openFinanceBillId: null,
+        cashFlowRole: CashFlowRole.NORMAL,
+        transactionDate: new Date(Date.UTC(2026, 7, 10)),
+        billForecastMonth: '2026-08'
+      });
+
+      expect(invoiceId).not.toBe(billedId);
+      expect(invoiceCreate).toHaveBeenCalledTimes(1);
+      const current = invoices.find((row) => row.id === invoiceId);
+      expect(current?.startsOn).toEqual(new Date(Date.UTC(2026, 6, 31)));
+      expect(current?.endsOn).toEqual(new Date(Date.UTC(2026, 7, 31)));
+      expect(current?.dueOn).toEqual(new Date(Date.UTC(2026, 8, 12)));
+      expect(invoices.filter((row) => row.openFinanceBillId === null)).toHaveLength(1);
+    });
+
+    it('should snap a last-day bill closing on day 30 onto endsOn last calendar day', async () => {
+      const bradescoBill: BillRow = {
+        id: billId,
+        dueOn: new Date(Date.UTC(2026, 7, 12)),
+        closingOn: new Date(Date.UTC(2026, 6, 30)),
+        totalAmount: 1378.17,
+        currencyCode: 'BRL',
+        minimumPaymentAmount: null,
+        allowsInstallments: null
+      };
+      const { db, invoices } = createProjectDb({ cards: [bradescoCard], bills: [bradescoBill] });
+
+      const mergedId = await mergeCanonicalBillIntoInvoice(asProjectDb(db), openFinanceAccountId, bradescoBill);
+      const billed = invoices.find((row) => row.id === mergedId);
+
+      expect(billed?.startsOn).toEqual(new Date(Date.UTC(2026, 5, 30)));
+      expect(billed?.endsOn).toEqual(new Date(Date.UTC(2026, 6, 31)));
+      expect(billed?.dueOn).toEqual(new Date(Date.UTC(2026, 7, 12)));
+    });
+
+    it('should move leftover unbilled purchases off a billed last-day cycle and delete the ghost', async () => {
+      const billedId = randomUUID();
+      const ghostId = randomUUID();
+      const currentId = randomUUID();
+      const ofTxId = randomUUID();
+      const { db, invoices, purchases } = createProjectDb({
+        cards: [bradescoCard],
+        invoices: [
+          makeInvoice({
+            id: billedId,
+            startsOn: new Date(Date.UTC(2026, 5, 30)),
+            endsOn: new Date(Date.UTC(2026, 6, 30)),
+            dueOn: new Date(Date.UTC(2026, 7, 12)),
+            status: 'PAID',
+            amount: 137817,
+            paidAmount: 137817,
+            openFinanceBillId: billId
+          }),
+          makeInvoice({
+            id: ghostId,
+            startsOn: new Date(Date.UTC(2026, 5, 30)),
+            endsOn: new Date(Date.UTC(2026, 6, 31)),
+            dueOn: new Date(Date.UTC(2026, 7, 12)),
+            status: 'OPEN',
+            amount: 88262
+          }),
+          makeInvoice({
+            id: currentId,
+            startsOn: new Date(Date.UTC(2026, 6, 31)),
+            endsOn: new Date(Date.UTC(2026, 7, 31)),
+            dueOn: new Date(Date.UTC(2026, 8, 12)),
+            status: 'OPEN',
+            amount: 0
+          })
+        ],
+        ofTransactions: [
+          {
+            id: ofTxId,
+            billId: null,
+            billForecastMonth: '2026-08',
+            date: new Date(Date.UTC(2026, 7, 10))
+          }
+        ],
+        purchases: [
+          {
+            id: randomUUID(),
+            cardId,
+            invoiceId: ghostId,
+            openFinanceTransactionId: ofTxId,
+            cashFlowRole: CashFlowRole.NORMAL,
+            type: TransactionType.EXPENSE,
+            amount: 88262,
+            hiddenAt: null,
+            date: new Date(Date.UTC(2026, 7, 10))
+          }
+        ]
+      });
+
+      await pruneUnbilledInvoicesOverlappingBilled(asProjectDb(db), openFinanceAccountId);
+
+      expect(invoices.find((row) => row.id === ghostId)).toBeUndefined();
+      expect(purchases[0]?.invoiceId).toBe(currentId);
+      await recalcUnbilledOpenInvoiceAmount(asProjectDb(db), currentId);
+      expect(invoices.find((row) => row.id === currentId)?.amount).toBe(88262);
+      expect(invoices.find((row) => row.id === billedId)?.amount).toBe(137817);
+    });
+
+    it('should move leftover CARD_PAYMENT rows off a ghost onto the billed invoice before deleting it', async () => {
+      const billedId = randomUUID();
+      const ghostId = randomUUID();
+      const currentId = randomUUID();
+      const paymentTxId = randomUUID();
+      const { db, invoices, purchases } = createProjectDb({
+        cards: [bradescoCard],
+        invoices: [
+          makeInvoice({
+            id: billedId,
+            startsOn: new Date(Date.UTC(2026, 5, 30)),
+            endsOn: new Date(Date.UTC(2026, 6, 30)),
+            dueOn: new Date(Date.UTC(2026, 7, 12)),
+            status: 'PAID',
+            amount: 137817,
+            paidAmount: 137817,
+            openFinanceBillId: billId
+          }),
+          makeInvoice({
+            id: ghostId,
+            startsOn: new Date(Date.UTC(2026, 5, 30)),
+            endsOn: new Date(Date.UTC(2026, 6, 31)),
+            dueOn: new Date(Date.UTC(2026, 7, 12)),
+            status: 'OPEN',
+            amount: 0
+          }),
+          makeInvoice({
+            id: currentId,
+            startsOn: new Date(Date.UTC(2026, 6, 31)),
+            endsOn: new Date(Date.UTC(2026, 7, 31)),
+            dueOn: new Date(Date.UTC(2026, 8, 12)),
+            status: 'OPEN',
+            amount: 0
+          })
+        ],
+        purchases: [
+          {
+            id: paymentTxId,
+            cardId,
+            invoiceId: ghostId,
+            openFinanceTransactionId: null,
+            cashFlowRole: CashFlowRole.CARD_PAYMENT,
+            type: TransactionType.EXPENSE,
+            amount: 137817,
+            hiddenAt: null,
+            date: new Date(Date.UTC(2026, 7, 12))
+          }
+        ]
+      });
+
+      await pruneUnbilledInvoicesOverlappingBilled(asProjectDb(db), openFinanceAccountId);
+
+      expect(invoices.find((row) => row.id === ghostId)).toBeUndefined();
+      expect(purchases[0]?.invoiceId).toBe(billedId);
+      expect(invoices.find((row) => row.id === currentId)).toBeDefined();
     });
   });
 

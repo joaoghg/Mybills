@@ -10,12 +10,12 @@ import { deriveImportedCardCycleDays } from './imported-card-cycle-days';
 import {
   billCycleAnchorDate,
   dateOnlyUtc,
-  dueOnYearMonthRange,
   importedCycleDatesForAnchor,
   importedCycleDatesForDueMonth,
   importedCycleDatesFromBill,
   type ImportedCycleDates,
   utcDateFromYmd,
+  yearMonthFromUtcDate,
   ymdFromUtcDate
 } from './imported-invoice-cycle-dates';
 import { providerAmountToCents } from '../mappers/money';
@@ -32,6 +32,23 @@ type CardRef = {
 
 function isUniqueViolation(error: unknown): boolean {
   return error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002';
+}
+
+async function findInvoiceByEndsOnDay(
+  db: Db,
+  creditCardId: string,
+  endsOn: Date
+) {
+  const targetYmd = ymdFromUtcDate(dateOnlyUtc(endsOn));
+  const rows = await db.invoice.findMany({ where: { creditCardId } });
+  return rows.find((row) => ymdFromUtcDate(dateOnlyUtc(row.endsOn)) === targetYmd) ?? null;
+}
+
+function cyclesOverlap(left: { startsOn: Date; endsOn: Date }, right: { startsOn: Date; endsOn: Date }): boolean {
+  return (
+    compareYmd(ymdFromUtcDate(left.startsOn), ymdFromUtcDate(right.endsOn)) < 0 &&
+    compareYmd(ymdFromUtcDate(right.startsOn), ymdFromUtcDate(left.endsOn)) < 0
+  );
 }
 
 async function findCardByOpenFinanceAccountId(db: Db, openFinanceAccountId: string): Promise<CardRef | null> {
@@ -205,14 +222,42 @@ async function findOverlappingUnbilledInvoices(
   cardId: string,
   dates: ImportedCycleDates
 ) {
-  return db.invoice.findMany({
+  const rows = await db.invoice.findMany({
     where: {
       creditCardId: cardId,
-      openFinanceBillId: null,
-      startsOn: { lt: dates.endsOn },
-      endsOn: { gt: dates.startsOn }
+      openFinanceBillId: null
     }
   });
+  return rows.filter((row) => cyclesOverlap(row, dates));
+}
+
+async function findOverlappingBilledInvoice(
+  db: Db,
+  cardId: string,
+  dates: ImportedCycleDates
+) {
+  const rows = await db.invoice.findMany({
+    where: {
+      creditCardId: cardId,
+      openFinanceBillId: { not: null }
+    }
+  });
+  return rows.find((row) => cyclesOverlap(row, dates)) ?? null;
+}
+
+async function billedInvoiceOwnsDueMonth(
+  db: Db,
+  cardId: string,
+  dueYearMonth: string
+): Promise<boolean> {
+  const billed = await db.invoice.findMany({
+    where: {
+      creditCardId: cardId,
+      openFinanceBillId: { not: null }
+    },
+    select: { dueOn: true }
+  });
+  return billed.some((row) => yearMonthFromUtcDate(row.dueOn) === dueYearMonth.slice(0, 7));
 }
 
 async function persistUnbilledCycleDates(
@@ -236,9 +281,7 @@ async function persistUnbilledCycleDates(
       throw error;
     }
 
-    const colliding = await db.invoice.findUnique({
-      where: { creditCardId_endsOn: { creditCardId: cardId, endsOn: dates.endsOn } }
-    });
+    const colliding = await findInvoiceByEndsOnDay(db, cardId, dates.endsOn);
     if (colliding) {
       return mergeInvoiceRowsOnEndsOnCollision(db, invoiceId, colliding.id);
     }
@@ -251,11 +294,7 @@ export async function ensureUnbilledInvoiceForCycle(
   card: CardRef,
   dates: ImportedCycleDates
 ): Promise<string> {
-  const existing = await db.invoice.findUnique({
-    where: {
-      creditCardId_endsOn: { creditCardId: card.id, endsOn: dates.endsOn }
-    }
-  });
+  const existing = await findInvoiceByEndsOnDay(db, card.id, dates.endsOn);
 
   const overlapping = await findOverlappingUnbilledInvoices(db, card.id, dates);
 
@@ -272,6 +311,11 @@ export async function ensureUnbilledInvoiceForCycle(
       keepId = await mergeInvoiceRowsOnEndsOnCollision(db, keepId, leftover.id);
     }
     return keepId;
+  }
+
+  const billedOverlap = await findOverlappingBilledInvoice(db, card.id, dates);
+  if (billedOverlap) {
+    return billedOverlap.id;
   }
   let keepId = existing?.id ?? overlapping[0]?.id ?? null;
 
@@ -297,9 +341,7 @@ export async function ensureUnbilledInvoiceForCycle(
         throw error;
       }
 
-      const byEndsOn = await db.invoice.findUnique({
-        where: { creditCardId_endsOn: { creditCardId: card.id, endsOn: dates.endsOn } }
-      });
+      const byEndsOn = await findInvoiceByEndsOnDay(db, card.id, dates.endsOn);
       if (!byEndsOn) {
         throw error;
       }
@@ -372,9 +414,7 @@ async function findUnbilledInvoiceForBillCycle(
   dates: ImportedCycleDates,
   bill: { id: string; dueOn: Date; closingOn: Date | null }
 ) {
-  const byEndsOn = await db.invoice.findUnique({
-    where: { creditCardId_endsOn: { creditCardId: cardId, endsOn: dates.endsOn } }
-  });
+  const byEndsOn = await findInvoiceByEndsOnDay(db, cardId, dates.endsOn);
   if (byEndsOn && (!byEndsOn.openFinanceBillId || byEndsOn.openFinanceBillId === bill.id)) {
     return byEndsOn;
   }
@@ -406,12 +446,7 @@ async function attachBillToInvoice(
   dates: ImportedCycleDates
 ): Promise<string> {
   let targetId = invoiceId;
-  const colliding = await db.invoice.findUnique({
-    where: {
-      creditCardId_endsOn: { creditCardId, endsOn: dates.endsOn }
-    },
-    select: { id: true, openFinanceBillId: true }
-  });
+  const colliding = await findInvoiceByEndsOnDay(db, creditCardId, dates.endsOn);
 
   if (colliding && colliding.id !== invoiceId) {
     const self = await db.invoice.findUnique({
@@ -428,12 +463,7 @@ async function attachBillToInvoice(
     }
   }
 
-  const stillColliding = await db.invoice.findUnique({
-    where: {
-      creditCardId_endsOn: { creditCardId, endsOn: dates.endsOn }
-    },
-    select: { id: true }
-  });
+  const stillColliding = await findInvoiceByEndsOnDay(db, creditCardId, dates.endsOn);
 
   const baseData = {
     openFinanceBillId: bill.id,
@@ -459,9 +489,17 @@ async function attachBillToInvoice(
       throw error;
     }
 
+    const collidingOnDay = await findInvoiceByEndsOnDay(db, creditCardId, dates.endsOn);
+    if (collidingOnDay && collidingOnDay.id !== targetId) {
+      targetId = await mergeInvoiceRowsOnEndsOnCollision(db, targetId, collidingOnDay.id);
+    }
+
     await db.invoice.update({
       where: { id: targetId },
-      data: baseData
+      data: {
+        ...baseData,
+        endsOn: dates.endsOn
+      }
     });
   }
 
@@ -554,9 +592,7 @@ export async function mergeCanonicalBillIntoInvoice(
       return attachBillToInvoice(db, existingLinked.id, card.id, mappedBill, dates);
     }
 
-    const byEndsOn = await db.invoice.findUnique({
-      where: { creditCardId_endsOn: { creditCardId: card.id, endsOn: dates.endsOn } }
-    });
+    const byEndsOn = await findInvoiceByEndsOnDay(db, card.id, dates.endsOn);
     if (byEndsOn) {
       return attachBillToInvoice(db, byEndsOn.id, card.id, mappedBill, dates);
     }
@@ -842,22 +878,16 @@ export async function resolveInvoiceIdForCardMovement(
   }
 
   if (params.billForecastMonth) {
-    const dueRange = dueOnYearMonthRange(params.billForecastMonth);
-    const unbilledForMonth = await db.invoice.findFirst({
-      where: {
-        creditCardId: card.id,
-        openFinanceBillId: null,
-        dueOn: { gte: dueRange.gte, lt: dueRange.lt }
-      }
-    });
-    if (unbilledForMonth) {
-      return unbilledForMonth.id;
-    }
-    return ensureUnbilledInvoiceForCycle(
+    const forecastDates = importedCycleDatesForDueMonth(card, params.billForecastMonth);
+    const billedOwnsDueMonth = await billedInvoiceOwnsDueMonth(
       db,
-      card,
-      importedCycleDatesForDueMonth(card, params.billForecastMonth)
+      card.id,
+      params.billForecastMonth
     );
+    const billedOverlap = await findOverlappingBilledInvoice(db, card.id, forecastDates);
+    if (!billedOwnsDueMonth && !billedOverlap) {
+      return ensureUnbilledInvoiceForCycle(db, card, forecastDates);
+    }
   }
 
   return ensureUnbilledInvoiceForCycle(
@@ -865,6 +895,99 @@ export async function resolveInvoiceIdForCardMovement(
     card,
     importedCycleDatesForAnchor(card, params.transactionDate)
   );
+}
+
+export async function pruneUnbilledInvoicesOverlappingBilled(
+  db: Db,
+  openFinanceAccountId: string
+): Promise<string[]> {
+  const card = await findCardByOpenFinanceAccountId(db, openFinanceAccountId);
+  if (!card) {
+    return [];
+  }
+
+  const billed = await db.invoice.findMany({
+    where: { creditCardId: card.id, openFinanceBillId: { not: null } }
+  });
+  if (billed.length === 0) {
+    return [];
+  }
+
+  const unbilled = await db.invoice.findMany({
+    where: { creditCardId: card.id, openFinanceBillId: null }
+  });
+  const touched: string[] = [];
+
+  for (const row of unbilled) {
+    const overlapsBilled = billed.some((billInvoice) => cyclesOverlap(row, billInvoice));
+    const sameDueMonth = billed.some(
+      (billInvoice) => yearMonthFromUtcDate(billInvoice.dueOn) === yearMonthFromUtcDate(row.dueOn)
+    );
+    if (!overlapsBilled && !sameDueMonth) {
+      continue;
+    }
+
+    const txs = await db.transaction.findMany({
+      where: { invoiceId: row.id }
+    });
+
+    for (const tx of txs) {
+      const ofTxId = tx.openFinanceTransactionId;
+      const ofTx = ofTxId
+        ? await db.openFinanceTransaction.findUnique({
+            where: { id: ofTxId },
+            select: { billId: true, billForecastMonth: true, date: true }
+          })
+        : null;
+
+      const nextId = await resolveInvoiceIdForCardMovement(db, {
+        openFinanceAccountId,
+        openFinanceBillId: ofTx?.billId ?? null,
+        cashFlowRole: tx.cashFlowRole,
+        transactionDate: ofTx?.date ?? tx.date,
+        billForecastMonth: null
+      });
+
+      if (nextId && nextId !== row.id) {
+        await db.transaction.update({
+          where: { id: tx.id },
+          data: { invoiceId: nextId }
+        });
+        touched.push(nextId);
+      }
+    }
+
+    const leftover = await db.transaction.findMany({ where: { invoiceId: row.id } });
+    if (leftover.length > 0) {
+      const fallbackBilled =
+        billed.find(
+          (billInvoice) => yearMonthFromUtcDate(billInvoice.dueOn) === yearMonthFromUtcDate(row.dueOn)
+        ) ??
+        billed.find((billInvoice) => cyclesOverlap(row, billInvoice));
+      if (fallbackBilled) {
+        for (const tx of leftover) {
+          if (tx.cashFlowRole !== CashFlowRole.CARD_PAYMENT) {
+            continue;
+          }
+          await db.transaction.update({
+            where: { id: tx.id },
+            data: { invoiceId: fallbackBilled.id }
+          });
+          touched.push(fallbackBilled.id);
+        }
+      }
+    }
+
+    const remaining = await db.transaction.count({ where: { invoiceId: row.id } });
+    if (remaining === 0) {
+      await db.invoicePayment.deleteMany({ where: { invoiceId: row.id } });
+      await db.invoice.delete({ where: { id: row.id } });
+    } else {
+      touched.push(row.id);
+    }
+  }
+
+  return touched;
 }
 
 export async function recalcUnbilledOpenInvoiceAmount(db: Db, invoiceId: string): Promise<void> {
