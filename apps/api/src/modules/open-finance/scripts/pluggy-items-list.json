@@ -1,0 +1,8 @@
+{
+  "connectorHttpStatus": 200,
+  "connectorOk": true,
+  "itemsHttpStatus": 401,
+  "total": null,
+  "rows": [],
+  "error": "{\"message\":\"Unauthorized\",\"code\":401,\"errorId\":\"df80104e-7d78-4be7-bbba-3e70dca3d171\"}"
+}

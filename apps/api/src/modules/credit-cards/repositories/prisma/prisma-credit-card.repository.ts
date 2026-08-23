@@ -188,14 +188,16 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
   private async findPersistedOpenInvoice(
     creditCard: PrismaCreditCard
   ): Promise<InvoiceWithPayments | null> {
+    const todayUtc = utcDateFromYmd(utcTodayYmd());
     return await this.prisma.invoice.findFirst({
       where: {
         creditCardId: creditCard.id,
         userId: creditCard.userId,
-        status: InvoiceStatus.OPEN
+        startsOn: { lte: todayUtc },
+        endsOn: { gt: todayUtc }
       },
-      include: invoiceWithPaymentsInclude,
-      orderBy: { dueOn: 'desc' }
+      orderBy: { startsOn: 'desc' },
+      include: invoiceWithPaymentsInclude
     });
   }
 

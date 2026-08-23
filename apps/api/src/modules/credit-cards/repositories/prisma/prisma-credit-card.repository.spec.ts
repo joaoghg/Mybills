@@ -113,6 +113,15 @@ describe('PrismaCreditCardRepository', () => {
   });
 
   describe('imported GET', () => {
+    beforeEach(() => {
+      jest.useFakeTimers();
+      jest.setSystemTime(new Date('2026-08-19T12:00:00.000Z'));
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
     it('should list persisted invoices without calling openFinanceBill delegates', async () => {
       prisma.invoice.findMany.mockResolvedValue([openInvoice]);
 
@@ -138,7 +147,7 @@ describe('PrismaCreditCardRepository', () => {
       expect(openFinanceBill.findUnique).not.toHaveBeenCalled();
     });
 
-    it('should load a PLUGGY card by id from persisted OPEN invoices only', async () => {
+    it('should load a PLUGGY card by id from the invoice cycle containing today', async () => {
       prisma.creditCard.findFirst.mockResolvedValue(pluggyCard);
       prisma.transaction.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
       prisma.invoice.findFirst.mockResolvedValue(openInvoice);
@@ -148,6 +157,15 @@ describe('PrismaCreditCardRepository', () => {
       expect(result?.source).toBe('PLUGGY');
       expect(result?.openInvoice?.id).toBe(invoiceId);
       expect(prisma.invoice.create).not.toHaveBeenCalled();
+      expect(prisma.invoice.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            creditCardId: cardId,
+            startsOn: { lte: new Date(Date.UTC(2026, 7, 19)) },
+            endsOn: { gt: new Date(Date.UTC(2026, 7, 19)) }
+          })
+        })
+      );
       expect(openFinanceBill.findMany).not.toHaveBeenCalled();
       expect(openFinanceBill.findFirst).not.toHaveBeenCalled();
       expect(openFinanceBill.findUnique).not.toHaveBeenCalled();
@@ -166,6 +184,37 @@ describe('PrismaCreditCardRepository', () => {
       expect(openFinanceBill.findMany).not.toHaveBeenCalled();
       expect(openFinanceBill.findFirst).not.toHaveBeenCalled();
       expect(openFinanceBill.findUnique).not.toHaveBeenCalled();
+    });
+
+    it('should select the imported openInvoice whose cycle contains today when several OPEN invoices exist', async () => {
+      const currentId = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+      const currentInvoice: InvoiceWithPayments = {
+        ...openInvoice,
+        id: currentId,
+        startsOn: new Date(Date.UTC(2026, 6, 31)),
+        endsOn: new Date(Date.UTC(2026, 7, 31)),
+        dueOn: new Date(Date.UTC(2026, 8, 12)),
+        amount: 150463,
+        payments: []
+      };
+
+      prisma.creditCard.findFirst.mockResolvedValue(pluggyCard);
+      prisma.transaction.aggregate.mockResolvedValue({ _sum: { amount: 0 } });
+      prisma.invoice.findFirst.mockResolvedValue(currentInvoice);
+
+      const result = await repository.findByIdAndUserId(cardId, userId);
+
+      expect(result?.openInvoice?.id).toBe(currentId);
+      expect(result?.openInvoice?.amount).toBe(150463);
+      const where = prisma.invoice.findFirst.mock.calls[0]?.[0]?.where as {
+        status?: string;
+        startsOn?: { lte: Date };
+        endsOn?: { gt: Date };
+      };
+      expect(where.status).toBeUndefined();
+      expect(where.startsOn?.lte).toEqual(new Date(Date.UTC(2026, 7, 19)));
+      expect(where.endsOn?.gt).toEqual(new Date(Date.UTC(2026, 7, 19)));
+      expect(prisma.invoice.create).not.toHaveBeenCalled();
     });
   });
 

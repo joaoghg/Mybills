@@ -44,15 +44,17 @@ export function MonthlySummaryView({
   formatCurrency,
   onTransactionPress
 }: MonthlySummaryViewProps) {
-  const [expandedCardIds, setExpandedCardIds] = useState<Set<string>>(() => new Set());
+  const [expandedInvoiceIds, setExpandedInvoiceIds] = useState<Set<string>>(
+    () => new Set()
+  );
 
-  function toggleCard(cardId: string) {
-    setExpandedCardIds((current) => {
+  function toggleInvoice(invoiceId: string) {
+    setExpandedInvoiceIds((current) => {
       const next = new Set(current);
-      if (next.has(cardId)) {
-        next.delete(cardId);
+      if (next.has(invoiceId)) {
+        next.delete(invoiceId);
       } else {
-        next.add(cardId);
+        next.add(invoiceId);
       }
       return next;
     });
@@ -106,7 +108,7 @@ export function MonthlySummaryView({
         <SummarySection theme={theme} title={incomeLabel}>
           {income.map((row) => (
             <TransactionListItem
-              key={row.id}
+              key={`income-${row.id}`}
               theme={theme}
               transaction={row}
               subtitle={row.subtitle}
@@ -121,7 +123,7 @@ export function MonthlySummaryView({
         <SummarySection theme={theme} title={expensesLabel}>
           {expenses.map((row) => (
             <TransactionListItem
-              key={row.id}
+              key={`expense-${row.id}`}
               theme={theme}
               transaction={row}
               subtitle={row.subtitle}
@@ -131,13 +133,13 @@ export function MonthlySummaryView({
           ))}
 
           {cardInvoices.map((invoice) => {
-            const expanded = expandedCardIds.has(invoice.cardId);
+            const expanded = expandedInvoiceIds.has(invoice.invoiceId);
             return (
-              <View key={invoice.cardId} style={styles.invoiceBlock}>
+              <View key={`invoice-${invoice.invoiceId}`} style={styles.invoiceBlock}>
                 <Pressable
                   accessibilityRole="button"
                   accessibilityState={{ expanded }}
-                  onPress={() => toggleCard(invoice.cardId)}
+                  onPress={() => toggleInvoice(invoice.invoiceId)}
                   style={({ pressed }) => [
                     styles.invoiceRow,
                     {
@@ -182,7 +184,7 @@ export function MonthlySummaryView({
                   <View style={styles.invoiceChildren}>
                     {invoice.transactions.map((row) => (
                       <TransactionListItem
-                        key={row.id}
+                        key={`invoice-tx-${invoice.invoiceId}-${row.id}`}
                         theme={theme}
                         transaction={row}
                         subtitle={row.subtitle}

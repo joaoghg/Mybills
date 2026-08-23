@@ -17,16 +17,16 @@ import { MappedProviderBill } from '../../mappers/map-bill';
 import { MappedInvestment, MappedInvestmentTransaction } from '../../mappers/map-investment';
 import { MappedProviderTransaction } from '../../mappers/map-transaction';
 import { decimalToString, providerAmountToCents, toIsoString } from '../../mappers/money';
+import { cycleDaysFromAccountClosingDate } from '../../lib/imported-card-cycle-days';
 import {
-  ensureUnbilledOpenInvoice,
+  ensureUnbilledInvoiceForDate,
   maybeRecordCardPaymentLedger,
   mergeCanonicalBillIntoInvoice,
   recalcTouchedUnbilledOpenInvoices,
+  refreshImportedCardCycleDays,
   resolveInvoiceIdForCardMovement,
   upsertInvoicePaymentsFromBill
 } from '../../lib/project-imported-invoices';
-
-const LAST_DAY_CLOSING = 31;
 
 @Injectable()
 export class PrismaOpenFinanceCanonicalRepository {
@@ -124,6 +124,11 @@ export class PrismaOpenFinanceCanonicalRepository {
       return;
     }
 
+    const persisted: Array<{
+      canonical: { id: string; dueOn: Date; closingOn: Date | null };
+      bill: MappedProviderBill;
+    }> = [];
+
     for (const bill of bills) {
       const canonical = await this.prisma.openFinanceBill.upsert({
         where: { accountId_externalId: { accountId: account.id, externalId: bill.externalId } },
@@ -211,6 +216,12 @@ export class PrismaOpenFinanceCanonicalRepository {
         });
       }
 
+      persisted.push({ canonical, bill });
+    }
+
+    await refreshImportedCardCycleDays(this.prisma, account.id);
+
+    for (const { canonical, bill } of persisted) {
       const invoiceId = await mergeCanonicalBillIntoInvoice(this.prisma, account.id, {
         id: canonical.id,
         dueOn: canonical.dueOn,
@@ -227,6 +238,8 @@ export class PrismaOpenFinanceCanonicalRepository {
         await upsertInvoicePaymentsFromBill(this.prisma, invoiceId, canonical.id);
       }
     }
+
+    await ensureUnbilledInvoiceForDate(this.prisma, account.id, new Date());
   }
 
   async markUnseenBillsUnavailable(connectionId: string, seenAt: Date): Promise<void> {
@@ -341,7 +354,8 @@ export class PrismaOpenFinanceCanonicalRepository {
               openFinanceAccountId: ofAccount.id,
               openFinanceBillId: bill?.id ?? null,
               cashFlowRole: transaction.cashFlowRole,
-              accountDates: { closingDate: ofAccount.closingDate, dueDate: ofAccount.dueDate }
+              transactionDate: transaction.date,
+              billForecastMonth: transaction.billForecastMonth
             })
           : null;
 
@@ -855,8 +869,10 @@ export class PrismaOpenFinanceCanonicalRepository {
     const existing = await this.prisma.creditCard.findUnique({
       where: { openFinanceAccountId }
     });
-    const closingDay = account.closingDate?.getUTCDate() ?? LAST_DAY_CLOSING;
     const dueDay = account.dueDate?.getUTCDate() ?? 10;
+    const closingFromAccount = account.closingDate
+      ? cycleDaysFromAccountClosingDate(account.closingDate)
+      : { closingDay: dueDay, closingOnLastDay: false };
 
     if (!existing) {
       await this.prisma.creditCard.create({
@@ -865,17 +881,13 @@ export class PrismaOpenFinanceCanonicalRepository {
           accountId: null,
           name: account.name,
           limit: account.projectionLimitCents,
-          closingDay,
-          closingOnLastDay: closingDay >= 28,
+          closingDay: closingFromAccount.closingDay,
+          closingOnLastDay: closingFromAccount.closingOnLastDay,
           dueDay,
           source: 'PLUGGY',
           openFinanceAccountId,
           hiddenAt: null
         }
-      });
-      await ensureUnbilledOpenInvoice(this.prisma, openFinanceAccountId, {
-        closingDate: account.closingDate,
-        dueDate: account.dueDate
       });
       return;
     }
@@ -886,14 +898,17 @@ export class PrismaOpenFinanceCanonicalRepository {
       data: {
         name: overridden.has('name') ? existing.name : account.name,
         limit: overridden.has('limit') ? existing.limit : account.projectionLimitCents,
-        closingDay: overridden.has('closingDay') ? existing.closingDay : closingDay,
-        dueDay: overridden.has('dueDay') ? existing.dueDay : dueDay,
+        closingDay:
+          account.closingDate && !overridden.has('closingDay')
+            ? closingFromAccount.closingDay
+            : existing.closingDay,
+        closingOnLastDay:
+          account.closingDate && !overridden.has('closingDay')
+            ? closingFromAccount.closingOnLastDay
+            : existing.closingOnLastDay,
+        dueDay: account.dueDate && !overridden.has('dueDay') ? dueDay : existing.dueDay,
         hiddenAt: null
       }
-    });
-    await ensureUnbilledOpenInvoice(this.prisma, openFinanceAccountId, {
-      closingDate: account.closingDate,
-      dueDate: account.dueDate
     });
   }
 

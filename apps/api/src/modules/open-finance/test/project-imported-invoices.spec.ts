@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { CashFlowRole, InvoiceStatus } from 'src/generated/prisma/enums';
+import { CashFlowRole, InvoiceStatus, TransactionType } from 'src/generated/prisma/client';
 import {
-  ensureUnbilledOpenInvoice,
+  ensureUnbilledInvoiceForDate,
   maybeRecordCardPaymentLedger,
   mergeCanonicalBillIntoInvoice,
+  recalcUnbilledOpenInvoiceAmount,
   resolveInvoiceIdForCardMovement,
   upsertInvoicePaymentsFromBill
 } from '../lib/project-imported-invoices';
@@ -49,6 +50,7 @@ type CardRow = {
   closingOnLastDay: boolean;
   dueDay: number;
   openFinanceAccountId: string;
+  overriddenFields: string[];
 };
 
 type BillRow = {
@@ -80,6 +82,20 @@ type PurchaseRow = {
   invoiceId: string | null;
   openFinanceTransactionId: string | null;
   cashFlowRole: CashFlowRole;
+  type: TransactionType;
+  amount: number;
+  hiddenAt: Date | null;
+};
+
+type InvoiceWhere = {
+  id?: string;
+  creditCardId?: string;
+  status?: 'OPEN' | 'CLOSED' | 'PAID';
+  openFinanceBillId?: string | null;
+  source?: 'MANUAL' | 'PLUGGY';
+  startsOn?: { lte?: Date; lt?: Date };
+  endsOn?: { gt?: Date };
+  dueOn?: { gte?: Date; lt?: Date };
 };
 
 function sameUtcDay(left: Date, right: Date): boolean {
@@ -88,6 +104,40 @@ function sameUtcDay(left: Date, right: Date): boolean {
     left.getUTCMonth() === right.getUTCMonth() &&
     left.getUTCDate() === right.getUTCDate()
   );
+}
+
+function invoiceMatchesWhere(row: InvoiceRow, where: InvoiceWhere): boolean {
+  if (where.id && row.id !== where.id) {
+    return false;
+  }
+  if (where.creditCardId && row.creditCardId !== where.creditCardId) {
+    return false;
+  }
+  if (where.status && row.status !== where.status) {
+    return false;
+  }
+  if (where.openFinanceBillId !== undefined && row.openFinanceBillId !== where.openFinanceBillId) {
+    return false;
+  }
+  if (where.source && row.source !== where.source) {
+    return false;
+  }
+  if (where.startsOn?.lte && row.startsOn.getTime() > where.startsOn.lte.getTime()) {
+    return false;
+  }
+  if (where.startsOn?.lt && !(row.startsOn.getTime() < where.startsOn.lt.getTime())) {
+    return false;
+  }
+  if (where.endsOn?.gt && !(row.endsOn.getTime() > where.endsOn.gt.getTime())) {
+    return false;
+  }
+  if (where.dueOn?.gte && row.dueOn.getTime() < where.dueOn.gte.getTime()) {
+    return false;
+  }
+  if (where.dueOn?.lt && !(row.dueOn.getTime() < where.dueOn.lt.getTime())) {
+    return false;
+  }
+  return true;
 }
 
 function createProjectDb(seed?: {
@@ -181,24 +231,30 @@ function createProjectDb(seed?: {
       })
     },
     invoice: {
-      findFirst: jest.fn(
+      findFirst: jest.fn(async ({ where }: { where: InvoiceWhere }) => {
+        return invoices.find((row) => invoiceMatchesWhere(row, where)) ?? null;
+      }),
+      findMany: jest.fn(
         async ({
-          where
+          where,
+          include,
+          select
         }: {
-          where: {
-            creditCardId: string;
-            status: 'OPEN' | 'CLOSED' | 'PAID';
-            openFinanceBillId: string | null;
-          };
+          where?: InvoiceWhere;
+          include?: { payments?: unknown };
+          select?: { id?: true };
         }) => {
-          return (
-            invoices.find(
-              (row) =>
-                row.creditCardId === where.creditCardId &&
-                row.status === where.status &&
-                row.openFinanceBillId === where.openFinanceBillId
-            ) ?? null
-          );
+          const rows = invoices.filter((row) => invoiceMatchesWhere(row, where ?? {}));
+          if (select?.id) {
+            return rows.map((row) => ({ id: row.id }));
+          }
+          if (include?.payments) {
+            return rows.map((row) => ({
+              ...row,
+              payments: invoicePayments.filter((payment) => payment.invoiceId === row.id)
+            }));
+          }
+          return rows;
         }
       ),
       findUnique: jest.fn(
@@ -211,7 +267,7 @@ function createProjectDb(seed?: {
             openFinanceBillId?: string;
             creditCardId_endsOn?: { creditCardId: string; endsOn: Date };
           };
-          select?: { id: true };
+          select?: { id: true; openFinanceBillId?: true };
           include?: { payments: unknown };
         }) => {
           const found = findInvoice(where);
@@ -243,7 +299,15 @@ function createProjectDb(seed?: {
           found.updatedAt = new Date();
           return found;
         }
-      )
+      ),
+      delete: jest.fn(async ({ where }: { where: { id: string } }) => {
+        const index = invoices.findIndex((row) => row.id === where.id);
+        if (index < 0) {
+          throw new Error(`invoice ${where.id} not found`);
+        }
+        const [removed] = invoices.splice(index, 1);
+        return removed;
+      })
     },
     openFinanceTransaction: {
       findMany: jest.fn(async ({ where }: { where: { billId: string } }) => {
@@ -272,6 +336,47 @@ function createProjectDb(seed?: {
                 row.cashFlowRole !== where.cashFlowRole.not
             ) ?? null
           );
+        }
+      ),
+      findMany: jest.fn(
+        async ({
+          where
+        }: {
+          where: {
+            invoiceId: string;
+            hiddenAt: null;
+            cashFlowRole: { not: CashFlowRole };
+            type: { in: TransactionType[] };
+          };
+        }) => {
+          return purchases.filter(
+            (row) =>
+              row.invoiceId === where.invoiceId &&
+              row.hiddenAt === where.hiddenAt &&
+              row.cashFlowRole !== where.cashFlowRole.not &&
+              where.type.in.includes(row.type)
+          );
+        }
+      ),
+      count: jest.fn(async ({ where }: { where: { invoiceId: string } }) => {
+        return purchases.filter((row) => row.invoiceId === where.invoiceId).length;
+      }),
+      updateMany: jest.fn(
+        async ({
+          where,
+          data
+        }: {
+          where: { invoiceId: string };
+          data: { invoiceId: string };
+        }) => {
+          let count = 0;
+          for (const row of purchases) {
+            if (row.invoiceId === where.invoiceId) {
+              row.invoiceId = data.invoiceId;
+              count += 1;
+            }
+          }
+          return { count };
         }
       )
     },
@@ -308,19 +413,58 @@ function createProjectDb(seed?: {
           return invoicePaymentCreate({ data: create });
         }
       ),
+      findUnique: jest.fn(
+        async ({
+          where
+        }: {
+          where: { id?: string; openFinanceBillPaymentId?: string };
+        }) => {
+          if (where.id) {
+            return invoicePayments.find((row) => row.id === where.id) ?? null;
+          }
+          if (where.openFinanceBillPaymentId) {
+            return (
+              invoicePayments.find(
+                (row) => row.openFinanceBillPaymentId === where.openFinanceBillPaymentId
+              ) ?? null
+            );
+          }
+          return null;
+        }
+      ),
       findFirst: jest.fn(
         async ({
           where
         }: {
-          where: { invoiceId: string; amount: number; paymentDate: Date };
+          where: {
+            invoiceId?: string | { in: string[] };
+            amount: number;
+            paymentDate: Date | { gte: Date; lte: Date };
+          };
         }) => {
           return (
-            invoicePayments.find(
-              (row) =>
-                row.invoiceId === where.invoiceId &&
-                row.amount === where.amount &&
-                sameUtcDay(row.paymentDate, where.paymentDate)
-            ) ?? null
+            invoicePayments.find((row) => {
+              if (typeof where.invoiceId === 'string' && row.invoiceId !== where.invoiceId) {
+                return false;
+              }
+              if (
+                where.invoiceId &&
+                typeof where.invoiceId !== 'string' &&
+                !where.invoiceId.in.includes(row.invoiceId)
+              ) {
+                return false;
+              }
+              if (row.amount !== where.amount) {
+                return false;
+              }
+              if (where.paymentDate instanceof Date) {
+                return sameUtcDay(row.paymentDate, where.paymentDate);
+              }
+              return (
+                row.paymentDate.getTime() >= where.paymentDate.gte.getTime() &&
+                row.paymentDate.getTime() <= where.paymentDate.lte.getTime()
+              );
+            }) ?? null
           );
         }
       ),
@@ -340,6 +484,24 @@ function createProjectDb(seed?: {
           Object.assign(found, data);
           return found;
         }
+      ),
+      updateMany: jest.fn(
+        async ({
+          where,
+          data
+        }: {
+          where: { invoiceId: string };
+          data: { invoiceId: string };
+        }) => {
+          let count = 0;
+          for (const row of invoicePayments) {
+            if (row.invoiceId === where.invoiceId) {
+              row.invoiceId = data.invoiceId;
+              count += 1;
+            }
+          }
+          return { count };
+        }
       )
     }
   };
@@ -348,13 +510,14 @@ function createProjectDb(seed?: {
     db,
     invoices,
     invoicePayments,
+    purchases,
     invoiceCreate,
     invoicePaymentCreate
   };
 }
 
 function asProjectDb(db: ReturnType<typeof createProjectDb>['db']) {
-  return db as unknown as Parameters<typeof ensureUnbilledOpenInvoice>[0];
+  return db as unknown as Parameters<typeof mergeCanonicalBillIntoInvoice>[0];
 }
 
 describe('project-imported-invoices', () => {
@@ -367,12 +530,15 @@ describe('project-imported-invoices', () => {
     closingDay: 10,
     closingOnLastDay: false,
     dueDay: 18,
-    openFinanceAccountId
+    openFinanceAccountId,
+    overriddenFields: []
   };
-  const accountDates = {
-    closingDate: new Date(Date.UTC(2026, 5, 9)),
-    dueDate: new Date(Date.UTC(2026, 5, 18))
+  const nubankCard: CardRow = {
+    ...card,
+    closingDay: 4,
+    dueDay: 11
   };
+  const cycleDate = new Date(Date.UTC(2026, 5, 15));
   const billId = '6ea4f605-31d5-4dcf-93bc-45fafad6f316';
   const bill: BillRow = {
     id: billId,
@@ -384,19 +550,71 @@ describe('project-imported-invoices', () => {
     allowsInstallments: true
   };
 
-  describe('ensureUnbilledOpenInvoice', () => {
-    it('should upsert one unbilled OPEN invoice per card and not create a second on resync', async () => {
+  function makeInvoice(overrides: Partial<InvoiceRow> & { id: string }): InvoiceRow {
+    return {
+      userId,
+      creditCardId: cardId,
+      startsOn: new Date(Date.UTC(2026, 4, 10)),
+      endsOn: new Date(Date.UTC(2026, 5, 9)),
+      dueOn: new Date(Date.UTC(2026, 5, 18)),
+      status: 'OPEN',
+      amount: 0,
+      paidAt: null,
+      paidAmount: null,
+      paymentTransactionId: null,
+      paidFromAccountId: null,
+      source: 'PLUGGY',
+      openFinanceBillId: null,
+      currencyCode: null,
+      minimumPaymentAmount: null,
+      allowsInstallments: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      ...overrides
+    };
+  }
+
+  describe('ensureUnbilledInvoiceForDate', () => {
+    it('should upsert one unbilled invoice per cycle and not create a second on resync', async () => {
       const { db, invoices, invoiceCreate } = createProjectDb({ cards: [card] });
 
-      const firstId = await ensureUnbilledOpenInvoice(asProjectDb(db), openFinanceAccountId, accountDates);
-      const secondId = await ensureUnbilledOpenInvoice(asProjectDb(db), openFinanceAccountId, accountDates);
+      const firstId = await ensureUnbilledInvoiceForDate(asProjectDb(db), openFinanceAccountId, cycleDate);
+      const secondId = await ensureUnbilledInvoiceForDate(asProjectDb(db), openFinanceAccountId, cycleDate);
 
       expect(firstId).toEqual(expect.any(String));
       expect(secondId).toBe(firstId);
       expect(invoiceCreate).toHaveBeenCalledTimes(1);
-      expect(invoices.filter((row) => row.status === InvoiceStatus.OPEN && row.openFinanceBillId === null)).toHaveLength(
-        1
+      expect(invoices.filter((row) => row.openFinanceBillId === null)).toHaveLength(1);
+    });
+
+    it('should remap a stale last-day unbilled invoice onto the derived cycle instead of creating another', async () => {
+      const staleId = randomUUID();
+      const { db, invoices, invoiceCreate } = createProjectDb({
+        cards: [nubankCard],
+        invoices: [
+          makeInvoice({
+            id: staleId,
+            startsOn: new Date(Date.UTC(2026, 6, 31)),
+            endsOn: new Date(Date.UTC(2026, 7, 31)),
+            dueOn: new Date(Date.UTC(2026, 8, 10)),
+            status: 'OPEN',
+            amount: 150463
+          })
+        ]
+      });
+
+      const remappedId = await ensureUnbilledInvoiceForDate(
+        asProjectDb(db),
+        openFinanceAccountId,
+        new Date(Date.UTC(2026, 7, 19))
       );
+
+      expect(remappedId).toBe(staleId);
+      expect(invoiceCreate).not.toHaveBeenCalled();
+      expect(invoices).toHaveLength(1);
+      expect(invoices[0]?.startsOn).toEqual(new Date(Date.UTC(2026, 7, 4)));
+      expect(invoices[0]?.endsOn).toEqual(new Date(Date.UTC(2026, 8, 4)));
+      expect(invoices[0]?.dueOn).toEqual(new Date(Date.UTC(2026, 8, 11)));
     });
   });
 
@@ -406,27 +624,12 @@ describe('project-imported-invoices', () => {
       const { db, invoices, invoiceCreate } = createProjectDb({
         cards: [card],
         invoices: [
-          {
+          makeInvoice({
             id: linkedId,
-            userId,
-            creditCardId: cardId,
-            startsOn: new Date(Date.UTC(2026, 4, 10)),
-            endsOn: new Date(Date.UTC(2026, 5, 9)),
-            dueOn: new Date(Date.UTC(2026, 4, 1)),
             status: 'CLOSED',
             amount: 1,
-            paidAt: null,
-            paidAmount: null,
-            paymentTransactionId: null,
-            paidFromAccountId: null,
-            source: 'PLUGGY',
-            openFinanceBillId: billId,
-            currencyCode: null,
-            minimumPaymentAmount: null,
-            allowsInstallments: null,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
+            openFinanceBillId: billId
+          })
         ]
       });
 
@@ -445,27 +648,11 @@ describe('project-imported-invoices', () => {
       const { db, invoices, invoiceCreate } = createProjectDb({
         cards: [card],
         invoices: [
-          {
+          makeInvoice({
             id: purchaseInvoiceId,
-            userId,
-            creditCardId: cardId,
-            startsOn: new Date(Date.UTC(2026, 4, 10)),
-            endsOn: new Date(Date.UTC(2026, 5, 9)),
             dueOn: new Date(Date.UTC(2026, 4, 20)),
-            status: 'OPEN',
-            amount: 8000,
-            paidAt: null,
-            paidAmount: null,
-            paymentTransactionId: null,
-            paidFromAccountId: null,
-            source: 'PLUGGY',
-            openFinanceBillId: null,
-            currencyCode: null,
-            minimumPaymentAmount: null,
-            allowsInstallments: null,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
+            amount: 8000
+          })
         ],
         ofTransactions: [{ id: ofTxId, billId }],
         purchases: [
@@ -474,7 +661,10 @@ describe('project-imported-invoices', () => {
             cardId,
             invoiceId: purchaseInvoiceId,
             openFinanceTransactionId: ofTxId,
-            cashFlowRole: CashFlowRole.NORMAL
+            cashFlowRole: CashFlowRole.NORMAL,
+            type: TransactionType.EXPENSE,
+            amount: 8000,
+            hiddenAt: null
           }
         ]
       });
@@ -488,32 +678,15 @@ describe('project-imported-invoices', () => {
       expect(invoices[0]?.status).toBe(InvoiceStatus.CLOSED);
     });
 
-    it('should attach the unbilled OPEN invoice when no bill id or purchase match exists', async () => {
+    it('should attach the unbilled invoice whose cycle contains the bill closing date', async () => {
       const unbilledId = randomUUID();
       const { db, invoices, invoiceCreate } = createProjectDb({
         cards: [card],
         invoices: [
-          {
+          makeInvoice({
             id: unbilledId,
-            userId,
-            creditCardId: cardId,
-            startsOn: new Date(Date.UTC(2026, 4, 10)),
-            endsOn: new Date(Date.UTC(2026, 5, 9)),
-            dueOn: new Date(Date.UTC(2026, 5, 18)),
-            status: 'OPEN',
-            amount: 0,
-            paidAt: null,
-            paidAmount: null,
-            paymentTransactionId: null,
-            paidFromAccountId: null,
-            source: 'PLUGGY',
-            openFinanceBillId: null,
-            currencyCode: null,
-            minimumPaymentAmount: null,
-            allowsInstallments: null,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
+            amount: 0
+          })
         ]
       });
 
@@ -530,27 +703,13 @@ describe('project-imported-invoices', () => {
       const { db, invoices, invoiceCreate } = createProjectDb({
         cards: [card],
         invoices: [
-          {
+          makeInvoice({
             id: otherDueOnId,
-            userId,
-            creditCardId: cardId,
             startsOn: new Date(Date.UTC(2026, 2, 10)),
             endsOn: new Date(Date.UTC(2026, 3, 9)),
-            dueOn: new Date(Date.UTC(2026, 5, 18)),
             status: 'CLOSED',
-            amount: 999,
-            paidAt: null,
-            paidAmount: null,
-            paymentTransactionId: null,
-            paidFromAccountId: null,
-            source: 'PLUGGY',
-            openFinanceBillId: null,
-            currencyCode: null,
-            minimumPaymentAmount: null,
-            allowsInstallments: null,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
+            amount: 999
+          })
         ]
       });
 
@@ -564,6 +723,95 @@ describe('project-imported-invoices', () => {
       expect(created?.openFinanceBillId).toBe(billId);
       expect(invoices.find((row) => row.id === otherDueOnId)?.amount).toBe(999);
     });
+
+    it('should not attach a bill to the next cycle unbilled invoice', async () => {
+      const currentId = randomUUID();
+      const nextId = randomUUID();
+      const nubankBill: BillRow = {
+        id: billId,
+        dueOn: new Date(Date.UTC(2026, 7, 11)),
+        closingOn: new Date(Date.UTC(2026, 7, 4)),
+        totalAmount: 890.1,
+        currencyCode: 'BRL',
+        minimumPaymentAmount: null,
+        allowsInstallments: null
+      };
+      const { db, invoices, invoiceCreate } = createProjectDb({
+        cards: [nubankCard],
+        invoices: [
+          makeInvoice({
+            id: currentId,
+            startsOn: new Date(Date.UTC(2026, 6, 4)),
+            endsOn: new Date(Date.UTC(2026, 7, 4)),
+            dueOn: new Date(Date.UTC(2026, 7, 11)),
+            amount: 150463
+          }),
+          makeInvoice({
+            id: nextId,
+            startsOn: new Date(Date.UTC(2026, 7, 4)),
+            endsOn: new Date(Date.UTC(2026, 8, 4)),
+            dueOn: new Date(Date.UTC(2026, 8, 11)),
+            amount: 11133
+          })
+        ]
+      });
+
+      const mergedId = await mergeCanonicalBillIntoInvoice(asProjectDb(db), openFinanceAccountId, nubankBill);
+
+      expect(mergedId).toBe(currentId);
+      expect(invoiceCreate).not.toHaveBeenCalled();
+      expect(invoices.find((row) => row.id === currentId)?.openFinanceBillId).toBe(billId);
+      expect(invoices.find((row) => row.id === nextId)?.openFinanceBillId).toBeNull();
+      expect(invoices.find((row) => row.id === nextId)?.amount).toBe(11133);
+    });
+
+    it('should keep PAID after the same bill is merged again', async () => {
+      const invoiceId = randomUUID();
+      const { db, invoices } = createProjectDb({
+        cards: [nubankCard],
+        invoices: [
+          makeInvoice({
+            id: invoiceId,
+            startsOn: new Date(Date.UTC(2026, 6, 4)),
+            endsOn: new Date(Date.UTC(2026, 7, 4)),
+            dueOn: new Date(Date.UTC(2026, 7, 11)),
+            status: 'PAID',
+            amount: 172754,
+            paidAmount: 172754,
+            paidAt: new Date(Date.UTC(2026, 7, 12)),
+            openFinanceBillId: billId
+          })
+        ],
+        invoicePayments: [
+          {
+            id: randomUUID(),
+            invoiceId,
+            amount: 172754,
+            paymentDate: new Date(Date.UTC(2026, 7, 12)),
+            transactionId: null,
+            openFinanceBillPaymentId: randomUUID(),
+            source: 'PLUGGY',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ]
+      });
+
+      const nubankBill: BillRow = {
+        id: billId,
+        dueOn: new Date(Date.UTC(2026, 7, 11)),
+        closingOn: new Date(Date.UTC(2026, 7, 4)),
+        totalAmount: 1727.54,
+        currencyCode: 'BRL',
+        minimumPaymentAmount: null,
+        allowsInstallments: null
+      };
+
+      await mergeCanonicalBillIntoInvoice(asProjectDb(db), openFinanceAccountId, nubankBill);
+
+      expect(invoices[0]?.status).toBe(InvoiceStatus.PAID);
+      expect(invoices[0]?.paidAmount).toBe(172754);
+    });
   });
 
   describe('resolveInvoiceIdForCardMovement', () => {
@@ -574,7 +822,8 @@ describe('project-imported-invoices', () => {
         openFinanceAccountId,
         openFinanceBillId: billId,
         cashFlowRole: CashFlowRole.CARD_PAYMENT,
-        accountDates
+        transactionDate: cycleDate,
+        billForecastMonth: null
       });
 
       expect(invoiceId).toBeNull();
@@ -588,10 +837,68 @@ describe('project-imported-invoices', () => {
         openFinanceAccountId,
         openFinanceBillId: billId,
         cashFlowRole: CashFlowRole.NORMAL,
-        accountDates
+        transactionDate: cycleDate,
+        billForecastMonth: null
       });
 
       expect(invoiceId).toEqual(expect.any(String));
+    });
+
+    it('should create per-cycle unbilled invoices for current purchases and future installments', async () => {
+      const { db, invoices, invoiceCreate, purchases } = createProjectDb({ cards: [nubankCard] });
+
+      const currentId = await resolveInvoiceIdForCardMovement(asProjectDb(db), {
+        openFinanceAccountId,
+        openFinanceBillId: null,
+        cashFlowRole: CashFlowRole.NORMAL,
+        transactionDate: new Date(Date.UTC(2026, 7, 19)),
+        billForecastMonth: null
+      });
+      const futureId = await resolveInvoiceIdForCardMovement(asProjectDb(db), {
+        openFinanceAccountId,
+        openFinanceBillId: null,
+        cashFlowRole: CashFlowRole.NORMAL,
+        transactionDate: new Date(Date.UTC(2026, 8, 19)),
+        billForecastMonth: '2026-10'
+      });
+
+      expect(currentId).toEqual(expect.any(String));
+      expect(futureId).toEqual(expect.any(String));
+      expect(futureId).not.toBe(currentId);
+      expect(invoiceCreate).toHaveBeenCalledTimes(2);
+
+      const current = invoices.find((row) => row.id === currentId);
+      const future = invoices.find((row) => row.id === futureId);
+      expect(current?.dueOn).toEqual(new Date(Date.UTC(2026, 8, 11)));
+      expect(future?.dueOn).toEqual(new Date(Date.UTC(2026, 9, 11)));
+
+      purchases.push(
+        {
+          id: randomUUID(),
+          cardId,
+          invoiceId: currentId,
+          openFinanceTransactionId: randomUUID(),
+          cashFlowRole: CashFlowRole.NORMAL,
+          type: TransactionType.EXPENSE,
+          amount: 150463,
+          hiddenAt: null
+        },
+        {
+          id: randomUUID(),
+          cardId,
+          invoiceId: futureId,
+          openFinanceTransactionId: randomUUID(),
+          cashFlowRole: CashFlowRole.NORMAL,
+          type: TransactionType.EXPENSE,
+          amount: 11133,
+          hiddenAt: null
+        }
+      );
+      await recalcUnbilledOpenInvoiceAmount(asProjectDb(db), currentId ?? '');
+      await recalcUnbilledOpenInvoiceAmount(asProjectDb(db), futureId ?? '');
+
+      expect(invoices.find((row) => row.id === currentId)?.amount).toBe(150463);
+      expect(invoices.find((row) => row.id === futureId)?.amount).toBe(11133);
     });
   });
 
@@ -603,28 +910,17 @@ describe('project-imported-invoices', () => {
       const { db, invoicePayments, invoicePaymentCreate } = createProjectDb({
         cards: [card],
         invoices: [
-          {
+          makeInvoice({
             id: invoiceId,
-            userId,
-            creditCardId: cardId,
-            startsOn: new Date(Date.UTC(2026, 4, 10)),
-            endsOn: new Date(Date.UTC(2026, 5, 9)),
-            dueOn: new Date(Date.UTC(2026, 5, 18)),
             status: 'CLOSED',
             amount: 15000,
-            paidAt: null,
-            paidAmount: null,
-            paymentTransactionId: null,
-            paidFromAccountId: null,
-            source: 'PLUGGY',
             openFinanceBillId: billId,
             currencyCode: 'BRL',
             minimumPaymentAmount: 5000,
-            allowsInstallments: true,
-            createdAt: new Date(),
-            updatedAt: new Date()
-          }
+            allowsInstallments: true
+          })
         ],
+        bills: [bill],
         billPayments: [
           {
             id: billPaymentId,
@@ -657,6 +953,154 @@ describe('project-imported-invoices', () => {
       expect(invoicePaymentCreate).toHaveBeenCalledTimes(1);
       expect(invoicePayments).toHaveLength(1);
       expect(invoicePayments[0]?.transactionId).toBe(cardPaymentTxId);
+    });
+
+    it('should not add a Nubank-style prior CARD_PAYMENT to the next invoice', async () => {
+      const julId = randomUUID();
+      const augId = randomUUID();
+      const julBillId = randomUUID();
+      const augBillId = billId;
+      const julLedgerId = randomUUID();
+      const { db, invoicePayments, invoices } = createProjectDb({
+        cards: [nubankCard],
+        invoices: [
+          makeInvoice({
+            id: julId,
+            startsOn: new Date(Date.UTC(2026, 5, 4)),
+            endsOn: new Date(Date.UTC(2026, 6, 4)),
+            dueOn: new Date(Date.UTC(2026, 6, 11)),
+            status: 'PAID',
+            amount: 127968,
+            paidAmount: 127968,
+            openFinanceBillId: julBillId
+          }),
+          makeInvoice({
+            id: augId,
+            startsOn: new Date(Date.UTC(2026, 6, 4)),
+            endsOn: new Date(Date.UTC(2026, 7, 4)),
+            dueOn: new Date(Date.UTC(2026, 7, 11)),
+            status: 'CLOSED',
+            amount: 172754,
+            openFinanceBillId: augBillId
+          })
+        ],
+        invoicePayments: [
+          {
+            id: julLedgerId,
+            invoiceId: julId,
+            amount: 127968,
+            paymentDate: new Date(Date.UTC(2026, 6, 15)),
+            transactionId: null,
+            openFinanceBillPaymentId: randomUUID(),
+            source: 'PLUGGY',
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+        ],
+        bills: [
+          {
+            id: augBillId,
+            dueOn: new Date(Date.UTC(2026, 7, 11)),
+            closingOn: new Date(Date.UTC(2026, 7, 4)),
+            totalAmount: 1727.54,
+            currencyCode: 'BRL',
+            minimumPaymentAmount: null,
+            allowsInstallments: null
+          }
+        ],
+        billPayments: [
+          {
+            id: randomUUID(),
+            billId: augBillId,
+            amount: 1727.54,
+            paymentDate: new Date(Date.UTC(2026, 7, 12)),
+            unavailableAt: null
+          }
+        ]
+      });
+
+      await upsertInvoicePaymentsFromBill(asProjectDb(db), augId, augBillId);
+      await maybeRecordCardPaymentLedger(asProjectDb(db), {
+        cardId,
+        cashFlowRole: CashFlowRole.CARD_PAYMENT,
+        amountCents: 127968,
+        paymentDate: new Date(Date.UTC(2026, 7, 10)),
+        transactionId: randomUUID(),
+        openFinanceBillId: augBillId
+      });
+
+      expect(invoices.find((row) => row.id === augId)?.paidAmount).toBe(172754);
+      expect(invoices.find((row) => row.id === julId)?.paidAmount).toBe(127968);
+      expect(invoicePayments.filter((row) => row.invoiceId === augId && row.amount === 127968)).toHaveLength(0);
+      expect(invoicePayments.filter((row) => row.invoiceId === julId && row.amount === 127968)).toHaveLength(1);
+    });
+
+    it('should allocate Bradesco-style bill payments to the invoices they settle', async () => {
+      const priorId = randomUUID();
+      const currentId = randomUUID();
+      const { db, invoicePayments, invoices } = createProjectDb({
+        cards: [
+          {
+            ...card,
+            closingDay: 31,
+            closingOnLastDay: true,
+            dueDay: 12
+          }
+        ],
+        invoices: [
+          makeInvoice({
+            id: priorId,
+            startsOn: new Date(Date.UTC(2026, 4, 31)),
+            endsOn: new Date(Date.UTC(2026, 5, 30)),
+            dueOn: new Date(Date.UTC(2026, 6, 12)),
+            status: 'CLOSED',
+            amount: 10000
+          }),
+          makeInvoice({
+            id: currentId,
+            startsOn: new Date(Date.UTC(2026, 5, 30)),
+            endsOn: new Date(Date.UTC(2026, 6, 31)),
+            dueOn: new Date(Date.UTC(2026, 7, 12)),
+            status: 'CLOSED',
+            amount: 20000,
+            openFinanceBillId: billId
+          })
+        ],
+        bills: [
+          {
+            id: billId,
+            dueOn: new Date(Date.UTC(2026, 7, 12)),
+            closingOn: new Date(Date.UTC(2026, 6, 31)),
+            totalAmount: 200,
+            currencyCode: 'BRL',
+            minimumPaymentAmount: null,
+            allowsInstallments: null
+          }
+        ],
+        billPayments: [
+          {
+            id: randomUUID(),
+            billId,
+            amount: 100,
+            paymentDate: new Date(Date.UTC(2026, 7, 5)),
+            unavailableAt: null
+          },
+          {
+            id: randomUUID(),
+            billId,
+            amount: 200,
+            paymentDate: new Date(Date.UTC(2026, 7, 15)),
+            unavailableAt: null
+          }
+        ]
+      });
+
+      await upsertInvoicePaymentsFromBill(asProjectDb(db), currentId, billId);
+
+      expect(invoicePayments.find((row) => row.amount === 10000)?.invoiceId).toBe(priorId);
+      expect(invoicePayments.find((row) => row.amount === 20000)?.invoiceId).toBe(currentId);
+      expect(invoices.find((row) => row.id === priorId)?.paidAmount).toBe(10000);
+      expect(invoices.find((row) => row.id === currentId)?.paidAmount).toBe(20000);
     });
   });
 });

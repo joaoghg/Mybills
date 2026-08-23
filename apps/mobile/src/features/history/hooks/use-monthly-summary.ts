@@ -18,6 +18,7 @@ export type SummaryTransactionRow = RecentTransactionRow & {
 };
 
 export type SummaryCardInvoiceRow = {
+  invoiceId: string;
   cardId: string;
   cardName: string;
   title: string;
@@ -221,6 +222,7 @@ export function useMonthlySummary(
       summaryYearMonth
     );
     const cardInvoices: SummaryCardInvoiceRow[] = data.cardInvoices.map((invoice) => ({
+      invoiceId: invoice.invoiceId,
       cardId: invoice.cardId,
       cardName: invoice.cardName,
       title: t('history.summaryCardInvoice', { cardName: invoice.cardName }),
