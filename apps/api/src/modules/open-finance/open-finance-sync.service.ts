@@ -132,6 +132,7 @@ export class OpenFinanceSyncService {
           productFailures.push('TRANSACTIONS');
         } else {
           await this.canonical.applyTransferMatches(run.connectionId);
+          await this.canonical.applyCardPaymentMatches(run.connectionId);
         }
       }
 

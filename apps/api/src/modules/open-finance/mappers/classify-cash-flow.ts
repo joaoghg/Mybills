@@ -1,4 +1,4 @@
-import { CashFlowRole, TransactionType } from 'src/generated/prisma/client';
+import { CashFlowRole, ProviderAccountType, TransactionType } from 'src/generated/prisma/client';
 
 export type CashFlowClassification = {
   role: CashFlowRole;
@@ -6,9 +6,9 @@ export type CashFlowClassification = {
 };
 
 const CARD_PAYMENT_PATTERN =
-  /(pagamento\s+da\s+fatura|pagto\s+fatura|credit\s+card\s+payment|invoice\s+payment|pagamento\s+cart[aã]o)/i;
+  /(pagamento\s+d[ae]\s+fatura|pagamento\s+fatura|pagto\.?\s+fatura|pagto\.?\s+por\s+deb|gastos\s+cart[aã]o(?:\s+de\s+cr[eé]dito)?|credit\s+card\s+payment|invoice\s+payment|pagamento\s+cart[aã]o)/i;
 const INVESTMENT_PATTERN = /(investimento|tesouro|cdb|lci|lca|fund|aplicacao|resgate|investment)/i;
-const TRANSFER_METHOD_PATTERN = /(pix|ted|tef|doc|transfer)/i;
+const TRANSFER_METHOD_PATTERN = /\b(?:pix|ted|tef|doc|transfers?)\b/i;
 
 export function classifyImportedTransaction(input: {
   description: string | null | undefined;
@@ -90,6 +90,61 @@ export function matchTransferCounterpart(
     }
 
     return Boolean(current.paymentReference) || Boolean(candidate.paymentReference);
+  });
+
+  if (matches.length !== 1) {
+    return null;
+  }
+
+  return matches[0] ?? null;
+}
+
+export type CardPaymentMatchCandidate = {
+  id: string;
+  accountType: ProviderAccountType;
+  amountCents: number;
+  date: Date;
+  type: TransactionType;
+  cashFlowRole: CashFlowRole;
+};
+
+const CARD_PAYMENT_MATCH_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function matchCardPaymentCounterpart(
+  current: CardPaymentMatchCandidate,
+  others: CardPaymentMatchCandidate[]
+): CardPaymentMatchCandidate | null {
+  if (
+    current.accountType !== ProviderAccountType.BANK ||
+    current.type !== 'EXPENSE' ||
+    current.cashFlowRole !== 'NORMAL'
+  ) {
+    return null;
+  }
+
+  const matches = others.filter((candidate) => {
+    if (candidate.id === current.id) {
+      return false;
+    }
+
+    if (candidate.accountType !== ProviderAccountType.CREDIT) {
+      return false;
+    }
+
+    if (candidate.cashFlowRole !== 'CARD_PAYMENT') {
+      return false;
+    }
+
+    if (candidate.type !== 'INCOME') {
+      return false;
+    }
+
+    if (candidate.amountCents !== current.amountCents) {
+      return false;
+    }
+
+    const delta = Math.abs(candidate.date.getTime() - current.date.getTime());
+    return delta <= CARD_PAYMENT_MATCH_WINDOW_MS;
   });
 
   if (matches.length !== 1) {

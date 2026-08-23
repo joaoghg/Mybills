@@ -267,6 +267,12 @@ describe('PrismaCreditCardRepository', () => {
         cycleStart: '2026-05-10',
         cycleEnd: '2026-06-09'
       });
+      expect(prisma.transaction.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          cashFlowRole: 'CARD_PAYMENT',
+          type: 'EXPENSE'
+        })
+      });
       expect(prisma.invoicePayment.create).toHaveBeenCalledWith({
         data: {
           invoiceId,

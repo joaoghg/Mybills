@@ -1,5 +1,10 @@
 import fixtures from './fixtures/redacted-pluggy-payloads.json';
-import { classifyImportedTransaction, matchTransferCounterpart } from '../mappers/classify-cash-flow';
+import { ProviderAccountType } from 'src/generated/prisma/client';
+import {
+  classifyImportedTransaction,
+  matchCardPaymentCounterpart,
+  matchTransferCounterpart
+} from '../mappers/classify-cash-flow';
 import { mapPluggyAccount } from '../mappers/map-account';
 import { mapPluggyBill } from '../mappers/map-bill';
 import { mapPluggyInvestment, mapPluggyInvestmentTransaction } from '../mappers/map-investment';
@@ -95,5 +100,55 @@ describe('Open Finance mappers', () => {
       ]
     );
     expect(match).toBeNull();
+  });
+
+  it('should classify bank-side invoice payments even when the wording is de fatura', () => {
+    const nubank = classifyImportedTransaction({
+      description: 'Pagamento de fatura',
+      categoryName: 'Transfers',
+      operationType: 'OUTROS',
+      paymentMethod: 'OTHER',
+      hasBill: false,
+      type: 'EXPENSE'
+    });
+    expect(nubank.role).toBe('CARD_PAYMENT');
+
+    const bradesco = classifyImportedTransaction({
+      description: 'GASTOS CARTAO DE CREDITO - DOCTO: 3990224',
+      categoryName: 'Credit card fees',
+      operationType: 'CARTAO',
+      paymentMethod: 'OTHER',
+      hasBill: false,
+      type: 'EXPENSE'
+    });
+    expect(bradesco.role).toBe('CARD_PAYMENT');
+  });
+
+  it('should pair a unique bank debit with the card payment income of the same amount', () => {
+    const bankDebit = {
+      id: 'bank',
+      accountType: ProviderAccountType.BANK,
+      amountCents: 172754,
+      date: new Date('2026-08-05'),
+      type: 'EXPENSE' as const,
+      cashFlowRole: 'NORMAL' as const
+    };
+    const cardCredit = {
+      id: 'card',
+      accountType: ProviderAccountType.CREDIT,
+      amountCents: 172754,
+      date: new Date('2026-08-05'),
+      type: 'INCOME' as const,
+      cashFlowRole: 'CARD_PAYMENT' as const
+    };
+
+    expect(matchCardPaymentCounterpart(bankDebit, [bankDebit, cardCredit])).toEqual(cardCredit);
+    expect(
+      matchCardPaymentCounterpart(bankDebit, [
+        bankDebit,
+        cardCredit,
+        { ...cardCredit, id: 'card-2' }
+      ])
+    ).toBeNull();
   });
 });

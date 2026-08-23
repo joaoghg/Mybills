@@ -11,7 +11,12 @@ import {
   providerBillOutputSchema
 } from '@mybills/dtos';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
-import { matchTransferCounterpart } from '../../mappers/classify-cash-flow';
+import {
+  classifyImportedTransaction,
+  matchCardPaymentCounterpart,
+  matchTransferCounterpart,
+  type CardPaymentMatchCandidate
+} from '../../mappers/classify-cash-flow';
 import { MappedProviderAccount } from '../../mappers/map-account';
 import { MappedProviderBill } from '../../mappers/map-bill';
 import { MappedInvestment, MappedInvestmentTransaction } from '../../mappers/map-investment';
@@ -548,6 +553,86 @@ export class PrismaOpenFinanceCanonicalRepository {
         data: { cashFlowRole: 'TRANSFER' }
       });
     }
+  }
+
+  async applyCardPaymentMatches(connectionId: string): Promise<void> {
+    const rows = await this.prisma.openFinanceTransaction.findMany({
+      where: { account: { connectionId }, unavailableAt: null },
+      select: {
+        id: true,
+        accountId: true,
+        amount: true,
+        date: true,
+        type: true,
+        description: true,
+        providerCategoryName: true,
+        operationType: true,
+        paymentMethod: true,
+        billId: true,
+        cashFlowRole: true,
+        account: { select: { type: true } }
+      }
+    });
+
+    for (const row of rows) {
+      if (row.cashFlowRole !== 'NORMAL') {
+        continue;
+      }
+
+      const classified = classifyImportedTransaction({
+        description: row.description,
+        categoryName: row.providerCategoryName,
+        operationType: row.operationType,
+        paymentMethod: row.paymentMethod,
+        hasBill: Boolean(row.billId),
+        type: row.type
+      });
+
+      if (classified.role === 'CARD_PAYMENT') {
+        await this.markAsCardPayment(row.id, classified.evidence);
+        row.cashFlowRole = 'CARD_PAYMENT';
+      }
+    }
+
+    const candidates: CardPaymentMatchCandidate[] = rows.map((row) => ({
+      id: row.id,
+      accountType: row.account.type,
+      amountCents: providerAmountToCents(Number(row.amount)),
+      date: row.date,
+      type: row.type,
+      cashFlowRole: row.cashFlowRole
+    }));
+
+    const usedCounterpartIds = new Set<string>();
+
+    for (const current of candidates) {
+      const match = matchCardPaymentCounterpart(
+        current,
+        candidates.filter((candidate) => !usedCounterpartIds.has(candidate.id))
+      );
+      if (!match) {
+        continue;
+      }
+
+      usedCounterpartIds.add(match.id);
+      usedCounterpartIds.add(current.id);
+      await this.markAsCardPayment(current.id, ['card_payment_counterpart']);
+      current.cashFlowRole = 'CARD_PAYMENT';
+    }
+  }
+
+  private async markAsCardPayment(openFinanceTransactionId: string, evidence: string[]): Promise<void> {
+    await this.prisma.openFinanceTransaction.update({
+      where: { id: openFinanceTransactionId },
+      data: {
+        cashFlowRole: 'CARD_PAYMENT',
+        classificationEvidence: evidence
+      }
+    });
+    await this.prisma.transaction.updateMany({
+      where: { openFinanceTransactionId },
+      data: { cashFlowRole: 'CARD_PAYMENT' }
+    });
   }
 
   async upsertInvestments(

@@ -11,6 +11,7 @@ import {
   InvoicePayment as PrismaInvoicePayment,
   InvoiceStatus,
   CreditCard as PrismaCreditCard,
+  CashFlowRole,
   TransactionType
 } from 'src/generated/prisma/client';
 import { PrismaService } from 'src/modules/database/prisma/prisma.service';
@@ -474,7 +475,8 @@ export class PrismaCreditCardRepository implements CreditCardRepository {
           amount,
           date: utcDateFromYmd(data.paymentDate),
           isPaid: true,
-          isProjected: false
+          isProjected: false,
+          cashFlowRole: CashFlowRole.CARD_PAYMENT
         }
       });
 
